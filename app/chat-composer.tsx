@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import VoiceRecorder from "./voice-recorder";
 
 interface ChatComposerProps {
   message: string;
@@ -37,6 +38,7 @@ export default function ChatComposer({
   onToast,
 }: ChatComposerProps) {
   const [showInputOptions, setShowInputOptions] = useState(false);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -44,6 +46,20 @@ export default function ChatComposer({
       onToast(`Processing ${f.name}...`);
       e.target.value = "";
     }
+  };
+
+  const handleVoiceRecordingComplete = (audioBlob: Blob, duration: number) => {
+    setShowVoiceRecorder(false);
+    onToast(
+      `Voice recording captured (${duration}s). AI transcription coming soon!`
+    );
+    // In production, you would send this to your AI API for transcription
+    console.log("Audio blob:", audioBlob, "Duration:", duration);
+  };
+
+  const handleVoiceError = (error: string) => {
+    setShowVoiceRecorder(false);
+    onToast(error);
   };
 
   return (
@@ -144,7 +160,7 @@ export default function ChatComposer({
           <button
             onClick={() => {
               setShowInputOptions(false);
-              onToast("Voice recording feature coming soon");
+              setShowVoiceRecorder(true);
             }}
           >
             <svg
@@ -222,7 +238,7 @@ export default function ChatComposer({
             className="icon-button desktop-only"
             aria-label="Record voice note"
             title="Record voice note"
-            onClick={() => onToast("Voice recording feature coming soon")}
+            onClick={() => setShowVoiceRecorder(true)}
           >
             <svg
               width="21"
@@ -275,6 +291,14 @@ export default function ChatComposer({
         Voice notes and attachments need AI setup; manual text capture works
         now.
       </div>
+
+      {/* Voice Recorder Modal */}
+      {showVoiceRecorder && (
+        <VoiceRecorder
+          onRecordingComplete={handleVoiceRecordingComplete}
+          onError={handleVoiceError}
+        />
+      )}
     </div>
   );
 }

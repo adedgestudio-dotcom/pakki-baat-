@@ -28,7 +28,7 @@ const day = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
     2,
-    "0"
+    "0",
   )}-${String(d.getDate()).padStart(2, "0")}`;
 };
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
@@ -93,7 +93,7 @@ export default function Workspace() {
       }
     } catch {
       setToast(
-        "Saved data could not be read. Restore a valid backup in Settings."
+        "Saved data could not be read. Restore a valid backup in Settings.",
       );
       return;
     }
@@ -106,7 +106,7 @@ export default function Workspace() {
       try {
         localStorage.setItem(
           "pakki-baat-v1",
-          JSON.stringify({ jobs, owner, business })
+          JSON.stringify({ jobs, owner, business }),
         );
       } catch {
         setToast("Storage is full. Export a backup before closing.");
@@ -128,7 +128,7 @@ export default function Workspace() {
       }
       if (e.key === "Tab") {
         const nodes = document.querySelectorAll<HTMLElement>(
-          '[role="dialog"] button:not(:disabled), [role="dialog"] input, [role="dialog"] textarea, [role="dialog"] select, [role="dialog"] summary'
+          '[role="dialog"] button:not(:disabled), [role="dialog"] input, [role="dialog"] textarea, [role="dialog"] select, [role="dialog"] summary',
         );
         const first = nodes[0],
           last = nodes[nodes.length - 1];
@@ -169,8 +169,8 @@ export default function Workspace() {
         (filter === "Payment due"
           ? j.total > j.paid
           : filter === "Due now"
-          ? j.status !== "Completed" && Boolean(j.date) && j.date <= day()
-          : j.status === filter))
+            ? j.status !== "Completed" && Boolean(j.date) && j.date <= day()
+            : j.status === filter)),
   );
   function go(t: Tab) {
     setTab(t);
@@ -180,7 +180,7 @@ export default function Workspace() {
   function capture() {
     if (!message.trim()) return;
     const m = message.match(
-      /total(?:\s+is)?\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
+      /total(?:\s+is)?\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i,
     );
     setDraft({
       ...blank(),
@@ -221,7 +221,7 @@ export default function Workspace() {
           }. `
         : "Please confirm a date. "
     }Total: ${money(j.total)}. Received: ${money(j.paid)}. Balance: ${money(
-      j.total - j.paid
+      j.total - j.paid,
     )}. Please reply to confirm these details. Thank you!`;
   async function shareFeedback() {
     try {
@@ -597,7 +597,7 @@ export default function Workspace() {
                       className="example"
                       onClick={() =>
                         setMessage(
-                          "Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm."
+                          "Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm.",
                         )
                       }
                     >
@@ -795,7 +795,7 @@ export default function Workspace() {
                   onClick={() =>
                     download(
                       JSON.stringify({ jobs, owner, business }, null, 2),
-                      "pakki-baat-backup.json"
+                      "pakki-baat-backup.json",
                     )
                   }
                 >
@@ -839,7 +839,7 @@ export default function Workspace() {
                     download(feedback, "pakki-baat-feedback.txt");
                     setFeedback("");
                     setToast(
-                      "Feedback downloaded. Send this file to the creator."
+                      "Feedback downloaded. Send this file to the creator.",
                     );
                   }}
                 >
@@ -1000,7 +1000,7 @@ export default function Workspace() {
                     onClick={() => {
                       if (
                         confirm(
-                          "Delete this commitment? This cannot be undone."
+                          "Delete this commitment? This cannot be undone.",
                         )
                       ) {
                         setJobs(jobs.filter((j) => j.id !== draft.id));

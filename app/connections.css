@@ -1,5 +1,12 @@
 .brand { background: transparent; padding: 0; }
 .cloud-settings { border-top: 1px solid var(--line); padding-top: 24px; display: grid; gap: 16px; }
+.theme-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.theme-control strong { display: block; font-size: 13px; }
+.theme-control small { margin-top: 5px; }
+.switch { width: 48px; height: 28px; border-radius: 99px; background: #d7dfd7; padding: 3px; }
+.switch span { display: block; width: 22px; height: 22px; border-radius: 50%; background: white; transition: transform .2s; box-shadow: 0 1px 4px #0002; }
+.switch.on { background: var(--teal); }
+.switch.on span { transform: translateX(20px); }
 .cloud-buttons,.capture-tools { display: flex; gap: 10px; flex-wrap: wrap; }
 .cloud-settings p { font-size: 13px; }
 .ai-capture { padding-top: 18px; margin-top: 18px; border-top: 1px solid var(--line); }
@@ -41,3 +48,17 @@
   .chat-compose-row textarea { font-size: 16px; }
   .chat-attach,.chat-mic,.chat-send { width: 42px; height: 42px; }
 }
+
+[data-theme="dark"] body { background: #0f1815; color: #e7eee9; }
+[data-theme="dark"] .sidebar,[data-theme="dark"] .topbar,[data-theme="dark"] .panel,[data-theme="dark"] .stats>button,[data-theme="dark"] .chat-panel,[data-theme="dark"] .modal,[data-theme="dark"] .customer-card,[data-theme="dark"] .search,[data-theme="dark"] .composer,[data-theme="dark"] .outline,[data-theme="dark"] .chat-compose-row,[data-theme="dark"] .note { background: #17231f; color: #e7eee9; border-color: #2b3d35; }
+[data-theme="dark"] .hero { background: #22332b; border-color: #35493e; }
+[data-theme="dark"] .hero h2,[data-theme="dark"] h1,[data-theme="dark"] h2,[data-theme="dark"] h3,[data-theme="dark"] strong,[data-theme="dark"] .brand { color: #edf4ef; }
+[data-theme="dark"] p,[data-theme="dark"] small,[data-theme="dark"] .breadcrumb,[data-theme="dark"] .job-main>span,[data-theme="dark"] .job-main small { color: #a9b9af; }
+[data-theme="dark"] .chat-body { background: #101a17; }
+[data-theme="dark"] .bubble { background: #1d3028; color: #edf4ef; }
+[data-theme="dark"] .example { background: #254437; border-color: #395b49; color: #c7e3ce; }
+[data-theme="dark"] input,[data-theme="dark"] textarea,[data-theme="dark"] select { background: #101a17; color: #edf4ef; border-color: #385047; }
+[data-theme="dark"] .notice,[data-theme="dark"] .help-card { background: #20332a; border-color: #344d40; }
+[data-theme="dark"] .stats strong,[data-theme="dark"] .job-end>strong { color: #edf4ef; }
+[data-theme="dark"] .art-circle { background: #30463a; }
+[data-theme="dark"] .mobile-nav { background: #14221ddd; border-color: #2b3d35; }
