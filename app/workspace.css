@@ -1632,6 +1632,260 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* WhatsApp-Style Voice Recorder */
+.whatsapp-mic-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: white;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+}
+.whatsapp-mic-button:hover {
+  background: #247059;
+  transform: scale(1.05);
+}
+.whatsapp-mic-button:active,
+.whatsapp-mic-button.recording {
+  background: #ff4444;
+  transform: scale(1.1);
+}
+
+.whatsapp-recording-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.slide-to-cancel-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #888;
+  font-size: 14px;
+  transition: opacity 0.2s;
+}
+.slide-to-cancel-hint svg {
+  animation: slideLeft 1s ease-in-out infinite;
+}
+@keyframes slideLeft {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-5px);
+  }
+}
+
+.recording-time-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.recording-pulse-dot {
+  width: 12px;
+  height: 12px;
+  background: #ff4444;
+  border-radius: 50%;
+  animation: pulse-dot 1.5s ease-out infinite;
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.7;
+  }
+}
+
+.whatsapp-lock-button {
+  position: fixed;
+  top: 50%;
+  right: 40px;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid var(--line);
+  color: var(--teal);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.whatsapp-lock-button:hover {
+  background: #f0f4e9;
+  transform: translateY(-50%) scale(1.05);
+}
+
+.cancel-indicator {
+  position: fixed;
+  left: 40px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #fee;
+  color: #d32f2f;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.2s;
+}
+
+.whatsapp-locked-panel {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 20px 28px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+  min-width: 300px;
+  animation: slideUp 0.3s ease-out;
+}
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.locked-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.locked-time {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--teal);
+  font-variant-numeric: tabular-nums;
+}
+
+.locked-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 32px;
+  margin: 16px 0;
+}
+.locked-wave-bar {
+  width: 3px;
+  height: 100%;
+  background: var(--teal);
+  border-radius: 2px;
+  animation: wave 1s ease-in-out infinite;
+}
+.locked-wave-bar:nth-child(1) {
+  animation-delay: 0s;
+}
+.locked-wave-bar:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.locked-wave-bar:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.locked-wave-bar:nth-child(4) {
+  animation-delay: 0.3s;
+}
+.locked-wave-bar:nth-child(5) {
+  animation-delay: 0.4s;
+}
+
+.locked-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+.locked-delete-button,
+.locked-send-button {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.locked-delete-button {
+  background: #fee;
+  color: #d32f2f;
+}
+.locked-delete-button:hover {
+  background: #fdd;
+  transform: scale(1.05);
+}
+.locked-send-button {
+  background: var(--teal);
+  color: white;
+  width: 60px;
+  height: 60px;
+}
+.locked-send-button:hover {
+  background: #247059;
+  transform: scale(1.05);
+}
+
+@media (max-width: 800px) {
+  .whatsapp-locked-panel {
+    bottom: 90px;
+  }
+  .whatsapp-lock-button {
+    right: 20px;
+  }
+}
+
 /* Voice Recorder Styles */
 .voice-record-button {
   background: transparent;

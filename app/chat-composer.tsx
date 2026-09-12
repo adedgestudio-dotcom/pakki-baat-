@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import VoiceRecorder from "./voice-recorder";
+import WhatsAppVoiceRecorder from "./whatsapp-voice-recorder";
 
 interface ChatComposerProps {
   message: string;
@@ -38,7 +39,6 @@ export default function ChatComposer({
   onToast,
 }: ChatComposerProps) {
   const [showInputOptions, setShowInputOptions] = useState(false);
-  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -49,16 +49,13 @@ export default function ChatComposer({
   };
 
   const handleVoiceRecordingComplete = (audioBlob: Blob, duration: number) => {
-    setShowVoiceRecorder(false);
     onToast(
       `Voice recording captured (${duration}s). AI transcription coming soon!`
     );
-    // In production, you would send this to your AI API for transcription
     console.log("Audio blob:", audioBlob, "Duration:", duration);
   };
 
   const handleVoiceError = (error: string) => {
-    setShowVoiceRecorder(false);
     onToast(error);
   };
 
@@ -160,7 +157,7 @@ export default function ChatComposer({
           <button
             onClick={() => {
               setShowInputOptions(false);
-              setShowVoiceRecorder(true);
+              onToast("Hold the microphone button to record (WhatsApp style)");
             }}
           >
             <svg
@@ -234,25 +231,6 @@ export default function ChatComposer({
               }
             }}
           />
-          <button
-            className="icon-button desktop-only"
-            aria-label="Record voice note"
-            title="Record voice note"
-            onClick={() => setShowVoiceRecorder(true)}
-          >
-            <svg
-              width="21"
-              height="21"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z M5 11a7 7 0 0 0 14 0 M12 18v3 M9 21h6" />
-            </svg>
-          </button>
         </div>
 
         <textarea
@@ -264,16 +242,22 @@ export default function ChatComposer({
           maxLength={6000}
         />
 
-        <button
-          type="button"
-          className="chat-send"
-          aria-label="Check details"
-          title="Check details"
-          onClick={onCapture}
-          disabled={!message.trim()}
-        >
-          <Icon name="arrow" size={19} />
-        </button>
+        {message.trim() ? (
+          <button
+            type="button"
+            className="chat-send"
+            aria-label="Check details"
+            title="Check details"
+            onClick={onCapture}
+          >
+            <Icon name="arrow" size={19} />
+          </button>
+        ) : (
+          <WhatsAppVoiceRecorder
+            onRecordingComplete={handleVoiceRecordingComplete}
+            onError={handleVoiceError}
+          />
+        )}
       </div>
 
       <div className="composer-actions">
@@ -291,14 +275,6 @@ export default function ChatComposer({
         Voice notes and attachments need AI setup; manual text capture works
         now.
       </div>
-
-      {/* Voice Recorder Modal */}
-      {showVoiceRecorder && (
-        <VoiceRecorder
-          onRecordingComplete={handleVoiceRecordingComplete}
-          onError={handleVoiceError}
-        />
-      )}
     </div>
   );
 }
