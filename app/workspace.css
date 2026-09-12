@@ -1365,3 +1365,109 @@ details p {
     margin-left: 10px;
   }
 }
+
+/* Chat Composer Styles */
+.input-options-toggle {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  z-index: 2;
+}
+.icon-button-pin {
+  background: #f0f4e9;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--teal);
+  transition: all 0.2s;
+}
+.icon-button-pin:hover {
+  background: #e4ebd7;
+  transform: scale(1.05);
+}
+.input-options-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 20px;
+  margin-bottom: 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 10;
+  min-width: 240px;
+}
+.input-options-menu button,
+.input-options-menu label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: white;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  color: var(--ink);
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.input-options-menu button:hover,
+.input-options-menu label:hover {
+  background: #f8f9f6;
+}
+.input-options-menu button svg,
+.input-options-menu label svg {
+  color: var(--teal);
+  flex-shrink: 0;
+}
+.input-options-menu button:not(:last-child),
+.input-options-menu label:not(:last-child) {
+  border-bottom: 1px solid #f1f3ed;
+}
+.desktop-input-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.desktop-input-actions .icon-button {
+  background: transparent;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #92a088;
+  transition: all 0.18s;
+  flex-shrink: 0;
+}
+.desktop-input-actions .icon-button:hover {
+  background: #f0f4e9;
+  color: var(--teal);
+}
+.chat-compose-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.mobile-only {
+  display: none;
+}
+@media (max-width: 800px) {
+  .mobile-only {
+    display: block;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+  .chat-compose-row {
+    padding-left: 60px;
+  }
+  .input-options-toggle {
+    display: block;
+  }
+}
