@@ -1,7 +1,23 @@
 @import "tailwindcss";
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  /* Pakki Baat color system */
+  --cream-bg: #f5f1e8;
+  --teal-primary: #2d7667;
+  --teal-dark: #1f5449;
+  --coral-accent: #ff7556;
+  --peach-light: #fff3ed;
+  --yellow-highlight: #fff5cc;
+  --text-dark: #2b3834;
+  --text-muted: #6b7570;
+  --border-light: #e8e3d8;
+  --white: #ffffff;
+}
+
 @theme inline {
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-serif: Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: Consolas, Monaco, "Courier New", monospace;
 }
