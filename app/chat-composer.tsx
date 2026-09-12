@@ -79,12 +79,49 @@ export default function ChatComposer({
               setShowInputOptions(false);
             }}
           >
-            <Icon name="chat" />
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 20h9 M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
             Type message
           </button>
           <button
             onClick={() => {
-              document.getElementById("file-upload")?.click();
+              const input = document.getElementById(
+                "paste-message-input"
+              ) as HTMLInputElement;
+              if (input) {
+                input.click();
+              }
+              setShowInputOptions(false);
+            }}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <path d="M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2 2 2 0 0 0-2-2H11a2 2 0 0 0-2 2Z" />
+            </svg>
+            Paste message
+          </button>
+          <button
+            onClick={() => {
+              document.getElementById("screenshot-upload")?.click();
               setShowInputOptions(false);
             }}
           >
@@ -102,7 +139,7 @@ export default function ChatComposer({
               <circle cx="9" cy="9" r="2" />
               <path d="m21 15-5-5L5 21" />
             </svg>
-            Screenshot / Pick from device
+            Screenshot
           </button>
           <button
             onClick={() => {
@@ -155,6 +192,31 @@ export default function ChatComposer({
             accept="image/png,image/jpeg,image/webp,audio/mpeg,audio/mp4,audio/wav,audio/webm"
             style={{ display: "none" }}
             onChange={handleFileUpload}
+          />
+          <input
+            type="file"
+            id="screenshot-upload"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: "none" }}
+            onChange={handleFileUpload}
+          />
+          <input
+            type="file"
+            id="paste-message-input"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const text = event.target?.result as string;
+                  onMessageChange(text);
+                  onToast("Message pasted from file");
+                };
+                reader.readAsText(f);
+                e.target.value = "";
+              }
+            }}
           />
           <button
             className="icon-button desktop-only"
