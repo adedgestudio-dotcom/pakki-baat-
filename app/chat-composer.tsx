@@ -233,42 +233,47 @@ export default function ChatComposer({
           />
         </div>
 
-        <textarea
-          id="paste-input"
-          aria-label="Customer message"
-          placeholder="Paste a message or tell me what's needed…"
-          value={message}
-          onChange={(e) => onMessageChange(e.target.value)}
-          maxLength={6000}
-        />
-
-        {message.trim() ? (
-          <button
-            type="button"
-            className="chat-send"
-            aria-label="Check details"
-            title="Check details"
-            onClick={onCapture}
-          >
-            <Icon name="arrow" size={19} />
-          </button>
-        ) : (
-          <WhatsAppVoiceRecorder
-            onRecordingComplete={handleVoiceRecordingComplete}
-            onError={handleVoiceError}
+        <div className="input-with-mic">
+          <textarea
+            id="paste-input"
+            aria-label="Customer message"
+            placeholder="Paste a message or tell me what's needed…"
+            value={message}
+            onChange={(e) => onMessageChange(e.target.value)}
+            maxLength={6000}
           />
-        )}
+
+          {/* Microphone button inside input */}
+          <div className="input-mic-button">
+            {message.trim() ? (
+              <button
+                type="button"
+                className="send-icon-button"
+                aria-label="Check details"
+                title="Check details"
+                onClick={onCapture}
+              >
+                <Icon name="arrow" size={19} />
+              </button>
+            ) : (
+              <WhatsAppVoiceRecorder
+                onRecordingComplete={handleVoiceRecordingComplete}
+                onError={handleVoiceError}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="composer-actions">
-        <span>{message.length}/6000 · Review before saving</span>
-        <button
-          className="primary"
-          onClick={onCapture}
-          disabled={!message.trim()}
-        >
-          Check details <Icon name="arrow" size={18} />
-        </button>
+        <span className="char-counter">
+          {message.length}/6000 · Review before saving
+        </span>
+        {message.trim() && (
+          <button className="primary check-details-button" onClick={onCapture}>
+            Check details <Icon name="arrow" size={18} />
+          </button>
+        )}
       </div>
 
       <div className="ai-note">

@@ -856,10 +856,18 @@ footer span {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 12px;
 }
 .composer-actions > span {
   font-size: 10px;
   color: #a1aa9d;
+}
+.char-counter {
+  font-size: 11px;
+  color: var(--muted);
+}
+.check-details-button {
+  margin-left: auto;
 }
 .capture-help {
   padding: 22px 0;
@@ -1424,10 +1432,7 @@ details p {
 
 /* Chat Composer Styles */
 .input-options-toggle {
-  position: absolute;
-  left: 20px;
-  top: 20px;
-  z-index: 2;
+  flex-shrink: 0;
 }
 .icon-button-pin {
   background: #f0f4e9;
@@ -1535,6 +1540,44 @@ details p {
   gap: 10px;
   position: relative;
 }
+
+.input-with-mic {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-mic textarea {
+  flex: 1;
+  padding-right: 60px; /* Space for mic button */
+}
+
+.input-mic-button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.send-icon-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  display: grid;
+  place-items: center;
+  color: var(--teal);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.send-icon-button:hover {
+  background: #f0f4e9;
+  transform: scale(1.05);
+}
+
 .chat-send {
   background: var(--teal);
   color: white;
@@ -1568,10 +1611,17 @@ details p {
     display: none !important;
   }
   .chat-compose-row {
-    padding-left: 60px;
+    padding-left: 0;
   }
   .input-options-toggle {
     display: block;
+    position: relative;
+    left: 0;
+    top: 0;
+    margin-right: 8px;
+  }
+  .input-with-mic {
+    flex: 1;
   }
 }
 
@@ -1634,8 +1684,8 @@ select:focus-visible {
 
 /* WhatsApp-Style Voice Recorder */
 .whatsapp-mic-button {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--teal);
   color: white;
@@ -1656,7 +1706,10 @@ select:focus-visible {
 .whatsapp-mic-button:active,
 .whatsapp-mic-button.recording {
   background: #ff4444;
-  transform: scale(1.1);
+}
+.whatsapp-mic-button svg {
+  width: 20px;
+  height: 20px;
 }
 
 .whatsapp-recording-overlay {
