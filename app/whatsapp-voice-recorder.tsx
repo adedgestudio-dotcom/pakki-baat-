@@ -14,7 +14,7 @@ export default function WhatsAppVoiceRecorder({
   const [duration, setDuration] = useState(0);
   const [slideDistance, setSlideDistance] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
-  
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -30,12 +30,18 @@ export default function WhatsAppVoiceRecorder({
 
   const startRecording = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
-    
+    e.stopPropagation();
+
+    console.log("🎤 Starting recording...");
+
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Voice recording is not supported in your browser");
+        const error = "Voice recording is not supported in your browser";
+        console.error("❌", error);
+        throw new Error(error);
       }
 
+      console.log("📱 Requesting microphone access...");
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -44,6 +50,7 @@ export default function WhatsAppVoiceRecorder({
         },
       });
 
+      console.log("✅ Microphone access granted");
       streamRef.current = stream;
 
       const mimeType = MediaRecorder.isTypeSupported("audio/webm")
@@ -79,7 +86,7 @@ export default function WhatsAppVoiceRecorder({
       setDuration(0);
 
       // Get initial touch/mouse position
-      if ('touches' in e) {
+      if ("touches" in e) {
         startXRef.current = e.touches[0].clientX;
       } else {
         startXRef.current = e.clientX;
@@ -97,7 +104,7 @@ export default function WhatsAppVoiceRecorder({
       }, 1000);
 
       // Add haptic feedback if available
-      if ('vibrate' in navigator) {
+      if ("vibrate" in navigator) {
         navigator.vibrate(50);
       }
     } catch (err) {
@@ -119,7 +126,7 @@ export default function WhatsAppVoiceRecorder({
     if (!isRecording || isLocked) return;
 
     let currentX: number;
-    if ('touches' in e) {
+    if ("touches" in e) {
       currentX = e.touches[0].clientX;
     } else {
       currentX = e.clientX;
@@ -153,14 +160,14 @@ export default function WhatsAppVoiceRecorder({
     setDuration(0);
     setSlideDistance(0);
 
-    if ('vibrate' in navigator) {
+    if ("vibrate" in navigator) {
       navigator.vibrate([30, 30]);
     }
   };
 
   const handleRelease = () => {
     if (!isRecording) return;
-    
+
     if (duration < 1) {
       // Too short, cancel
       cancelRecording();
@@ -173,7 +180,7 @@ export default function WhatsAppVoiceRecorder({
 
   const toggleLock = () => {
     setIsLocked(!isLocked);
-    if ('vibrate' in navigator) {
+    if ("vibrate" in navigator) {
       navigator.vibrate(50);
     }
   };
@@ -204,7 +211,7 @@ export default function WhatsAppVoiceRecorder({
       {isRecording && (
         <div className="whatsapp-recording-overlay">
           {/* Slide to cancel hint */}
-          <div 
+          <div
             className="slide-to-cancel-hint"
             style={{ opacity: 1 - cancelOpacity }}
           >
@@ -253,11 +260,11 @@ export default function WhatsAppVoiceRecorder({
           )}
 
           {/* Cancel indicator */}
-          <div 
+          <div
             className="cancel-indicator"
-            style={{ 
+            style={{
               opacity: cancelOpacity,
-              transform: `translateX(-${slideDistance}px)`
+              transform: `translateX(-${slideDistance}px)`,
             }}
           >
             <svg
@@ -283,7 +290,7 @@ export default function WhatsAppVoiceRecorder({
             <div className="recording-pulse-dot" />
             <span className="locked-time">{formatDuration(duration)}</span>
           </div>
-          
+
           <div className="locked-waveform">
             <div className="locked-wave-bar" />
             <div className="locked-wave-bar" />
@@ -332,7 +339,7 @@ export default function WhatsAppVoiceRecorder({
       {/* Microphone button */}
       <button
         ref={buttonRef}
-        className={`whatsapp-mic-button ${isRecording ? 'recording' : ''}`}
+        className={`whatsapp-mic-button ${isRecording ? "recording" : ""}`}
         onMouseDown={startRecording}
         onMouseUp={handleRelease}
         onMouseLeave={handleRelease}
@@ -342,16 +349,13 @@ export default function WhatsAppVoiceRecorder({
         onTouchMove={handleMove}
         aria-label={isRecording ? "Release to send" : "Hold to record"}
         style={{
-          transform: isRecording ? `translateX(-${Math.min(slideDistance, 100)}px)` : 'none'
+          transform: isRecording
+            ? `translateX(-${Math.min(slideDistance, 100)}px)`
+            : "none",
         }}
       >
         {isRecording ? (
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" />
           </svg>
         ) : (

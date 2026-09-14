@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import VoiceRecorder from "./voice-recorder";
 import WhatsAppVoiceRecorder from "./whatsapp-voice-recorder";
+import SimpleVoiceButton from "./simple-voice-button";
 
 interface ChatComposerProps {
   message: string;
@@ -256,7 +256,7 @@ export default function ChatComposer({
                 <Icon name="arrow" size={19} />
               </button>
             ) : (
-              <WhatsAppVoiceRecorder
+              <SimpleVoiceButton
                 onRecordingComplete={handleVoiceRecordingComplete}
                 onError={handleVoiceError}
               />
