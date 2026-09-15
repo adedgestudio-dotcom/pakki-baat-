@@ -20,9 +20,15 @@ export default function VoiceRecorder({
 
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
       if (timerRef.current) clearInterval(timerRef.current);
-      stopRecording();
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        recorder.stop();
+      }
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      chunksRef.current = [];
     };
   }, []);
 

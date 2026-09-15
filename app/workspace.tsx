@@ -1,12 +1,35 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./workspace.css";
 import "./connections.css";
 import CloudSettings from "./cloud-settings";
-import AiCapture from "./ai-capture";
 import ChatComposer from "./chat-composer";
+import { saveVoice, loadVoice, deleteVoice } from "@/lib/voice-messages";
+import { cloudToken } from "@/lib/cloud";
 import { isSnapshot, calendarFile, type Job, type Snapshot } from "@/lib/data";
 type Tab = "Today" | "My assistant" | "Commitments" | "Customers" | "Settings";
+type ChatTurn = { id: string; role: "me" | "assistant"; text: string; replyFor?: Job; voiceId?: string; duration?: number };
+type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
+type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
+function isRealDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, date] = value.split("-").map(Number);
+  const check = new Date(Date.UTC(year, month - 1, date));
+  return check.getUTCFullYear() === year && check.getUTCMonth() + 1 === month && check.getUTCDate() === date;
+}
+function isChatState(value: unknown): value is ChatState {
+  if (!value || typeof value !== "object") return false;
+  const state = value as ChatState;
+  return Array.isArray(state.turns) && state.turns.length <= 80 &&
+    state.turns.every((turn) => turn && typeof turn.id === "string" &&
+      ["me", "assistant"].includes(turn.role) && typeof turn.text === "string" &&
+      turn.text.length <= 12000 &&
+      (!turn.voiceId || (typeof turn.voiceId === "string" && turn.voiceId.length <= 100)) &&
+      (turn.duration === undefined || (Number.isFinite(turn.duration) && turn.duration >= 0 && turn.duration <= 60)) &&
+      (!turn.replyFor || isSnapshot({ jobs: [turn.replyFor], owner: "", business: "" }))) &&
+    (state.pending === null || isSnapshot({ jobs: [state.pending], owner: "", business: "" })) &&
+    ["customer", "total", "paid", "date", "ready"].includes(state.step);
+}
 const blank = (): Job => ({
   id: "",
   customer: "",
@@ -74,71 +97,105 @@ export default function Workspace() {
     [business, setBusiness] = useState("My small business"),
     [message, setMessage] = useState(""),
     [draft, setDraft] = useState<Job | null>(null),
-    [reply, setReply] = useState<Job | null>(null),
+    [pendingJob, setPendingJob] = useState<Job | null>(null),
+    [chatStep, setChatStep] = useState<ChatStep>("customer"),
+    [chatTurns, setChatTurns] = useState<ChatTurn[]>([]),
+    [voiceUrls, setVoiceUrls] = useState<Record<string, string>>({}),
+    [voiceBusy, setVoiceBusy] = useState(false),
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
-    [feedback, setFeedback] = useState(""),
-    [showInputOptions, setShowInputOptions] = useState(false);
+    [feedback, setFeedback] = useState("");
+  const chatBodyRef = useRef<HTMLDivElement>(null);
+  const voiceUrlsRef = useRef<Record<string, string>>({});
+  const voiceFilesRef = useRef<Record<string, File>>({});
+  const loadingVoiceIds = useRef(new Set<string>());
   // Hydrate the device workspace after SSR; browser storage is unavailable on the server.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     try {
-      const s = JSON.parse(localStorage.getItem("pakki-baat-v1") || "null");
-      if (s !== null) {
-        if (!isSnapshot(s)) throw new Error("Invalid backup");
-        setJobs(s.jobs);
-        setOwner(s.owner);
-        setBusiness(s.business);
+      const snapshot = JSON.parse(localStorage.getItem("pakki-baat-v1") || "null");
+      if (snapshot !== null) {
+        if (!isSnapshot(snapshot)) throw new Error("Invalid backup");
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setJobs(snapshot.jobs);
+        setOwner(snapshot.owner);
+        setBusiness(snapshot.business);
       }
     } catch {
-      setToast(
-        "Saved data could not be read. Restore a valid backup in Settings.",
-      );
+      setToast("Saved data could not be read. Restore a valid backup in Settings.");
       return;
     }
+    try {
+      const chat = JSON.parse(localStorage.getItem("pakki-baat-chat-v1") || "null");
+      if (isChatState(chat)) {
+        setChatTurns(chat.turns);
+        setPendingJob(chat.pending);
+        setChatStep(chat.step);
+      }
+    } catch {}
     setReady(true);
   }, []);
-  // Report a browser-storage write failure so users can export their unsaved changes.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    if (ready)
-      try {
-        localStorage.setItem(
-          "pakki-baat-v1",
-          JSON.stringify({ jobs, owner, business }),
-        );
-      } catch {
-        setToast("Storage is full. Export a backup before closing.");
-      }
+    if (!ready) return;
+    try {
+      localStorage.setItem("pakki-baat-v1", JSON.stringify({ jobs, owner, business }));
+    } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setToast("Storage is full. Export a backup before closing.");
+    }
   }, [jobs, owner, business, ready]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      localStorage.setItem("pakki-baat-chat-v1", JSON.stringify({ turns: chatTurns, pending: pendingJob, step: chatStep }));
+    } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setToast("Conversation storage is full. Export your commitments before closing.");
+    }
+  }, [chatTurns, pendingJob, chatStep, ready]);
+  useEffect(() => {
+    for (const turn of chatTurns) {
+      const id = turn.voiceId;
+      if (!id || voiceUrlsRef.current[id] || loadingVoiceIds.current.has(id)) continue;
+      loadingVoiceIds.current.add(id);
+      void loadVoice(id).then((file) => {
+        if (!file) { setVoiceUrls((urls) => ({ ...urls, [id]: "" })); return; }
+        voiceFilesRef.current[id] = file;
+        const url = URL.createObjectURL(file);
+        voiceUrlsRef.current[id] = url;
+        setVoiceUrls((urls) => ({ ...urls, [id]: url }));
+      }).catch(() => setVoiceUrls((urls) => ({ ...urls, [id]: "" }))).finally(() => loadingVoiceIds.current.delete(id));
+    }
+  }, [chatTurns]);
+  useEffect(() => {
+    return () => {
+      Object.values(voiceUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+      voiceUrlsRef.current = {};
+    };
+  }, []);
+  useEffect(() => {
+    if (tab !== "My assistant") return;
+    const body = chatBodyRef.current;
+    body?.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
+  }, [chatTurns, tab]);
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(id);
   }, [toast]);
-  const modalOpen = Boolean(draft || reply);
+  const modalOpen = Boolean(draft);
   useEffect(() => {
     if (!modalOpen) return;
     const previous = document.activeElement as HTMLElement | null;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setDraft(null);
-        setReply(null);
-      }
+      if (e.key === "Escape") setDraft(null);
       if (e.key === "Tab") {
         const nodes = document.querySelectorAll<HTMLElement>(
           '[role="dialog"] button:not(:disabled), [role="dialog"] input, [role="dialog"] textarea, [role="dialog"] select, [role="dialog"] summary',
         );
-        const first = nodes[0],
-          last = nodes[nodes.length - 1];
-        if (
-          e.shiftKey &&
-          (document.activeElement === first ||
-            !document
-              .querySelector('[role="dialog"]')
-              ?.contains(document.activeElement))
-        ) {
+        const first = nodes[0], last = nodes[nodes.length - 1];
+        if (e.shiftKey && (document.activeElement === first ||
+          !document.querySelector('[role="dialog"]')?.contains(document.activeElement))) {
           e.preventDefault();
           last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
@@ -177,17 +234,194 @@ export default function Workspace() {
     setQuery("");
     setFilter("All");
   }
-  function capture() {
-    if (!message.trim()) return;
-    const m = message.match(
-      /total(?:\s+is)?\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i,
-    );
-    setDraft({
-      ...blank(),
-      work: message.trim().slice(0, 150),
-      source: message.trim(),
-      total: m ? Number(m[1].replaceAll(",", "")) : 0,
+  function say(role: ChatTurn["role"], text: string, replyFor?: Job) {
+    setChatTurns((turns) => [...turns, { id: crypto.randomUUID(), role, text, replyFor }].slice(-80));
+  }
+  function readyToReview(job: Job) {
+    setPendingJob(job);
+    setChatStep("ready");
+    say("assistant", "I have the details so far. Open Review details to check and save them, or tell me what to change.");
+  }
+  async function sendVoice(file: File, duration: number, transcript: string) {
+    const id = crypto.randomUUID();
+    const url = URL.createObjectURL(file);
+    voiceUrlsRef.current[id] = url;
+    voiceFilesRef.current[id] = file;
+    setVoiceUrls((urls) => ({ ...urls, [id]: url }));
+    setChatTurns((turns) => [...turns, {
+      id: crypto.randomUUID(), role: "me" as const, text: transcript || "Voice note", voiceId: id, duration,
+    }].slice(-80));
+    if (transcript) {
+      setMessage("");
+      respondTo(transcript, false);
+    } else {
+      void transcribeSentVoice(file, id);
+    }
+    try {
+      await saveVoice(id, file);
+    } catch {
+      setToast("Voice sent, but this browser could not store the audio for later playback.");
+    }
+  }
+  async function transcribeSentVoice(file: File, id: string) {
+    if (voiceBusy) return;
+    setVoiceBusy(true);
+    try {
+      if (file.size > 2_000_000) throw new Error("This recording is over the 2 MB AI limit. Record a shorter note.");
+      const settings = await fetch("/api/extract").then((response) => response.json());
+      if (!settings.enabled) throw new Error("AI transcription is not configured on this server yet.");
+      const token = await cloudToken();
+      const form = new FormData();
+      form.set("file", file);
+      form.set("mode", "transcribe");
+      form.set("today", new Date().toLocaleDateString("en-CA"));
+      const response = await fetch("/api/extract", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+        body: form,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Transcription failed.");
+      const transcript = String(result.text || "").trim().slice(0, 6000);
+      if (!transcript) throw new Error("No speech was detected in the recording.");
+      setChatTurns((turns) => turns.map((turn) => turn.voiceId === id ? { ...turn, text: transcript } : turn));
+      respondTo(transcript, false);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : "Transcription failed.";
+      say("assistant", "Your voice note is in the chat, but I could not read it: " + reason + " Tap Retry transcription or type the details.");
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
+  async function retryVoice(id: string) {
+    if (voiceBusy) return;
+    try {
+      const file = voiceFilesRef.current[id] || await loadVoice(id);
+      if (!file) throw new Error("This recording is no longer stored on this device.");
+      voiceFilesRef.current[id] = file;
+      await transcribeSentVoice(file, id);
+    } catch (cause) {
+      setToast(cause instanceof Error ? cause.message : "Could not retry the voice note.");
+    }
+  }
+  async function downloadVoiceInChat(id: string) {
+    try {
+      const file = voiceFilesRef.current[id] || await loadVoice(id);
+      if (!file) throw new Error("This recording is no longer stored on this device.");
+      const url = voiceUrlsRef.current[id] || URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.name || "pakki-baat-voice-note.webm";
+      link.click();
+      if (!voiceUrlsRef.current[id]) setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (cause) {
+      setToast(cause instanceof Error ? cause.message : "Could not download the voice note.");
+    }
+  }
+  async function removeVoice(id: string) {
+    setChatTurns((turns) => turns.filter((turn) => turn.voiceId !== id));
+    const url = voiceUrlsRef.current[id];
+    if (url) URL.revokeObjectURL(url);
+    delete voiceUrlsRef.current[id];
+    delete voiceFilesRef.current[id];
+    setVoiceUrls((urls) => {
+      const next = { ...urls };
+      delete next[id];
+      return next;
     });
+    try { await deleteVoice(id); } catch { setToast("Could not delete the stored audio on this device."); }
+  }
+  function capture() {
+    const input = message.trim();
+    if (!input || voiceBusy) return;
+    setMessage("");
+    respondTo(input, true);
+  }
+  function respondTo(input: string, recordUser: boolean) {
+    if (recordUser) say("me", input);
+    if (!pendingJob) {
+      const totalMatch = input.match(/total(?:\s+is)?\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+      const paidMatch = input.match(/(?:paid|received|advance)\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+      const next = {
+        ...blank(),
+        work: input.slice(0, 500),
+        source: input.slice(0, 12000),
+        total: totalMatch ? Number(totalMatch[1].replaceAll(",", "")) : 0,
+        paid: paidMatch ? Number(paidMatch[1].replaceAll(",", "")) : 0,
+      };
+      setPendingJob(next);
+      setChatStep("customer");
+      say("assistant", "Got it. What is the customer's name?");
+      return;
+    }
+    const next = { ...pendingJob };
+    if (chatStep === "customer") {
+      next.customer = input.slice(0, 100);
+      setPendingJob(next);
+      if (!next.total) {
+        setChatStep("total");
+        say("assistant", "Thanks. What is the total price in rupees? You can say 0 if it is not decided.");
+      } else if (!next.paid || next.paid > next.total) {
+        setChatStep("paid");
+        say("assistant", "How much has the customer already paid? Enter 0 if nothing has been received.");
+      } else {
+        setChatStep("date");
+        say("assistant", "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding.");
+      }
+      return;
+    }
+    if (chatStep === "total" || chatStep === "paid") {
+      const amount = Number(input.replace(/[₹,\s]/g, ""));
+      if (!Number.isFinite(amount) || amount < 0) {
+        say("assistant", "Please enter an amount such as 2000, or 0 if none.");
+        return;
+      }
+      if (chatStep === "total") {
+        next.total = amount;
+        setPendingJob(next);
+        setChatStep("paid");
+        say("assistant", "How much has the customer already paid? Enter 0 if nothing has been received.");
+      } else {
+        if (amount > next.total) {
+          say("assistant", "The received amount cannot be more than the total. Please check it.");
+          return;
+        }
+        next.paid = amount;
+        setPendingJob(next);
+        setChatStep("date");
+        say("assistant", "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding.");
+      }
+      return;
+    }
+    if (chatStep === "date") {
+      if (isRealDate(input)) next.date = input;
+      else if (!/^(skip|later|not sure)$/i.test(input)) {
+        say("assistant", "Please enter a date as YYYY-MM-DD, or say skip.");
+        return;
+      }
+      readyToReview(next);
+      return;
+    }
+    const total = input.match(/total\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+    const paid = input.match(/(?:paid|received)\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+    const date = input.match(/\b\d{4}-\d{2}-\d{2}\b/);
+    if (total) next.total = Number(total[1].replaceAll(",", ""));
+    if (paid) next.paid = Number(paid[1].replaceAll(",", ""));
+    if (date) next.date = date[0];
+    if (next.paid > next.total) {
+      say("assistant", "The received amount is higher than the total. Tell me the corrected amounts or use Review details.");
+      return;
+    }
+    if (total || paid || date) {
+      readyToReview(next);
+    } else {
+      say("assistant", "I can update a total, paid amount or date here. For names and other details, open Review details.");
+    }
+  }
+  function receiveAiDraft(job: Job) {
+    setPendingJob(job);
+    setChatStep("ready");
+    say("assistant", "I read the attachment and filled in a draft. Open Review details to check it, or keep chatting.");
   }
   function save() {
     if (!draft || !draft.customer.trim() || !draft.work.trim()) return;
@@ -209,7 +443,11 @@ export default function Workspace() {
     };
     setJobs((p) => [item, ...p.filter((j) => j.id !== item.id)]);
     setDraft(null);
-    setReply(item);
+
+    setPendingJob(null);
+    setChatStep("customer");
+    setTab("My assistant");
+    say("assistant", replyText(item), item);
     setMessage("");
     setToast("Saved. Your next steps are ready.");
   }
@@ -283,10 +521,12 @@ export default function Workspace() {
     setJobs(s.jobs);
     setOwner(s.owner);
     setBusiness(s.business);
+    setChatTurns([]);
+    setPendingJob(null);
+    setChatStep("customer");
     setReady(true);
     setToast("Workspace restored on this device.");
-  }
-  async function importBackup(file: File) {
+  }  async function importBackup(file: File) {
     try {
       if (file.size > 10_000_000) throw new Error("Backup is too large.");
       const data = JSON.parse(await file.text());
@@ -584,55 +824,75 @@ export default function Workspace() {
                       <small>Let’s get the details together</small>
                     </div>
                   </div>
-                  <div className="chat-body">
-                    <span className="chat-date">A new conversation</span>
+                  <div className="chat-body" ref={chatBodyRef} role="log" aria-label="Assistant conversation" aria-live="polite">
+                    <span className="chat-date">Your conversation</span>
                     <div className="bubble">
-                      <strong>Hi {owner}! What’s the plan? 👋</strong>
-                      <p>
-                        Paste a customer message, or tell me about the work.
-                        We’ll review the details together before saving.
-                      </p>
+                      <strong>Hi {owner}!</strong>
+                      <p>Tell me what your customer needs. I will ask for any missing details before you save.</p>
                     </div>
-                    <button
-                      className="example"
-                      onClick={() =>
-                        setMessage(
-                          "Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm.",
-                        )
-                      }
-                    >
-                      Try an example
-                      <span>“Riya wants a 2 kg chocolate cake…”</span>
-                    </button>
-                    <div className="local-note">
-                      Quick capture works without AI. Add the customer, dates
-                      and payment details in the next step.
-                    </div>
+                    {chatTurns.map((turn) => (
+                      <div key={turn.id} className={`chat-turn ${turn.role === "me" ? "from-me" : "from-assistant"}`}>
+                        <span className="chat-speaker">{turn.role === "me" ? "You" : turn.replyFor ? "Suggested customer reply" : "Pakki Baat"}</span>
+                        <div className="chat-turn-text">{turn.text}</div>
+                        {turn.voiceId && <div className="chat-voice">
+                          <small>{turn.duration ? "Recorded " + Math.floor(turn.duration / 60) + ":" + String(turn.duration % 60).padStart(2, "0") : "Sent voice note"}</small>
+                          {voiceUrls[turn.voiceId] === undefined ? <small>Loading voice note…</small> : voiceUrls[turn.voiceId] ? <audio controls src={voiceUrls[turn.voiceId]} aria-label="Play sent voice note"/> : <small>Audio unavailable on this device.</small>}
+                          <div className="chat-turn-actions">
+                            {turn.text === "Voice note" && <button type="button" disabled={voiceBusy} onClick={() => void retryVoice(turn.voiceId!)}>Retry transcription</button>}
+                            <button type="button" onClick={() => void downloadVoiceInChat(turn.voiceId!)}>Download voice</button>
+                            <button type="button" onClick={() => void removeVoice(turn.voiceId!)}>Delete voice</button>
+                          </div>
+                        </div>}
+                        {turn.replyFor && <div className="chat-turn-actions">
+                          <button type="button" onClick={() => copy(turn.text)}>Copy reply</button>
+                          <button type="button" onClick={() => setDraft(turn.replyFor!)}>Edit details</button>
+                          {turn.replyFor.date && <button type="button" onClick={() => download(calendarFile(turn.replyFor!), "pakki-baat-reminder.ics")}>Add reminder</button>}
+                        </div>}
+                      </div>
+                    ))}
+                    {pendingJob && <div className="chat-review-card">
+                      <strong>Working draft</strong>
+                      <p>{pendingJob.customer || "Customer to add"} · {pendingJob.work}</p>
+                                            <div className="chat-review-actions">
+                        <button type="button" className="primary" onClick={() => setDraft(pendingJob)}>Review details</button>
+                        <button type="button" className="text-button" onClick={() => {
+                          setPendingJob(null);
+                          setChatStep("customer");
+                          say("assistant", "Okay, let us start a new commitment. What did your customer ask for?");
+                        }}>Start new</button>
+                      </div>
+                    </div>}
+                    {!chatTurns.length && <button className="example" onClick={() => setMessage("Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm.")}>
+                      Try an example <span>“Riya wants a 2 kg chocolate cake…”</span>
+                    </button>}
                   </div>
                   <ChatComposer
                     message={message}
                     onMessageChange={setMessage}
                     onCapture={capture}
                     onToast={setToast}
+                    onDraft={receiveAiDraft}
+                    onSendVoice={sendVoice}
+                    voiceBusy={voiceBusy}
                   />
                 </div>
                 <aside className="capture-help">
-                  <h3>One message. A clear next step.</h3>
+                  <h3>Talk it through.</h3>
                   {[
                     [
                       "1",
-                      "Tell us the details",
+                      "Start the conversation",
                       "Paste your customer’s message or write a short note.",
                     ],
                     [
                       "2",
-                      "Check it together",
+                      "Answer the follow-up questions",
                       "Review the price, payment and date. You stay in control.",
                     ],
                     [
                       "3",
-                      "Send a clear reply",
-                      "Copy your confirmation and send it in your usual chat.",
+                      "Review and save",
+                      "Copy the suggested customer reply from the thread.",
                     ],
                   ].map(([n, t, d]) => (
                     <div key={n}>
@@ -1004,6 +1264,7 @@ export default function Workspace() {
                         )
                       ) {
                         setJobs(jobs.filter((j) => j.id !== draft.id));
+                        setChatTurns((turns) => turns.filter((turn) => turn.replyFor?.id !== draft.id));
                         setDraft(null);
                       }
                     }}
@@ -1016,57 +1277,6 @@ export default function Workspace() {
                 </button>
               </div>
             </form>
-          </section>
-        </div>
-      )}
-      {reply && (
-        <div className="modal-backdrop" onClick={() => setReply(null)}>
-          <section
-            className="modal reply-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="reply-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="section-heading">
-              <h2 id="reply-title">A little clarity, ready to send</h2>
-              <button
-                className="icon-button"
-                aria-label="Close reply"
-                onClick={() => setReply(null)}
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-            <p>Your commitment is saved. Send this yourself when ready.</p>
-            <div className="reply-bubble">{replyText(reply)}</div>
-            <button
-              autoFocus
-              className="primary"
-              onClick={() => copy(replyText(reply))}
-            >
-              <Icon name="copy" size={18} />
-              Copy reply
-            </button>
-            <button
-              className="text-button"
-              onClick={() => {
-                setDraft(reply);
-                setReply(null);
-              }}
-            >
-              Edit the details
-            </button>
-            {reply.date && (
-              <button
-                className="outline"
-                onClick={() =>
-                  download(calendarFile(reply), "pakki-baat-reminder.ics")
-                }
-              >
-                Add calendar reminder
-              </button>
-            )}
           </section>
         </div>
       )}

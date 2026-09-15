@@ -24,7 +24,15 @@ export default function WhatsAppVoiceRecorder({
 
   useEffect(() => {
     return () => {
-      cleanup();
+      if (timerRef.current) clearInterval(timerRef.current);
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        recorder.stop();
+      }
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      chunksRef.current = [];
     };
   }, []);
 
