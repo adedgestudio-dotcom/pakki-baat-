@@ -2221,3 +2221,64 @@ select:focus-visible {
   border-color: #d32f2f;
   color: #d32f2f;
 }
+
+/* Voice draft composer */
+.chat-attach-button {
+  background: transparent;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #92a088;
+  transition: all 0.18s;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.chat-attach-button:hover {
+  background: #f0f4e9;
+  color: var(--teal);
+  transform: scale(1.05);
+}
+.chat-attach-button:active {
+  transform: scale(0.95);
+}
+.chat-attach-button input {
+  display: none;
+}
+.send-icon-button {
+  background: var(--teal);
+  color: white;
+}
+.send-icon-button:hover:not(:disabled) {
+  background: #247059;
+}
+.voice-draft-card {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid #cfe3d9;
+  background: #e3f2eb;
+  border-radius: 14px;
+  padding: 14px;
+}
+.voice-draft-card strong {
+  color: var(--teal);
+  font-size: 13px;
+}
+.voice-draft-card small {
+  margin-top: 3px;
+}
+.voice-draft-card audio {
+  width: 100%;
+}
+.voice-draft-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.voice-draft-actions .outline,
+.voice-draft-actions .primary {
+  min-height: 38px;
+  padding: 9px 14px;
+}

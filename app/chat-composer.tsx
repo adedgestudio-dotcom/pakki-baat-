@@ -22,11 +22,15 @@ export default function ChatComposer({
   onMessageChange,
   onCapture,
   onToast,
-  onDraft,
   onSendVoice,
   voiceBusy,
 }: Props) {
   const [showInputOptions, setShowInputOptions] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<{
+    file: File;
+    url: string;
+    duration: number;
+  } | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -37,25 +41,118 @@ export default function ChatComposer({
   };
 
   const handleVoiceRecordingComplete = (audioBlob: Blob, duration: number) => {
-    onToast(`Voice recording captured (${duration}s). Processing...`);
-    // Convert blob to file and send
-    const file = new File([audioBlob], "recording.webm", {
+    if (voiceDraft?.url) URL.revokeObjectURL(voiceDraft.url);
+
+    const extension = audioBlob.type.includes("mp4")
+      ? "m4a"
+      : audioBlob.type.includes("ogg")
+        ? "ogg"
+        : "webm";
+    const file = new File([audioBlob], `pakki-baat-voice-note.${extension}`, {
       type: audioBlob.type,
     });
-    onSendVoice(file, duration, "").catch((err) => {
-      onToast(
-        err instanceof Error ? err.message : "Failed to process voice recording"
-      );
-    });
+
+    setVoiceDraft({ file, url: URL.createObjectURL(file), duration });
+    onToast("Voice note ready. Tap send when you are ready.");
+  };
+
+  const sendVoiceDraft = () => {
+    if (!voiceDraft || voiceBusy) return;
+
+    const draft = voiceDraft;
+    onSendVoice(draft.file, draft.duration, message.trim())
+      .then(() => {
+        URL.revokeObjectURL(draft.url);
+        setVoiceDraft(null);
+        onMessageChange("");
+      })
+      .catch((err) => {
+        onToast(
+          err instanceof Error ? err.message : "Failed to process voice recording"
+        );
+      });
+  };
+
+  const discardVoiceDraft = () => {
+    if (!voiceDraft) return;
+    URL.revokeObjectURL(voiceDraft.url);
+    setVoiceDraft(null);
+  };
+
+  const handleSend = () => {
+    if (voiceDraft) {
+      sendVoiceDraft();
+      return;
+    }
+
+    onCapture();
+  };
+
+  const formatDuration = (seconds: number) => {
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   };
 
   const handleVoiceError = (error: string) => {
-    onToast(error);
+    onToast(
+      error.includes("Permission denied")
+        ? "Please allow microphone access in your browser, then try again."
+        : error
+    );
   };
+
+  const uploadControl = (
+    <label
+      className="chat-attach-button"
+      aria-label="Attach screenshot or voice note"
+      title="Attach screenshot or voice note"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="m21.4 11.6-8.9 8.9a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 1 1-2.8-2.8l8.5-8.5" />
+      </svg>
+      <input
+        type="file"
+        id="screenshot-upload"
+        accept="image/png,image/jpeg,image/webp,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/ogg"
+        onChange={handleFileUpload}
+      />
+    </label>
+  );
+
+  const sendControl = (
+    <button
+      type="button"
+      className="send-icon-button"
+      aria-label={voiceDraft ? "Send voice note" : "Check details"}
+      title={voiceDraft ? "Send voice note" : "Check details"}
+      onClick={handleSend}
+      disabled={voiceBusy || (!message.trim() && !voiceDraft)}
+    >
+      <svg
+        width="19"
+        height="19"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M5 12h14 m-6-6 6 6-6 6" />
+      </svg>
+    </button>
+  );
 
   return (
     <div className="composer">
-      {/* Mobile: Pin icon with popup menu */}
       <div className="input-options-toggle mobile-only">
         <button
           className="icon-button-pin"
@@ -77,7 +174,6 @@ export default function ChatComposer({
         </button>
       </div>
 
-      {/* Mobile: Options popup menu */}
       {showInputOptions && (
         <div className="input-options-menu mobile-only">
           <button
@@ -125,7 +221,7 @@ export default function ChatComposer({
           <button
             onClick={() => {
               setShowInputOptions(false);
-              onToast("Hold the microphone button to record (WhatsApp style)");
+              onToast("Tap the microphone, speak, then tap it again to stop.");
             }}
           >
             <svg
@@ -146,52 +242,22 @@ export default function ChatComposer({
       )}
 
       <div className="chat-compose-row">
-        {/* Desktop: Inline icons */}
-        <div className="desktop-input-actions">
-          <input
-            type="file"
-            id="screenshot-upload"
-            accept="image/png,image/jpeg,image/webp"
-            style={{ display: "none" }}
-            onChange={handleFileUpload}
-          />
-        </div>
+        <div className="desktop-input-actions">{uploadControl}</div>
 
         <div className="input-with-mic">
           <textarea
             id="paste-input"
             aria-label="Customer message"
-            placeholder="Paste a message or tell me what's needed…"
+            placeholder={voiceDraft ? "Add a note before sending voice..." : "Paste a message or tell me what's needed..."}
             value={message}
             onChange={(e) => onMessageChange(e.target.value)}
             maxLength={6000}
             disabled={voiceBusy}
           />
 
-          {/* Microphone button inside input */}
           <div className="input-mic-button">
-            {message.trim() ? (
-              <button
-                type="button"
-                className="send-icon-button"
-                aria-label="Check details"
-                title="Check details"
-                onClick={onCapture}
-                disabled={voiceBusy}
-              >
-                <svg
-                  width="19"
-                  height="19"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 12h14 m-6-6 6 6-6 6" />
-                </svg>
-              </button>
+            {message.trim() || voiceDraft ? (
+              sendControl
             ) : (
               <SimpleVoiceButton
                 onRecordingComplete={handleVoiceRecordingComplete}
@@ -202,14 +268,32 @@ export default function ChatComposer({
         </div>
       </div>
 
+      {voiceDraft && (
+        <div className="voice-draft-card">
+          <div>
+            <strong>Voice note ready</strong>
+            <small>Recorded {formatDuration(voiceDraft.duration)}</small>
+          </div>
+          <audio controls src={voiceDraft.url} aria-label="Preview voice note" />
+          <div className="voice-draft-actions">
+            <button type="button" className="outline" onClick={discardVoiceDraft} disabled={voiceBusy}>
+              Delete
+            </button>
+            <button type="button" className="primary" onClick={sendVoiceDraft} disabled={voiceBusy}>
+              {voiceBusy ? "Sending..." : "Send voice"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="composer-actions">
         <span className="char-counter">
-          {message.length}/6000 · Review before saving
+          {message.length}/6000 - Review before saving
         </span>
         {message.trim() && (
           <button
             className="primary check-details-button"
-            onClick={onCapture}
+            onClick={handleSend}
             disabled={voiceBusy}
           >
             Check details{" "}
@@ -230,8 +314,7 @@ export default function ChatComposer({
       </div>
 
       <div className="ai-note">
-        Voice notes and attachments need AI setup; manual text capture works
-        now.
+        Voice notes and attachments need AI setup; manual text capture works now.
       </div>
     </div>
   );
