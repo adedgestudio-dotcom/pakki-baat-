@@ -5,7 +5,7 @@ import "./connections.css";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import { saveVoice, loadVoice, deleteVoice } from "@/lib/voice-messages";
-import { cloudConfigured, cloudToken, signInWithGoogle } from "@/lib/cloud";
+import { cloudConfigured, cloudToken, currentSession, signInWithGoogle, signOut, watchSession } from "@/lib/cloud";
 import { isSnapshot, calendarFile, type Job, type Snapshot } from "@/lib/data";
 type Tab = "Today" | "My assistant" | "Commitments" | "Customers" | "Settings";
 type ChatTurn = { id: string; role: "me" | "assistant"; text: string; replyFor?: Job; voiceId?: string; duration?: number };
@@ -105,7 +105,9 @@ export default function Workspace() {
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
-    [feedback, setFeedback] = useState("");
+    [feedback, setFeedback] = useState(""),
+    [authReady, setAuthReady] = useState(!cloudConfigured),
+    [loggedIn, setLoggedIn] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -136,6 +138,17 @@ export default function Workspace() {
     setReady(true);
   }, []);
   useEffect(() => {
+    if (!cloudConfigured) return;
+    void currentSession()
+      .then((session) => setLoggedIn(Boolean(session)))
+      .catch(() => setToast("Could not check Google sign-in."))
+      .finally(() => setAuthReady(true));
+
+    return watchSession((session) => {
+      setLoggedIn(Boolean(session));
+      setAuthReady(true);
+    });
+  }, []);  useEffect(() => {
     if (!ready) return;
     try {
       localStorage.setItem("pakki-baat-v1", JSON.stringify({ jobs, owner, business }));
@@ -145,6 +158,17 @@ export default function Workspace() {
     }
   }, [jobs, owner, business, ready]);
   useEffect(() => {
+    if (!cloudConfigured) return;
+    void currentSession()
+      .then((session) => setLoggedIn(Boolean(session)))
+      .catch(() => setToast("Could not check Google sign-in."))
+      .finally(() => setAuthReady(true));
+
+    return watchSession((session) => {
+      setLoggedIn(Boolean(session));
+      setAuthReady(true);
+    });
+  }, []);  useEffect(() => {
     if (!ready) return;
     try {
       localStorage.setItem("pakki-baat-chat-v1", JSON.stringify({ turns: chatTurns, pending: pendingJob, step: chatStep }));
@@ -329,6 +353,15 @@ export default function Workspace() {
       await signInWithGoogle();
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : "Could not start Google sign-in.");
+    }
+  }
+  async function handleSignOut() {
+    try {
+      await signOut();
+      setLoggedIn(false);
+      setToast("Signed out. Your device workspace is still here.");
+    } catch (cause) {
+      setToast(cause instanceof Error ? cause.message : "Could not sign out.");
     }
   }
   async function downloadVoiceInChat(id: string) {
@@ -648,7 +681,17 @@ export default function Workspace() {
           </div>
           <div className="top-actions">
             <span className="saved-dot" />
-            {ready ? "Device workspace" : "Storage unavailable"}
+            {ready ? (loggedIn ? "Google connected" : "Device workspace") : "Storage unavailable"}
+            {cloudConfigured && authReady && !loggedIn && (
+              <button type="button" className="google-sign-in top-login" onClick={() => void startGoogleSignIn()}>
+                Login / Sign up
+              </button>
+            )}
+            {cloudConfigured && authReady && loggedIn && (
+              <button type="button" className="text-button top-signout" onClick={() => void handleSignOut()}>
+                Sign out
+              </button>
+            )}
             <button
               className="icon-button"
               aria-label="View reminders"
@@ -852,6 +895,18 @@ export default function Workspace() {
                     </div>
                   </div>
                   <div className="chat-body" ref={chatBodyRef} role="log" aria-label="Assistant conversation" aria-live="polite">
+                    {cloudConfigured && authReady && !loggedIn && (
+                      <div className="assistant-login-card">
+                        <div>
+                          <strong>Login to use AI voice</strong>
+                          <p>Sign in or sign up with Google so Pakki Baat can listen to voice notes, write the text, and prepare the details slip.</p>
+                        </div>
+                        <button type="button" className="google-sign-in compact" onClick={() => void startGoogleSignIn()}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"/><path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"/></svg>
+                          Continue with Google
+                        </button>
+                      </div>
+                    )}
                     <span className="chat-date">Your conversation</span>
                     <div className="bubble">
                       <strong>Hi {owner}!</strong>
@@ -870,7 +925,7 @@ export default function Workspace() {
                             <button type="button" onClick={() => void removeVoice(turn.voiceId!)}>Delete voice</button>
                           </div>
                         </div>}
-                        {turn.text.includes("Please continue with Google") && <div className="login-prompt-actions">
+                        {(turn.text.includes("Please continue with Google") || turn.text.includes("Continue with Google in Settings")) && <div className="login-prompt-actions">
                           <button type="button" className="google-sign-in compact" onClick={() => void startGoogleSignIn()} disabled={!cloudConfigured}>
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"/><path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"/></svg>
                             Continue with Google

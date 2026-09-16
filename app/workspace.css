@@ -2386,3 +2386,69 @@ select:focus-visible {
   color: #20342d;
   border-color: #dce7dd;
 }
+
+.top-login {
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 11px;
+  border-radius: 999px;
+}
+.top-signout {
+  min-height: 36px;
+  padding: 7px 4px;
+}
+.assistant-login-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(100%, 720px);
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #cbded1;
+  border-radius: 14px;
+  background: #eef6eb;
+  box-shadow: 0 6px 18px rgba(34, 62, 51, 0.06);
+}
+.assistant-login-card strong {
+  display: block;
+  font-size: 13px;
+  color: var(--teal);
+  margin-bottom: 4px;
+}
+.assistant-login-card p {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #5d6d65;
+}
+[data-theme="dark"] .assistant-login-card {
+  background: #203b30;
+  border-color: #365c49;
+}
+[data-theme="dark"] .assistant-login-card p {
+  color: #c6d8ce;
+}
+@media (max-width: 800px) {
+  .top-login {
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+  .top-signout {
+    display: none;
+  }
+  .assistant-login-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .assistant-login-card .google-sign-in {
+    width: 100%;
+  }
+}
+@media (max-width: 560px) {
+  .top-login {
+    max-width: 112px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
