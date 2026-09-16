@@ -2365,3 +2365,24 @@ select:focus-visible {
     display: none;
   }
 }
+
+.login-prompt-actions {
+  margin-top: 12px;
+}
+.google-sign-in.compact {
+  width: auto;
+  min-height: 40px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  font-size: 12px;
+  box-shadow: none;
+}
+.google-sign-in.compact svg {
+  width: 18px;
+  height: 18px;
+}
+[data-theme="dark"] .google-sign-in.compact {
+  background: #f9fbf8;
+  color: #20342d;
+  border-color: #dce7dd;
+}
