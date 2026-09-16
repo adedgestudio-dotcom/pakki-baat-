@@ -1047,7 +1047,7 @@ export default function Workspace() {
                   <p>
                     Your data is saved in this browser. Export a backup before
                     clearing browser data or switching devices. Use a cloud
-                    backup after phone sign-in to move between devices.
+                    backup after Google sign-in to move between devices.
                   </p>
                 </div>
                 <button

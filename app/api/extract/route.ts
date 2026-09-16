@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (!auth?.startsWith("Bearer ")) {
     return Response.json(
-      { error: "Sign in with your phone in Settings to use AI." },
+      { error: "Continue with Google in Settings to use AI." },
       { status: 401 }
     );
   }

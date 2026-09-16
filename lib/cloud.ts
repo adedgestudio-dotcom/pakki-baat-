@@ -1,17 +1,67 @@
-const base=process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-export const cloudConfigured=Boolean(base&&key);
-type Session={access_token:string;refresh_token:string;expires_at?:number;expires_in?:number;user:{id:string}};
-let session:Session|null=null;
-export function signedIn(){return Boolean(session)}
-async function request(path:string,body?:unknown,token?:string){
- if(!base||!key)throw new Error("Cloud connection is not configured yet.");
- const r=await fetch(`${base}${path}`,{method:body?"POST":"GET",headers:{apikey:key,"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})});
- const raw=await r.text();const result=raw?JSON.parse(raw):null;if(!r.ok)throw new Error(result?.msg||result?.error_description||result?.message||"Cloud request failed.");return result;
+import { createClient, type Session } from "@supabase/supabase-js";
+
+const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const cloudConfigured = Boolean(base && key);
+const client = base && key ? createClient(base, key, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+}) : null;
+
+function configuredClient() {
+  if (!client) throw new Error("Cloud connection is not configured yet.");
+  return client;
 }
-export async function sendCode(phone:string){if(!/^\+[1-9]\d{7,14}$/.test(phone))throw new Error("Enter your phone with country code, for example +919876543210.");await request("/auth/v1/otp",{phone,create_user:true});}
-export async function verifyCode(phone:string,code:string){session=await request("/auth/v1/verify",{phone,token:code,type:"sms"});if(session)session.expires_at=Math.floor(Date.now()/1000)+(session.expires_in||3600);}
-export async function cloudToken(){if(!session)throw new Error("Sign in with your phone first.");if((session.expires_at||0)<Date.now()/1000+60){session=await request("/auth/v1/token?grant_type=refresh_token",{refresh_token:session.refresh_token});if(session)session.expires_at=Math.floor(Date.now()/1000)+(session.expires_in||3600);}if(!session)throw new Error("Sign in again.");return session.access_token;}
-export async function saveCloud(snapshot:unknown){const token=await cloudToken();await request("/rest/v1/rpc/save_workspace",{payload:snapshot},token);}
-export async function loadCloud(){const token=await cloudToken();const rows=await request("/rest/v1/workspaces?select=payload",undefined,token);return rows[0]?.payload||null;}
-export function signOut(){session=null;}
+
+export async function signInWithGoogle() {
+  const { error } = await configuredClient().auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.origin + "/" },
+  });
+  if (error) throw error;
+}
+
+export async function currentSession() {
+  if (!client) return null;
+  const { data, error } = await client.auth.getSession();
+  if (error) throw error;
+  return data.session;
+}
+
+export function watchSession(onChange: (session: Session | null) => void) {
+  if (!client) return () => {};
+  const { data } = client.auth.onAuthStateChange((_event, session) => onChange(session));
+  return () => data.subscription.unsubscribe();
+}
+
+export async function cloudToken() {
+  const session = await currentSession();
+  if (!session) throw new Error("Continue with Google in Settings to use AI.");
+  return session.access_token;
+}
+
+async function request(path: string, body?: unknown, token?: string) {
+  if (!base || !key) throw new Error("Cloud connection is not configured yet.");
+  const response = await fetch(base + path, {
+    method: body ? "POST" : "GET",
+    headers: { apikey: key, "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const raw = await response.text();
+  const result = raw ? JSON.parse(raw) : null;
+  if (!response.ok) throw new Error(result?.message || result?.error_description || result?.msg || "Cloud request failed.");
+  return result;
+}
+
+export async function saveCloud(snapshot: unknown) {
+  await request("/rest/v1/rpc/save_workspace", { payload: snapshot }, await cloudToken());
+}
+
+export async function loadCloud() {
+  const rows = await request("/rest/v1/workspaces?select=payload", undefined, await cloudToken());
+  return rows[0]?.payload || null;
+}
+
+export async function signOut() {
+  const { error } = await configuredClient().auth.signOut();
+  if (error) throw error;
+}

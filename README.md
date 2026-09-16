@@ -26,7 +26,7 @@ No service account is needed for the local trial. Start with **Add customer mess
 - Customer history inferred from saved commitments.
 - Editable workspace name, device persistence, JSON backup export and validated restore.
 - Phone share-sheet feedback (or clipboard fallback) and downloadable feedback.
-- Optional SMS sign-in and manual Supabase cloud backup/restore.
+- Optional Google sign-in and manual Supabase cloud backup/restore.
 - Optional AI capture from text, screenshots, uploaded audio or microphone recording.
 - Responsive desktop layout and mobile bottom navigation.
 
@@ -37,10 +37,11 @@ Quick capture is a convenience form, not an AI parser. Check every field. Custom
 1. Copy `.env.example` to `.env.local`.
 2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from your project.
 3. Run `supabase/schema.sql` once in the Supabase SQL editor.
-4. Enable phone authentication and configure an SMS provider. For a private trial, Supabase test phone numbers/codes can avoid sending real SMS.
-5. Restart the app, open Settings, and sign in using a phone number with its country code.
+4. Enable Google under Authentication providers and add the OAuth Client ID and Client Secret from Google Cloud.
+5. Set the Supabase Site URL to the deployed app and add its URL to the redirect allow list.
+6. Restart the app, open Settings, and choose **Continue with Google**.
 
-Cloud backups are explicitly saved and restored. They do not merge across devices. Each Supabase account can read/write only its own workspace through row-level security. Authentication tokens stay in memory; refreshing the app requires signing in again. Device data remains visible in that browser after signing out.
+Cloud backups are explicitly saved and restored. They do not merge across devices. Each Supabase account can read/write only its own workspace through row-level security. Google sessions persist securely in the browser. Device data remains visible in that browser after signing out.
 
 ## Optional AI setup
 
@@ -48,7 +49,7 @@ Set `OPENAI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` on the server. Never prefix
 
 AI requests require a valid Supabase login and use an atomic database quota of 30 attempted captures per account per database day. Failed processing attempts also count. Uploads are limited to 2 MB; microphone recordings stop after one minute. After recording, choose **Send voice in chat** to post a playable audio message. If AI is configured, the recording is automatically sent to OpenAI for transcription and the assistant replies to the spoken details in the chat. If transcription fails, the voice note stays in the chat and can be retried. **Transcribe with OpenAI** is also available before sending for users who want to review the words first. **Read details with AI** opens an editable draft. Sent audio is stored in this browser and is not included in workspace backups. The server uses OpenAI transcription and structured extraction. Uploaded media is forwarded for processing and is not stored in Supabase; the extracted text is stored when the user saves the commitment.
 
-Live SMS delivery, cloud access policies and AI output need to be verified against your configured services before inviting public users. Provider calls may cost money.
+Cloud access policies and AI output need to be verified against your configured services before inviting public users. Provider calls may cost money.
 
 ## Deploy when ready
 
