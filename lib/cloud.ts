@@ -1,19 +1,45 @@
-import { createClient, type Session } from "@supabase/supabase-js";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 
-const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-export const cloudConfigured = Boolean(base && key);
-const client = base && key ? createClient(base, key, {
+let base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+let key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+let client: SupabaseClient | null = base && key ? createClient(base, key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 }) : null;
+let configPromise: Promise<SupabaseClient | null> | null = null;
 
-function configuredClient() {
-  if (!client) throw new Error("Cloud connection is not configured yet.");
+export const cloudConfigured = true;
+
+function makeClient() {
+  if (!base || !key) return null;
+  client ||= createClient(base, key, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
   return client;
 }
 
+async function loadRuntimeConfig() {
+  if (client) return client;
+  if (typeof window === "undefined") return makeClient();
+  configPromise ||= fetch("/api/public-config", { cache: "no-store" })
+    .then(async (response) => {
+      if (!response.ok) return null;
+      const config = await response.json();
+      base = String(config.supabaseUrl || base || "");
+      key = String(config.supabaseAnonKey || key || "");
+      return makeClient();
+    })
+    .catch(() => null);
+  return configPromise;
+}
+
+async function configuredClient() {
+  const ready = await loadRuntimeConfig();
+  if (!ready) throw new Error("Cloud connection is not configured yet.");
+  return ready;
+}
+
 export async function signInWithGoogle() {
-  const { error } = await configuredClient().auth.signInWithOAuth({
+  const { error } = await (await configuredClient()).auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: window.location.origin + "/" },
   });
@@ -21,16 +47,21 @@ export async function signInWithGoogle() {
 }
 
 export async function currentSession() {
-  if (!client) return null;
-  const { data, error } = await client.auth.getSession();
+  const ready = await loadRuntimeConfig();
+  if (!ready) return null;
+  const { data, error } = await ready.auth.getSession();
   if (error) throw error;
   return data.session;
 }
 
 export function watchSession(onChange: (session: Session | null) => void) {
-  if (!client) return () => {};
-  const { data } = client.auth.onAuthStateChange((_event, session) => onChange(session));
-  return () => data.subscription.unsubscribe();
+  let unsubscribe = () => {};
+  void loadRuntimeConfig().then((ready) => {
+    if (!ready) return;
+    const { data } = ready.auth.onAuthStateChange((_event, session) => onChange(session));
+    unsubscribe = () => data.subscription.unsubscribe();
+  });
+  return () => unsubscribe();
 }
 
 export async function cloudToken() {
@@ -40,7 +71,7 @@ export async function cloudToken() {
 }
 
 async function request(path: string, body?: unknown, token?: string) {
-  if (!base || !key) throw new Error("Cloud connection is not configured yet.");
+  await configuredClient();
   const response = await fetch(base + path, {
     method: body ? "POST" : "GET",
     headers: { apikey: key, "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
@@ -62,6 +93,6 @@ export async function loadCloud() {
 }
 
 export async function signOut() {
-  const { error } = await configuredClient().auth.signOut();
+  const { error } = await (await configuredClient()).auth.signOut();
   if (error) throw error;
 }
