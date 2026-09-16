@@ -88,22 +88,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (
-      file instanceof File &&
-      (file.size > 2_000_000 ||
-        ![
-          "image/png",
-          "image/jpeg",
-          "image/webp",
-          "audio/mpeg",
-          "audio/mp4",
-          "audio/webm",
-          "audio/ogg",
-          "audio/wav",
-          "audio/x-wav",
-          "video/webm",
-        ].includes(file.type))
-    ) {
+    const supportedFile = file instanceof File
+      ? file.type.startsWith("image/")
+        ? ["image/png", "image/jpeg", "image/webp"].includes(file.type)
+        : ["audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg", "audio/wav", "audio/x-wav", "video/webm", "application/octet-stream", ""].includes(file.type) || /\.(mp3|m4a|mp4|wav|webm|ogg)$/i.test(file.name)
+      : true;
+
+    if (file instanceof File && (file.size > 2_000_000 || !supportedFile)) {
       return Response.json(
         {
           error:
