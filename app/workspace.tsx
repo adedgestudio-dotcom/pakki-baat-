@@ -273,7 +273,6 @@ export default function Workspace() {
       const token = await cloudToken();
       const form = new FormData();
       form.set("file", file);
-      form.set("mode", "transcribe");
       form.set("today", new Date().toLocaleDateString("en-CA"));
       const response = await fetch("/api/extract", {
         method: "POST",
@@ -282,10 +281,23 @@ export default function Workspace() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Transcription failed.");
-      const transcript = String(result.text || "").trim().slice(0, 6000);
+      const transcript = String(result.text || result.draft?.source || "").trim().slice(0, 6000);
       if (!transcript) throw new Error("No speech was detected in the recording.");
       setChatTurns((turns) => turns.map((turn) => turn.voiceId === id ? { ...turn, text: transcript } : turn));
-      respondTo(transcript, false);
+
+      if (result.draft) {
+        const draft = { ...blank(), ...result.draft, source: transcript } as Job;
+        draft.total = Number.isFinite(Number(draft.total)) ? Number(draft.total) : 0;
+        draft.paid = Number.isFinite(Number(draft.paid)) ? Number(draft.paid) : 0;
+        if (draft.paid > draft.total) draft.paid = 0;
+        setPendingJob(draft);
+        setChatStep("ready");
+        say("assistant", "I heard: " + transcript);
+        say("assistant", "I prepared the details slip from your voice note. Open Review details to check it, or copy the suggested customer reply below.");
+        say("assistant", replyText(draft), draft);
+      } else {
+        respondTo(transcript, false);
+      }
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : "Transcription failed.";
       say("assistant", "Your voice note is in the chat, but I could not read it: " + reason + " Tap Retry transcription or type the details.");

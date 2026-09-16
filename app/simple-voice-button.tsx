@@ -119,37 +119,48 @@ export default function SimpleVoiceButton({
     await startRecording();
   };
 
+  const formattedDuration = `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}`;
+
   return (
-    <button
-      type="button"
-      className={isRecording ? "whatsapp-mic-button recording" : "whatsapp-mic-button"}
-      onClick={handleClick}
-      aria-label={isRecording ? "Stop recording" : "Record voice note"}
-      title={isRecording ? `Stop recording (${duration}s)` : "Record voice note"}
-    >
-      {isRecording ? (
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-        >
-          <rect x="6" y="6" width="12" height="12" rx="2" />
-        </svg>
-      ) : (
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z M5 11a7 7 0 0 0 14 0 M12 18v3 M9 21h6" />
-        </svg>
+    <>
+      {isRecording && (
+        <div className="inline-recording-strip" role="status" aria-live="polite">
+          <span className="recording-live-dot" />
+          <span className="recording-strip-time">{formattedDuration}</span>
+          <span className="recording-wave-line" aria-hidden="true">
+            {Array.from({ length: 16 }).map((_, index) => (
+              <span key={index} style={{ animationDelay: `${index * 0.06}s` }} />
+            ))}
+          </span>
+          <span className="recording-strip-hint">Tap stop to send for review</span>
+        </div>
       )}
-    </button>
+      <button
+        type="button"
+        className={isRecording ? "whatsapp-mic-button recording" : "whatsapp-mic-button"}
+        onClick={handleClick}
+        aria-label={isRecording ? "Stop recording" : "Record voice note"}
+        title={isRecording ? `Stop recording (${duration}s)` : "Record voice note"}
+      >
+        {isRecording ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        ) : (
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z M5 11a7 7 0 0 0 14 0 M12 18v3 M9 21h6" />
+          </svg>
+        )}
+      </button>
+    </>
   );
 }
