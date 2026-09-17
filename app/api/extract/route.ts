@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
+
+function isTimeoutError(error: unknown) {
+  return error instanceof Error &&
+    (error.name === "TimeoutError" ||
+      error.name === "AbortError" ||
+      /aborted due to timeout/i.test(error.message));
+}
 
 export async function GET() {
   return Response.json({
@@ -151,7 +158,7 @@ export async function POST(req: NextRequest) {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}` },
           body: audio,
-          signal: AbortSignal.timeout(25000),
+          signal: AbortSignal.timeout(60000),
         }
       );
 
@@ -244,8 +251,9 @@ Rules:
     console.error("❌ Error:", e);
     return Response.json(
       {
-        error:
-          e instanceof Error
+        error: isTimeoutError(e)
+          ? "Transcription took too long. Tap Retry transcription to try again, or record a shorter voice note."
+          : e instanceof Error
             ? e.message
             : "Capture failed. Please try manual entry.",
       },
