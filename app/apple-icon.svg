@@ -1,17 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
-  <defs>
-    <linearGradient id="appleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2d7667;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1f5449;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  <rect width="180" height="180" fill="url(#appleGradient)"/>
-  <circle cx="133" cy="46" r="21" fill="#ffffff" opacity="0.08"/>
-  <path d="M49 134c0-59 34-82 89-87 0 56-31 87-89 87Z M49 134 L109 74" 
-        fill="none" 
-        stroke="#f5f1e8" 
-        stroke-width="11" 
-        stroke-linecap="round" 
-        stroke-linejoin="round"/>
-  <circle cx="138" cy="46" r="6" fill="#ff7556"/>
+  <defs><linearGradient id="brand" x1="24" y1="18" x2="156" y2="164" gradientUnits="userSpaceOnUse"><stop stop-color="#348878"/><stop offset="1" stop-color="#1f5449"/></linearGradient></defs>
+  <rect width="180" height="180" rx="38" fill="url(#brand)"/>
+  <path d="M47 49h86a14 14 0 0 1 14 14v49a14 14 0 0 1-14 14H89l-32 20v-20H47a14 14 0 0 1-14-14V63a14 14 0 0 1 14-14Z" fill="none" stroke="#f5f1e8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m65 87 16 16 34-39" fill="none" stroke="#ff7556" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

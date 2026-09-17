@@ -69,6 +69,12 @@
 [data-theme="dark"] .sidebar,[data-theme="dark"] .topbar,[data-theme="dark"] .panel,[data-theme="dark"] .stats>button,[data-theme="dark"] .chat-panel,[data-theme="dark"] .modal,[data-theme="dark"] .customer-card,[data-theme="dark"] .search,[data-theme="dark"] .composer,[data-theme="dark"] .outline,[data-theme="dark"] .chat-compose-row,[data-theme="dark"] .note { background: #17231f; color: #e7eee9; border-color: #2b3d35; }
 [data-theme="dark"] .google-sign-in { background: #20332a; color: #eef5ef; border-color: #385047; }
 [data-theme="dark"] .hero { background: #22332b; border-color: #35493e; }
+[data-theme="dark"] .tip-panel { background: #192b25; border-color: #345046; }
+[data-theme="dark"] .tip-panel .eyebrow { color: #d6ad83; }
+[data-theme="dark"] .tip-panel h2 { color: #f2e6d7; }
+[data-theme="dark"] .tip-panel p { color: #b7c9c0; }
+[data-theme="dark"] .tip-panel .tiny { color: #98aaa1; }
+[data-theme="dark"] .tip-panel .outline { background: #263b33; color: #f2f6f3; border-color: #496159; }
 [data-theme="dark"] .hero h2,[data-theme="dark"] h1,[data-theme="dark"] h2,[data-theme="dark"] h3,[data-theme="dark"] strong,[data-theme="dark"] .brand { color: #edf4ef; }
 [data-theme="dark"] p,[data-theme="dark"] small,[data-theme="dark"] .breadcrumb,[data-theme="dark"] .job-main>span,[data-theme="dark"] .job-main small { color: #a9b9af; }
 [data-theme="dark"] .chat-body { background: #101a17; }

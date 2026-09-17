@@ -5,30 +5,62 @@ import "./connections.css";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import { saveVoice, loadVoice, deleteVoice } from "@/lib/voice-messages";
-import { cloudConfigured, cloudToken, currentSession, signInWithGoogle, signOut, watchSession } from "@/lib/cloud";
+import {
+  cloudConfigured,
+  cloudToken,
+  currentSession,
+  signInWithGoogle,
+  signOut,
+  watchSession,
+} from "@/lib/cloud";
 import { isSnapshot, calendarFile, type Job, type Snapshot } from "@/lib/data";
 type Tab = "Today" | "My assistant" | "Commitments" | "Customers" | "Settings";
-type ChatTurn = { id: string; role: "me" | "assistant"; text: string; replyFor?: Job; voiceId?: string; duration?: number };
+type ChatTurn = {
+  id: string;
+  role: "me" | "assistant";
+  text: string;
+  replyFor?: Job;
+  voiceId?: string;
+  duration?: number;
+};
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
 function isRealDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, date] = value.split("-").map(Number);
   const check = new Date(Date.UTC(year, month - 1, date));
-  return check.getUTCFullYear() === year && check.getUTCMonth() + 1 === month && check.getUTCDate() === date;
+  return (
+    check.getUTCFullYear() === year &&
+    check.getUTCMonth() + 1 === month &&
+    check.getUTCDate() === date
+  );
 }
 function isChatState(value: unknown): value is ChatState {
   if (!value || typeof value !== "object") return false;
   const state = value as ChatState;
-  return Array.isArray(state.turns) && state.turns.length <= 80 &&
-    state.turns.every((turn) => turn && typeof turn.id === "string" &&
-      ["me", "assistant"].includes(turn.role) && typeof turn.text === "string" &&
-      turn.text.length <= 12000 &&
-      (!turn.voiceId || (typeof turn.voiceId === "string" && turn.voiceId.length <= 100)) &&
-      (turn.duration === undefined || (Number.isFinite(turn.duration) && turn.duration >= 0 && turn.duration <= 60)) &&
-      (!turn.replyFor || isSnapshot({ jobs: [turn.replyFor], owner: "", business: "" }))) &&
-    (state.pending === null || isSnapshot({ jobs: [state.pending], owner: "", business: "" })) &&
-    ["customer", "total", "paid", "date", "ready"].includes(state.step);
+  return (
+    Array.isArray(state.turns) &&
+    state.turns.length <= 80 &&
+    state.turns.every(
+      (turn) =>
+        turn &&
+        typeof turn.id === "string" &&
+        ["me", "assistant"].includes(turn.role) &&
+        typeof turn.text === "string" &&
+        turn.text.length <= 12000 &&
+        (!turn.voiceId ||
+          (typeof turn.voiceId === "string" && turn.voiceId.length <= 100)) &&
+        (turn.duration === undefined ||
+          (Number.isFinite(turn.duration) &&
+            turn.duration >= 0 &&
+            turn.duration <= 60)) &&
+        (!turn.replyFor ||
+          isSnapshot({ jobs: [turn.replyFor], owner: "", business: "" }))
+    ) &&
+    (state.pending === null ||
+      isSnapshot({ jobs: [state.pending], owner: "", business: "" })) &&
+    ["customer", "total", "paid", "date", "ready"].includes(state.step)
+  );
 }
 const blank = (): Job => ({
   id: "",
@@ -51,7 +83,7 @@ const day = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
     2,
-    "0",
+    "0"
   )}-${String(d.getDate()).padStart(2, "0")}`;
 };
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
@@ -72,6 +104,10 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     search: "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0 m-2 5 6 6",
     close: "m6 6 12 12 M6 18 18 6",
     leaf: "M5 20c0-10 6-15 15-16 0 10-5 16-15 16Z M5 20l10-10",
+    promise:
+      "M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 3v-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z M8 11l2.2 2.2L16 8",
+    sun: "M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4 M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
+    moon: "M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z",
   };
   return (
     <svg
@@ -107,7 +143,9 @@ export default function Workspace() {
     [toast, setToast] = useState(""),
     [feedback, setFeedback] = useState(""),
     [authReady, setAuthReady] = useState(!cloudConfigured),
-    [loggedIn, setLoggedIn] = useState(false);
+    [loggedIn, setLoggedIn] = useState(false),
+    [userName, setUserName] = useState<string | null>(null),
+    [dark, setDark] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -115,7 +153,9 @@ export default function Workspace() {
   // Hydrate the device workspace after SSR; browser storage is unavailable on the server.
   useEffect(() => {
     try {
-      const snapshot = JSON.parse(localStorage.getItem("pakki-baat-v1") || "null");
+      const snapshot = JSON.parse(
+        localStorage.getItem("pakki-baat-v1") || "null"
+      );
       if (snapshot !== null) {
         if (!isSnapshot(snapshot)) throw new Error("Invalid backup");
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -124,11 +164,15 @@ export default function Workspace() {
         setBusiness(snapshot.business);
       }
     } catch {
-      setToast("Saved data could not be read. Restore a valid backup in Settings.");
+      setToast(
+        "Saved data could not be read. Restore a valid backup in Settings."
+      );
       return;
     }
     try {
-      const chat = JSON.parse(localStorage.getItem("pakki-baat-chat-v1") || "null");
+      const chat = JSON.parse(
+        localStorage.getItem("pakki-baat-chat-v1") || "null"
+      );
       if (isChatState(chat)) {
         setChatTurns(chat.turns);
         setPendingJob(chat.pending);
@@ -138,21 +182,52 @@ export default function Workspace() {
     setReady(true);
   }, []);
   useEffect(() => {
+    const savedTheme = localStorage.getItem("pakki-baat-theme");
+    const isDark = savedTheme === "dark";
+    document.documentElement.dataset.theme = isDark ? "dark" : "light";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDark(isDark);
+  }, []);
+  useEffect(() => {
     if (!cloudConfigured) return;
     void currentSession()
-      .then((session) => setLoggedIn(Boolean(session)))
+      .then((session) => {
+        setLoggedIn(Boolean(session));
+        if (session?.user) {
+          // Extract name from Google profile metadata or email
+          const metadata = session.user.user_metadata;
+          const fullName = metadata?.full_name || metadata?.name;
+          const email = session.user.email || "";
+          const emailName = email.split("@")[0];
+          setUserName(fullName || emailName || null);
+        } else {
+          setUserName(null);
+        }
+      })
       .catch(() => setToast("Could not check Google sign-in."))
       .finally(() => setAuthReady(true));
 
     return watchSession((session) => {
       setLoggedIn(Boolean(session));
+      if (session?.user) {
+        const metadata = session.user.user_metadata;
+        const fullName = metadata?.full_name || metadata?.name;
+        const email = session.user.email || "";
+        const emailName = email.split("@")[0];
+        setUserName(fullName || emailName || null);
+      } else {
+        setUserName(null);
+      }
       setAuthReady(true);
     });
   }, []);
   useEffect(() => {
     if (!ready) return;
     try {
-      localStorage.setItem("pakki-baat-v1", JSON.stringify({ jobs, owner, business }));
+      localStorage.setItem(
+        "pakki-baat-v1",
+        JSON.stringify({ jobs, owner, business })
+      );
     } catch {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setToast("Storage is full. Export a backup before closing.");
@@ -161,29 +236,47 @@ export default function Workspace() {
   useEffect(() => {
     if (!ready) return;
     try {
-      localStorage.setItem("pakki-baat-chat-v1", JSON.stringify({ turns: chatTurns, pending: pendingJob, step: chatStep }));
+      localStorage.setItem(
+        "pakki-baat-chat-v1",
+        JSON.stringify({
+          turns: chatTurns,
+          pending: pendingJob,
+          step: chatStep,
+        })
+      );
     } catch {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setToast("Conversation storage is full. Export your commitments before closing.");
+      setToast(
+        "Conversation storage is full. Export your commitments before closing."
+      );
     }
   }, [chatTurns, pendingJob, chatStep, ready]);
   useEffect(() => {
     for (const turn of chatTurns) {
       const id = turn.voiceId;
-      if (!id || voiceUrlsRef.current[id] || loadingVoiceIds.current.has(id)) continue;
+      if (!id || voiceUrlsRef.current[id] || loadingVoiceIds.current.has(id))
+        continue;
       loadingVoiceIds.current.add(id);
-      void loadVoice(id).then((file) => {
-        if (!file) { setVoiceUrls((urls) => ({ ...urls, [id]: "" })); return; }
-        voiceFilesRef.current[id] = file;
-        const url = URL.createObjectURL(file);
-        voiceUrlsRef.current[id] = url;
-        setVoiceUrls((urls) => ({ ...urls, [id]: url }));
-      }).catch(() => setVoiceUrls((urls) => ({ ...urls, [id]: "" }))).finally(() => loadingVoiceIds.current.delete(id));
+      void loadVoice(id)
+        .then((file) => {
+          if (!file) {
+            setVoiceUrls((urls) => ({ ...urls, [id]: "" }));
+            return;
+          }
+          voiceFilesRef.current[id] = file;
+          const url = URL.createObjectURL(file);
+          voiceUrlsRef.current[id] = url;
+          setVoiceUrls((urls) => ({ ...urls, [id]: url }));
+        })
+        .catch(() => setVoiceUrls((urls) => ({ ...urls, [id]: "" })))
+        .finally(() => loadingVoiceIds.current.delete(id));
     }
   }, [chatTurns]);
   useEffect(() => {
     return () => {
-      Object.values(voiceUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+      Object.values(voiceUrlsRef.current).forEach((url) =>
+        URL.revokeObjectURL(url)
+      );
       voiceUrlsRef.current = {};
     };
   }, []);
@@ -205,11 +298,17 @@ export default function Workspace() {
       if (e.key === "Escape") setDraft(null);
       if (e.key === "Tab") {
         const nodes = document.querySelectorAll<HTMLElement>(
-          '[role="dialog"] button:not(:disabled), [role="dialog"] input, [role="dialog"] textarea, [role="dialog"] select, [role="dialog"] summary',
+          '[role="dialog"] button:not(:disabled), [role="dialog"] input, [role="dialog"] textarea, [role="dialog"] select, [role="dialog"] summary'
         );
-        const first = nodes[0], last = nodes[nodes.length - 1];
-        if (e.shiftKey && (document.activeElement === first ||
-          !document.querySelector('[role="dialog"]')?.contains(document.activeElement))) {
+        const first = nodes[0],
+          last = nodes[nodes.length - 1];
+        if (
+          e.shiftKey &&
+          (document.activeElement === first ||
+            !document
+              .querySelector('[role="dialog"]')
+              ?.contains(document.activeElement))
+        ) {
           e.preventDefault();
           last?.focus();
         } else if (!e.shiftKey && document.activeElement === last) {
@@ -240,21 +339,32 @@ export default function Workspace() {
         (filter === "Payment due"
           ? j.total > j.paid
           : filter === "Due now"
-            ? j.status !== "Completed" && Boolean(j.date) && j.date <= day()
-            : j.status === filter)),
+          ? j.status !== "Completed" && Boolean(j.date) && j.date <= day()
+          : j.status === filter))
   );
   function go(t: Tab) {
     setTab(t);
     setQuery("");
     setFilter("All");
   }
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("pakki-baat-theme", next ? "dark" : "light");
+    document.documentElement.dataset.theme = next ? "dark" : "light";
+  }
   function say(role: ChatTurn["role"], text: string, replyFor?: Job) {
-    setChatTurns((turns) => [...turns, { id: crypto.randomUUID(), role, text, replyFor }].slice(-80));
+    setChatTurns((turns) =>
+      [...turns, { id: crypto.randomUUID(), role, text, replyFor }].slice(-80)
+    );
   }
   function readyToReview(job: Job) {
     setPendingJob(job);
     setChatStep("ready");
-    say("assistant", "I have the details so far. Open Review details to check and save them, or tell me what to change.");
+    say(
+      "assistant",
+      "I have the details so far. Open Review details to check and save them, or tell me what to change."
+    );
   }
   async function sendVoice(file: File, duration: number, transcript: string) {
     const id = crypto.randomUUID();
@@ -262,9 +372,18 @@ export default function Workspace() {
     voiceUrlsRef.current[id] = url;
     voiceFilesRef.current[id] = file;
     setVoiceUrls((urls) => ({ ...urls, [id]: url }));
-    setChatTurns((turns) => [...turns, {
-      id: crypto.randomUUID(), role: "me" as const, text: transcript || "Voice note", voiceId: id, duration,
-    }].slice(-80));
+    setChatTurns((turns) =>
+      [
+        ...turns,
+        {
+          id: crypto.randomUUID(),
+          role: "me" as const,
+          text: transcript || "Voice note",
+          voiceId: id,
+          duration,
+        },
+      ].slice(-80)
+    );
     if (transcript) {
       setMessage("");
       respondTo(transcript, false);
@@ -274,16 +393,26 @@ export default function Workspace() {
     try {
       await saveVoice(id, file);
     } catch {
-      setToast("Voice sent, but this browser could not store the audio for later playback.");
+      setToast(
+        "Voice sent, but this browser could not store the audio for later playback."
+      );
     }
   }
   async function transcribeSentVoice(file: File, id: string) {
     if (voiceBusy) return;
     setVoiceBusy(true);
     try {
-      if (file.size > 2_000_000) throw new Error("This recording is over the 2 MB AI limit. Record a shorter note.");
-      const settings = await fetch("/api/extract").then((response) => response.json());
-      if (!settings.enabled) throw new Error("AI transcription is not configured on this server yet.");
+      if (file.size > 2_000_000)
+        throw new Error(
+          "This recording is over the 2 MB AI limit. Record a shorter note."
+        );
+      const settings = await fetch("/api/extract").then((response) =>
+        response.json()
+      );
+      if (!settings.enabled)
+        throw new Error(
+          "AI transcription is not configured on this server yet."
+        );
       const token = await cloudToken();
       const form = new FormData();
       form.set("file", file);
@@ -294,30 +423,58 @@ export default function Workspace() {
         body: form,
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Transcription failed.");
-      const transcript = String(result.text || result.draft?.source || "").trim().slice(0, 6000);
-      if (!transcript) throw new Error("No speech was detected in the recording.");
-      setChatTurns((turns) => turns.map((turn) => turn.voiceId === id ? { ...turn, text: transcript } : turn));
+      if (!response.ok)
+        throw new Error(result.error || "Transcription failed.");
+      const transcript = String(result.text || result.draft?.source || "")
+        .trim()
+        .slice(0, 6000);
+      if (!transcript)
+        throw new Error("No speech was detected in the recording.");
+      setChatTurns((turns) =>
+        turns.map((turn) =>
+          turn.voiceId === id ? { ...turn, text: transcript } : turn
+        )
+      );
 
       if (result.draft) {
-        const draft = { ...blank(), ...result.draft, source: transcript } as Job;
-        draft.total = Number.isFinite(Number(draft.total)) ? Number(draft.total) : 0;
-        draft.paid = Number.isFinite(Number(draft.paid)) ? Number(draft.paid) : 0;
+        const draft = {
+          ...blank(),
+          ...result.draft,
+          source: transcript,
+        } as Job;
+        draft.total = Number.isFinite(Number(draft.total))
+          ? Number(draft.total)
+          : 0;
+        draft.paid = Number.isFinite(Number(draft.paid))
+          ? Number(draft.paid)
+          : 0;
         if (draft.paid > draft.total) draft.paid = 0;
         setPendingJob(draft);
         setChatStep("ready");
         say("assistant", "I heard: " + transcript);
-        say("assistant", "I prepared the details slip from your voice note. Open Review details to check it, or copy the suggested customer reply below.");
+        say(
+          "assistant",
+          "I prepared the details slip from your voice note. Open Review details to check it, or copy the suggested customer reply below."
+        );
         say("assistant", replyText(draft), draft);
       } else {
         respondTo(transcript, false);
       }
     } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : "Transcription failed.";
+      const reason =
+        cause instanceof Error ? cause.message : "Transcription failed.";
       if (reason.includes("Continue with Google")) {
-        say("assistant", "Please continue with Google to turn on AI voice transcription. After sign in, tap Retry transcription and I will listen to this voice note, write the text, and prepare the details slip.");
+        say(
+          "assistant",
+          "Please continue with Google to turn on AI voice transcription. After sign in, tap Retry transcription and I will listen to this voice note, write the text, and prepare the details slip."
+        );
       } else {
-        say("assistant", "Your voice note is in the chat, but I could not read it: " + reason + " Tap Retry transcription or type the details.");
+        say(
+          "assistant",
+          "Your voice note is in the chat, but I could not read it: " +
+            reason +
+            " Tap Retry transcription or type the details."
+        );
       }
     } finally {
       setVoiceBusy(false);
@@ -326,12 +483,17 @@ export default function Workspace() {
   async function retryVoice(id: string) {
     if (voiceBusy) return;
     try {
-      const file = voiceFilesRef.current[id] || await loadVoice(id);
-      if (!file) throw new Error("This recording is no longer stored on this device.");
+      const file = voiceFilesRef.current[id] || (await loadVoice(id));
+      if (!file)
+        throw new Error("This recording is no longer stored on this device.");
       voiceFilesRef.current[id] = file;
       await transcribeSentVoice(file, id);
     } catch (cause) {
-      setToast(cause instanceof Error ? cause.message : "Could not retry the voice note.");
+      setToast(
+        cause instanceof Error
+          ? cause.message
+          : "Could not retry the voice note."
+      );
     }
   }
   async function startGoogleSignIn() {
@@ -342,13 +504,18 @@ export default function Workspace() {
       }
       await signInWithGoogle();
     } catch (cause) {
-      setToast(cause instanceof Error ? cause.message : "Could not start Google sign-in.");
+      setToast(
+        cause instanceof Error
+          ? cause.message
+          : "Could not start Google sign-in."
+      );
     }
   }
   async function handleSignOut() {
     try {
       await signOut();
       setLoggedIn(false);
+      setUserName(null);
       setToast("Signed out. Your device workspace is still here.");
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : "Could not sign out.");
@@ -356,16 +523,22 @@ export default function Workspace() {
   }
   async function downloadVoiceInChat(id: string) {
     try {
-      const file = voiceFilesRef.current[id] || await loadVoice(id);
-      if (!file) throw new Error("This recording is no longer stored on this device.");
+      const file = voiceFilesRef.current[id] || (await loadVoice(id));
+      if (!file)
+        throw new Error("This recording is no longer stored on this device.");
       const url = voiceUrlsRef.current[id] || URL.createObjectURL(file);
       const link = document.createElement("a");
       link.href = url;
       link.download = file.name || "pakki-baat-voice-note.webm";
       link.click();
-      if (!voiceUrlsRef.current[id]) setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (!voiceUrlsRef.current[id])
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (cause) {
-      setToast(cause instanceof Error ? cause.message : "Could not download the voice note.");
+      setToast(
+        cause instanceof Error
+          ? cause.message
+          : "Could not download the voice note."
+      );
     }
   }
   async function removeVoice(id: string) {
@@ -379,7 +552,11 @@ export default function Workspace() {
       delete next[id];
       return next;
     });
-    try { await deleteVoice(id); } catch { setToast("Could not delete the stored audio on this device."); }
+    try {
+      await deleteVoice(id);
+    } catch {
+      setToast("Could not delete the stored audio on this device.");
+    }
   }
   function capture() {
     const input = message.trim();
@@ -390,8 +567,12 @@ export default function Workspace() {
   function respondTo(input: string, recordUser: boolean) {
     if (recordUser) say("me", input);
     if (!pendingJob) {
-      const totalMatch = input.match(/total(?:\s+is)?\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
-      const paidMatch = input.match(/(?:paid|received|advance)\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+      const totalMatch = input.match(
+        /total(?:\s+is)?\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
+      );
+      const paidMatch = input.match(
+        /(?:paid|received|advance)\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
+      );
       const next = {
         ...blank(),
         work: input.slice(0, 500),
@@ -410,13 +591,22 @@ export default function Workspace() {
       setPendingJob(next);
       if (!next.total) {
         setChatStep("total");
-        say("assistant", "Thanks. What is the total price in rupees? You can say 0 if it is not decided.");
+        say(
+          "assistant",
+          "Thanks. What is the total price in rupees? You can say 0 if it is not decided."
+        );
       } else if (!next.paid || next.paid > next.total) {
         setChatStep("paid");
-        say("assistant", "How much has the customer already paid? Enter 0 if nothing has been received.");
+        say(
+          "assistant",
+          "How much has the customer already paid? Enter 0 if nothing has been received."
+        );
       } else {
         setChatStep("date");
-        say("assistant", "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding.");
+        say(
+          "assistant",
+          "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding."
+        );
       }
       return;
     }
@@ -430,16 +620,25 @@ export default function Workspace() {
         next.total = amount;
         setPendingJob(next);
         setChatStep("paid");
-        say("assistant", "How much has the customer already paid? Enter 0 if nothing has been received.");
+        say(
+          "assistant",
+          "How much has the customer already paid? Enter 0 if nothing has been received."
+        );
       } else {
         if (amount > next.total) {
-          say("assistant", "The received amount cannot be more than the total. Please check it.");
+          say(
+            "assistant",
+            "The received amount cannot be more than the total. Please check it."
+          );
           return;
         }
         next.paid = amount;
         setPendingJob(next);
         setChatStep("date");
-        say("assistant", "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding.");
+        say(
+          "assistant",
+          "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding."
+        );
       }
       return;
     }
@@ -452,26 +651,39 @@ export default function Workspace() {
       readyToReview(next);
       return;
     }
-    const total = input.match(/total\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
-    const paid = input.match(/(?:paid|received)\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+    const total = input.match(
+      /total\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
+    );
+    const paid = input.match(
+      /(?:paid|received)\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
+    );
     const date = input.match(/\b\d{4}-\d{2}-\d{2}\b/);
     if (total) next.total = Number(total[1].replaceAll(",", ""));
     if (paid) next.paid = Number(paid[1].replaceAll(",", ""));
     if (date) next.date = date[0];
     if (next.paid > next.total) {
-      say("assistant", "The received amount is higher than the total. Tell me the corrected amounts or use Review details.");
+      say(
+        "assistant",
+        "The received amount is higher than the total. Tell me the corrected amounts or use Review details."
+      );
       return;
     }
     if (total || paid || date) {
       readyToReview(next);
     } else {
-      say("assistant", "I can update a total, paid amount or date here. For names and other details, open Review details.");
+      say(
+        "assistant",
+        "I can update a total, paid amount or date here. For names and other details, open Review details."
+      );
     }
   }
   function receiveAiDraft(job: Job) {
     setPendingJob(job);
     setChatStep("ready");
-    say("assistant", "I read the attachment and filled in a draft. Open Review details to check it, or keep chatting.");
+    say(
+      "assistant",
+      "I read the attachment and filled in a draft. Open Review details to check it, or keep chatting."
+    );
   }
   function save() {
     if (!draft || !draft.customer.trim() || !draft.work.trim()) return;
@@ -509,7 +721,7 @@ export default function Workspace() {
           }. `
         : "Please confirm a date. "
     }Total: ${money(j.total)}. Received: ${money(j.paid)}. Balance: ${money(
-      j.total - j.paid,
+      j.total - j.paid
     )}. Please reply to confirm these details. Thank you!`;
   async function shareFeedback() {
     try {
@@ -576,7 +788,8 @@ export default function Workspace() {
     setChatStep("customer");
     setReady(true);
     setToast("Workspace restored on this device.");
-  }  async function importBackup(file: File) {
+  }
+  async function importBackup(file: File) {
     try {
       if (file.size > 10_000_000) throw new Error("Backup is too large.");
       const data = JSON.parse(await file.text());
@@ -617,8 +830,12 @@ export default function Workspace() {
     <div className="shell">
       <aside className="sidebar">
         <button className="brand" onClick={() => go("Today")}>
-          <Icon name="leaf" size={29} />
-          pakki baat<span>.</span>
+          <span className="brand-mark">
+            <Icon name="promise" size={29} />
+          </span>
+          <span className="brand-word">
+            pakki baat<span className="brand-dot">.</span>
+          </span>
         </button>
         <div className="workspace">
           <span className="avatar coral">{owner[0]}</span>
@@ -671,17 +888,52 @@ export default function Workspace() {
           </div>
           <div className="top-actions">
             <span className="saved-dot" />
-            {ready ? (loggedIn ? "Google connected" : "Device workspace") : "Storage unavailable"}
+            {ready
+              ? loggedIn
+                ? "Google connected"
+                : "Device workspace"
+              : "Storage unavailable"}
             {authReady && !loggedIn && (
-              <button type="button" className="google-sign-in top-login" onClick={() => void startGoogleSignIn()} disabled={!cloudConfigured} title={cloudConfigured ? "Login or sign up" : "Add Supabase env keys to enable login"}>
+              <button
+                type="button"
+                className="google-sign-in top-login"
+                onClick={() => void startGoogleSignIn()}
+                disabled={!cloudConfigured}
+                title={
+                  cloudConfigured
+                    ? "Login or sign up"
+                    : "Add Supabase env keys to enable login"
+                }
+              >
                 Login / Sign up
               </button>
             )}
             {cloudConfigured && authReady && loggedIn && (
-              <button type="button" className="text-button top-signout" onClick={() => void handleSignOut()}>
+              <button
+                type="button"
+                className="text-button top-signout"
+                onClick={() => void handleSignOut()}
+              >
                 Sign out
               </button>
             )}
+            <button
+              type="button"
+              className={dark ? "theme-toggle is-dark" : "theme-toggle"}
+              role="switch"
+              aria-checked={dark}
+              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+              title={dark ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={toggleTheme}
+            >
+              <span className="theme-sun">
+                <Icon name="sun" size={16} />
+              </span>
+              <span className="theme-moon">
+                <Icon name="moon" size={16} />
+              </span>
+              <span className="theme-toggle-thumb" />
+            </button>
             <button
               className="icon-button"
               aria-label="View reminders"
@@ -699,7 +951,7 @@ export default function Workspace() {
                 <div>
                   <div className="eyebrow">A LITTLE CLARITY FOR YOUR DAY</div>
                   <h1>
-                    Hello, {owner} <span className="sun">☀</span>
+                    Hello, {userName || owner} <span className="sun">☀</span>
                   </h1>
                   <p>Let’s make room for the work you love.</p>
                 </div>
@@ -878,21 +1130,57 @@ export default function Workspace() {
               <section className="chat-layout">
                 <div className="chat-panel">
                   <div className="chat-header">
-                    <Icon name="leaf" />
+                    <Icon name="promise" />
                     <div>
                       <strong>Pakki Baat</strong>
                       <small>Let’s get the details together</small>
                     </div>
                   </div>
-                  <div className="chat-body" ref={chatBodyRef} role="log" aria-label="Assistant conversation" aria-live="polite">
+                  <div
+                    className="chat-body"
+                    ref={chatBodyRef}
+                    role="log"
+                    aria-label="Assistant conversation"
+                    aria-live="polite"
+                  >
                     {authReady && !loggedIn && (
                       <div className="assistant-login-card">
                         <div>
-                          <strong>{cloudConfigured ? "Login to use AI voice" : "AI login setup needed"}</strong>
-                          <p>{cloudConfigured ? "Sign in or sign up with Google so Pakki Baat can listen to voice notes, write the text, and prepare the details slip." : "Add the Supabase public keys to .env.local, then restart localhost to show Google login."}</p>
+                          <strong>
+                            {cloudConfigured
+                              ? "Login to use AI voice"
+                              : "AI login setup needed"}
+                          </strong>
+                          <p>
+                            {cloudConfigured
+                              ? "Sign in or sign up with Google so Pakki Baat can listen to voice notes, write the text, and prepare the details slip."
+                              : "Add the Supabase public keys to .env.local, then restart localhost to show Google login."}
+                          </p>
                         </div>
-                        <button type="button" className="google-sign-in compact" onClick={() => void startGoogleSignIn()} disabled={!cloudConfigured}>
-                          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"/><path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"/></svg>
+                        <button
+                          type="button"
+                          className="google-sign-in compact"
+                          onClick={() => void startGoogleSignIn()}
+                          disabled={!cloudConfigured}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              fill="#4285F4"
+                              d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"
+                            />
+                            <path
+                              fill="#34A853"
+                              d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"
+                            />
+                            <path
+                              fill="#FBBC05"
+                              d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"
+                            />
+                            <path
+                              fill="#EA4335"
+                              d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"
+                            />
+                          </svg>
                           Continue with Google
                         </button>
                       </div>
@@ -900,49 +1188,183 @@ export default function Workspace() {
                     <span className="chat-date">Your conversation</span>
                     <div className="bubble">
                       <strong>Hi {owner}!</strong>
-                      <p>Tell me what your customer needs. I will ask for any missing details before you save.</p>
+                      <p>
+                        Tell me what your customer needs. I will ask for any
+                        missing details before you save.
+                      </p>
                     </div>
                     {chatTurns.map((turn) => (
-                      <div key={turn.id} className={`chat-turn ${turn.role === "me" ? "from-me" : "from-assistant"}`}>
-                        <span className="chat-speaker">{turn.role === "me" ? "You" : turn.replyFor ? "Suggested customer reply" : "Pakki Baat"}</span>
+                      <div
+                        key={turn.id}
+                        className={`chat-turn ${
+                          turn.role === "me" ? "from-me" : "from-assistant"
+                        }`}
+                      >
+                        <span className="chat-speaker">
+                          {turn.role === "me"
+                            ? "You"
+                            : turn.replyFor
+                            ? "Suggested customer reply"
+                            : "Pakki Baat"}
+                        </span>
                         <div className="chat-turn-text">{turn.text}</div>
-                        {turn.voiceId && <div className="chat-voice">
-                          <small>{turn.duration ? "Recorded " + Math.floor(turn.duration / 60) + ":" + String(turn.duration % 60).padStart(2, "0") : "Sent voice note"}</small>
-                          {voiceUrls[turn.voiceId] === undefined ? <small>Loading voice note…</small> : voiceUrls[turn.voiceId] ? <audio controls src={voiceUrls[turn.voiceId]} aria-label="Play sent voice note"/> : <small>Audio unavailable on this device.</small>}
-                          <div className="chat-turn-actions">
-                            {turn.text === "Voice note" && <button type="button" disabled={voiceBusy} onClick={() => void retryVoice(turn.voiceId!)}>Retry transcription</button>}
-                            <button type="button" onClick={() => void downloadVoiceInChat(turn.voiceId!)}>Download voice</button>
-                            <button type="button" onClick={() => void removeVoice(turn.voiceId!)}>Delete voice</button>
+                        {turn.voiceId && (
+                          <div className="chat-voice">
+                            <small>
+                              {turn.duration
+                                ? "Recorded " +
+                                  Math.floor(turn.duration / 60) +
+                                  ":" +
+                                  String(turn.duration % 60).padStart(2, "0")
+                                : "Sent voice note"}
+                            </small>
+                            {voiceUrls[turn.voiceId] === undefined ? (
+                              <small>Loading voice note…</small>
+                            ) : voiceUrls[turn.voiceId] ? (
+                              <audio
+                                controls
+                                src={voiceUrls[turn.voiceId]}
+                                aria-label="Play sent voice note"
+                              />
+                            ) : (
+                              <small>Audio unavailable on this device.</small>
+                            )}
+                            <div className="chat-turn-actions">
+                              {turn.text === "Voice note" && (
+                                <button
+                                  type="button"
+                                  disabled={voiceBusy}
+                                  onClick={() => void retryVoice(turn.voiceId!)}
+                                >
+                                  Retry transcription
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void downloadVoiceInChat(turn.voiceId!)
+                                }
+                              >
+                                Download voice
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void removeVoice(turn.voiceId!)}
+                              >
+                                Delete voice
+                              </button>
+                            </div>
                           </div>
-                        </div>}
-                        {(turn.text.includes("Please continue with Google") || turn.text.includes("Continue with Google in Settings")) && <div className="login-prompt-actions">
-                          <button type="button" className="google-sign-in compact" onClick={() => void startGoogleSignIn()} disabled={!cloudConfigured}>
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"/><path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"/></svg>
-                            Continue with Google
-                          </button>
-                        </div>}
-                        {turn.replyFor && <div className="chat-turn-actions">
-                          <button type="button" onClick={() => copy(turn.text)}>Copy reply</button>
-                          <button type="button" onClick={() => setDraft(turn.replyFor!)}>Edit details</button>
-                          {turn.replyFor.date && <button type="button" onClick={() => download(calendarFile(turn.replyFor!), "pakki-baat-reminder.ics")}>Add reminder</button>}
-                        </div>}
+                        )}
+                        {(turn.text.includes("Please continue with Google") ||
+                          turn.text.includes(
+                            "Continue with Google in Settings"
+                          )) && (
+                          <div className="login-prompt-actions">
+                            <button
+                              type="button"
+                              className="google-sign-in compact"
+                              onClick={() => void startGoogleSignIn()}
+                              disabled={!cloudConfigured}
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  fill="#4285F4"
+                                  d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"
+                                />
+                                <path
+                                  fill="#34A853"
+                                  d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"
+                                />
+                                <path
+                                  fill="#FBBC05"
+                                  d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"
+                                />
+                                <path
+                                  fill="#EA4335"
+                                  d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"
+                                />
+                              </svg>
+                              Continue with Google
+                            </button>
+                          </div>
+                        )}
+                        {turn.replyFor && (
+                          <div className="chat-turn-actions">
+                            <button
+                              type="button"
+                              onClick={() => copy(turn.text)}
+                            >
+                              Copy reply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDraft(turn.replyFor!)}
+                            >
+                              Edit details
+                            </button>
+                            {turn.replyFor.date && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  download(
+                                    calendarFile(turn.replyFor!),
+                                    "pakki-baat-reminder.ics"
+                                  )
+                                }
+                              >
+                                Add reminder
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
-                    {pendingJob && <div className="chat-review-card">
-                      <strong>Working draft</strong>
-                      <p>{pendingJob.customer || "Customer to add"} · {pendingJob.work}</p>
-                                            <div className="chat-review-actions">
-                        <button type="button" className="primary" onClick={() => setDraft(pendingJob)}>Review details</button>
-                        <button type="button" className="text-button" onClick={() => {
-                          setPendingJob(null);
-                          setChatStep("customer");
-                          say("assistant", "Okay, let us start a new commitment. What did your customer ask for?");
-                        }}>Start new</button>
+                    {pendingJob && (
+                      <div className="chat-review-card">
+                        <strong>Working draft</strong>
+                        <p>
+                          {pendingJob.customer || "Customer to add"} ·{" "}
+                          {pendingJob.work}
+                        </p>
+                        <div className="chat-review-actions">
+                          <button
+                            type="button"
+                            className="primary"
+                            onClick={() => setDraft(pendingJob)}
+                          >
+                            Review details
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() => {
+                              setPendingJob(null);
+                              setChatStep("customer");
+                              say(
+                                "assistant",
+                                "Okay, let us start a new commitment. What did your customer ask for?"
+                              );
+                            }}
+                          >
+                            Start new
+                          </button>
+                        </div>
                       </div>
-                    </div>}
-                    {!chatTurns.length && <button className="example" onClick={() => setMessage("Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm.")}>
-                      Try an example <span>“Riya wants a 2 kg chocolate cake…”</span>
-                    </button>}
+                    )}
+                    {!chatTurns.length && (
+                      <button
+                        className="example"
+                        onClick={() =>
+                          setMessage(
+                            "Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm."
+                          )
+                        }
+                      >
+                        Try an example{" "}
+                        <span>“Riya wants a 2 kg chocolate cake…”</span>
+                      </button>
+                    )}
                   </div>
                   <ChatComposer
                     message={message}
@@ -1133,7 +1555,7 @@ export default function Workspace() {
                   onClick={() =>
                     download(
                       JSON.stringify({ jobs, owner, business }, null, 2),
-                      "pakki-baat-backup.json",
+                      "pakki-baat-backup.json"
                     )
                   }
                 >
@@ -1154,7 +1576,42 @@ export default function Workspace() {
                 <CloudSettings
                   snapshot={{ jobs, owner, business }}
                   onRestore={restore}
+                  dark={dark}
+                  onToggleTheme={toggleTheme}
                 />
+                <section
+                  className="future-card"
+                  aria-labelledby="future-whatsapp-title"
+                >
+                  <div className="future-card-heading">
+                    <span className="future-icon">
+                      <Icon name="chat" size={20} />
+                    </span>
+                    <div>
+                      <span className="future-badge">COMING SOON</span>
+                      <h2 id="future-whatsapp-title">
+                        Send directly to WhatsApp
+                      </h2>
+                    </div>
+                  </div>
+                  <p>
+                    Send confirmations and friendly reminders to customers
+                    without leaving Pakki Baat.
+                  </p>
+                  <ul>
+                    <li>Send a commitment summary to the customer</li>
+                    <li>Share payment and due-date reminders</li>
+                    <li>Review every message before it is sent</li>
+                  </ul>
+                  <button
+                    type="button"
+                    className="future-whatsapp-button"
+                    disabled
+                  >
+                    <Icon name="chat" size={17} /> WhatsApp direct send · Coming
+                    soon
+                  </button>
+                </section>
                 <label>
                   Tell us what could be better
                   <textarea
@@ -1177,7 +1634,7 @@ export default function Workspace() {
                     download(feedback, "pakki-baat-feedback.txt");
                     setFeedback("");
                     setToast(
-                      "Feedback downloaded. Send this file to the creator.",
+                      "Feedback downloaded. Send this file to the creator."
                     );
                   }}
                 >
@@ -1338,11 +1795,13 @@ export default function Workspace() {
                     onClick={() => {
                       if (
                         confirm(
-                          "Delete this commitment? This cannot be undone.",
+                          "Delete this commitment? This cannot be undone."
                         )
                       ) {
                         setJobs(jobs.filter((j) => j.id !== draft.id));
-                        setChatTurns((turns) => turns.filter((turn) => turn.replyFor?.id !== draft.id));
+                        setChatTurns((turns) =>
+                          turns.filter((turn) => turn.replyFor?.id !== draft.id)
+                        );
                         setDraft(null);
                       }
                     }}

@@ -4,16 +4,13 @@ import { useEffect, useState } from "react";
 import { cloudConfigured, currentSession, loadCloud, saveCloud, signInWithGoogle, signOut, watchSession } from "@/lib/cloud";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 
-export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void }) {
+export default function CloudSettings({ snapshot, onRestore, dark, onToggleTheme }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; dark: boolean; onToggleTheme: () => void }) {
   const [logged, setLogged] = useState(false);
   const [checking, setChecking] = useState(cloudConfigured);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [dark, setDark] = useState(() => typeof window !== "undefined" && localStorage.getItem("pakki-baat-theme") === "dark");
 
   useEffect(() => {
-    const isDark = localStorage.getItem("pakki-baat-theme") === "dark";
-    document.documentElement.dataset.theme = isDark ? "dark" : "light";
     if (!cloudConfigured) return;
     void currentSession()
       .then((session) => setLogged(Boolean(session)))
@@ -24,13 +21,6 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
       setChecking(false);
     });
   }, []);
-
-  function toggleTheme() {
-    const next = !dark;
-    setDark(next);
-    localStorage.setItem("pakki-baat-theme", next ? "dark" : "light");
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-  }
 
   async function action(run: () => Promise<void>) {
     setBusy(true);
@@ -43,7 +33,7 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
   return <div className="cloud-settings">
     <div className="theme-control">
       <div><strong>Appearance</strong><small>Choose the look that feels comfortable.</small></div>
-      <button type="button" className={dark ? "switch on" : "switch"} role="switch" aria-checked={dark} aria-label="Toggle dark mode" onClick={toggleTheme}><span /></button>
+      <button type="button" className={dark ? "switch on" : "switch"} role="switch" aria-checked={dark} aria-label="Toggle dark mode" onClick={onToggleTheme}><span /></button>
     </div>
     <h3>Keep your business with you</h3>
     <p>Sign in with Google for AI voice transcription and cloud backup.</p>
