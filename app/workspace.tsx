@@ -190,34 +190,30 @@ export default function Workspace() {
   }, []);
   useEffect(() => {
     if (!cloudConfigured) return;
+
+    const extractUserName = (session: any) => {
+      if (!session?.user) return null;
+      const metadata = session.user.user_metadata;
+      const fullName = metadata?.full_name || metadata?.name;
+      if (fullName) return fullName;
+
+      const email = session.user.email || "";
+      const emailName = email.split("@")[0];
+      // Capitalize first letter
+      return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+    };
+
     void currentSession()
       .then((session) => {
         setLoggedIn(Boolean(session));
-        if (session?.user) {
-          // Extract name from Google profile metadata or email
-          const metadata = session.user.user_metadata;
-          const fullName = metadata?.full_name || metadata?.name;
-          const email = session.user.email || "";
-          const emailName = email.split("@")[0];
-          setUserName(fullName || emailName || null);
-        } else {
-          setUserName(null);
-        }
+        setUserName(extractUserName(session));
       })
       .catch(() => setToast("Could not check Google sign-in."))
       .finally(() => setAuthReady(true));
 
     return watchSession((session) => {
       setLoggedIn(Boolean(session));
-      if (session?.user) {
-        const metadata = session.user.user_metadata;
-        const fullName = metadata?.full_name || metadata?.name;
-        const email = session.user.email || "";
-        const emailName = email.split("@")[0];
-        setUserName(fullName || emailName || null);
-      } else {
-        setUserName(null);
-      }
+      setUserName(extractUserName(session));
       setAuthReady(true);
     });
   }, []);
@@ -838,10 +834,12 @@ export default function Workspace() {
           </span>
         </button>
         <div className="workspace">
-          <span className="avatar coral">{owner[0]}</span>
+          <span className="avatar coral">{(userName || owner)[0]}</span>
           <div>
-            <strong>{business}</strong>
-            <small>Your little workspace</small>
+            <strong>{userName || business}</strong>
+            <small>
+              {userName ? "Your workspace" : "Your little workspace"}
+            </small>
           </div>
         </div>
         <span className="eyebrow nav-label">YOUR WORKSPACE</span>
@@ -871,10 +869,10 @@ export default function Workspace() {
             Settings & feedback
           </button>
           <div className="account">
-            <span className="avatar">{owner[0]}</span>
+            <span className="avatar">{(userName || owner)[0]}</span>
             <div>
-              <strong>{owner}</strong>
-              <small>Local trial workspace</small>
+              <strong>{userName || owner}</strong>
+              <small>{userName ? "Signed in" : "Local trial workspace"}</small>
             </div>
           </div>
         </div>
@@ -940,7 +938,7 @@ export default function Workspace() {
             >
               <Icon name="bell" />
             </button>
-            <span className="avatar small">{owner[0]}</span>
+            <span className="avatar small">{(userName || owner)[0]}</span>
           </div>
         </header>
         <div className="content">
