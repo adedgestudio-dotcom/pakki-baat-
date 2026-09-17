@@ -865,7 +865,6 @@ export default function Workspace() {
               A little less remembering.
               <br />A little more doing what you love.
             </p>
-            <Icon name="leaf" size={32} />
           </div>
           <button className="settings-button" onClick={() => go("Settings")}>
             <Icon name="settings" />
@@ -998,9 +997,6 @@ export default function Workspace() {
                   </div>
                   <span className="spark one">✦</span>
                   <span className="spark two">✧</span>
-                  <span className="art-leaf">
-                    <Icon name="leaf" size={70} />
-                  </span>
                 </div>
               </section>
               <section className="stats">

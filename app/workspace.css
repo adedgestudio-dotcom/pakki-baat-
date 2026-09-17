@@ -132,13 +132,16 @@ strong {
 .brand-mark {
   width: 31px;
   height: 31px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 31px;
   color: var(--teal);
   filter: drop-shadow(0 2px 4px rgba(45, 118, 103, 0.2));
 }
-.brand-mark svg { display: block; transform: translateY(1px); }
+.brand-mark svg {
+  display: block;
+}
 .brand-word {
   height: 31px;
   display: inline-flex;
@@ -263,13 +266,6 @@ strong {
   line-height: 1.8;
   margin-top: 10px;
 }
-.help-card svg {
-  position: absolute;
-  bottom: 13px;
-  right: 9px;
-  color: #a7b994;
-  transform: rotate(-12deg);
-}
 .settings-button {
   background: none;
   display: flex;
@@ -350,7 +346,7 @@ main {
   background: #fff4d8;
   color: #b97820;
   flex: 0 0 auto;
-  transition: background .2s ease, border-color .2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 .theme-toggle .theme-sun,
 .theme-toggle .theme-moon {
@@ -361,8 +357,14 @@ main {
   height: 16px;
   pointer-events: none;
 }
-.theme-toggle .theme-sun { left: 6px; color: #d98a18; }
-.theme-toggle .theme-moon { right: 6px; color: #718099; }
+.theme-toggle .theme-sun {
+  left: 6px;
+  color: #d98a18;
+}
+.theme-toggle .theme-moon {
+  right: 6px;
+  color: #718099;
+}
 .theme-toggle-thumb {
   position: absolute;
   z-index: 2;
@@ -373,13 +375,15 @@ main {
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 2px 7px #6b4b1826;
-  transition: transform .2s ease;
+  transition: transform 0.2s ease;
 }
 .theme-toggle.is-dark {
   background: #26354b;
   border-color: #3b4b63;
 }
-.theme-toggle.is-dark .theme-toggle-thumb { transform: translateX(26px); }
+.theme-toggle.is-dark .theme-toggle-thumb {
+  transform: translateX(26px);
+}
 .theme-toggle.is-dark .theme-sun {
   color: #ffb13b;
   filter: drop-shadow(0 0 4px #ffb13b66);
@@ -590,13 +594,6 @@ main {
   bottom: 24px;
   left: 18px;
   font-size: 37px;
-}
-.art-leaf {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  transform: rotate(-25deg);
-  color: #b0bd91;
 }
 .stats {
   display: grid;
@@ -1099,7 +1096,9 @@ label {
   gap: 7px;
   padding-left: 19px;
 }
-.future-card li::marker { color: var(--teal); }
+.future-card li::marker {
+  color: var(--teal);
+}
 .future-whatsapp-button {
   min-height: 42px;
   display: inline-flex;
@@ -1119,10 +1118,18 @@ label {
   background: linear-gradient(145deg, #1b3129, #243229);
   border-color: #38564a;
 }
-[data-theme="dark"] .future-icon { background: #29483c; color: #a9d4c5; }
+[data-theme="dark"] .future-icon {
+  background: #29483c;
+  color: #a9d4c5;
+}
 [data-theme="dark"] .future-card p,
-[data-theme="dark"] .future-card li { color: #b6c7be; }
-[data-theme="dark"] .future-whatsapp-button { background: #29443a; color: #a9bdb4; }
+[data-theme="dark"] .future-card li {
+  color: #b6c7be;
+}
+[data-theme="dark"] .future-whatsapp-button {
+  background: #29443a;
+  color: #a9bdb4;
+}
 .mobile-nav {
   display: none;
 }
@@ -2492,7 +2499,8 @@ select:focus-visible {
   }
 }
 @keyframes recordingWave {
-  0%, 100% {
+  0%,
+  100% {
     height: 7px;
     opacity: 0.55;
   }
@@ -2557,8 +2565,12 @@ select:focus-visible {
   color: #0f1d18;
   border-color: #55a58f;
 }
-[data-theme="dark"] .top-signout { color: #a9d4c5; }
-[data-theme="dark"] .top-signout:hover { color: #eef8f3; }
+[data-theme="dark"] .top-signout {
+  color: #a9d4c5;
+}
+[data-theme="dark"] .top-signout:hover {
+  color: #eef8f3;
+}
 .assistant-login-card {
   display: flex;
   align-items: center;
