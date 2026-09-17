@@ -145,6 +145,7 @@ export default function Workspace() {
     [authReady, setAuthReady] = useState(!cloudConfigured),
     [loggedIn, setLoggedIn] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
+    [userEmail, setUserEmail] = useState<string | null>(null),
     [dark, setDark] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
@@ -192,15 +193,32 @@ export default function Workspace() {
     if (!cloudConfigured) return;
 
     const extractUserName = (session: any) => {
-      if (!session?.user) return null;
-      const metadata = session.user.user_metadata;
-      const fullName = metadata?.full_name || metadata?.name;
-      if (fullName) return fullName;
+      if (!session?.user) {
+        setUserEmail(null);
+        return null;
+      }
 
       const email = session.user.email || "";
+      setUserEmail(email);
+
+      console.log("🔍 Session user:", session.user);
+      console.log("📧 Email:", email);
+
+      const metadata = session.user.user_metadata;
+      console.log("📋 Metadata:", metadata);
+
+      const fullName = metadata?.full_name || metadata?.name;
+      if (fullName) {
+        console.log("✅ Using full name:", fullName);
+        return fullName;
+      }
+
       const emailName = email.split("@")[0];
       // Capitalize first letter
-      return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+      const capitalizedName =
+        emailName.charAt(0).toUpperCase() + emailName.slice(1);
+      console.log("✅ Using email name:", capitalizedName);
+      return capitalizedName;
     };
 
     void currentSession()
@@ -512,6 +530,7 @@ export default function Workspace() {
       await signOut();
       setLoggedIn(false);
       setUserName(null);
+      setUserEmail(null);
       setToast("Signed out. Your device workspace is still here.");
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : "Could not sign out.");
@@ -833,12 +852,13 @@ export default function Workspace() {
             pakki baat<span className="brand-dot">.</span>
           </span>
         </button>
-        <div className="workspace">
+        <div className="workspace" title={userEmail || business}>
           <span className="avatar coral">{(userName || owner)[0]}</span>
           <div>
             <strong>{userName || business}</strong>
             <small>
-              {userName ? "Your workspace" : "Your little workspace"}
+              {userEmail ||
+                (userName ? "Your workspace" : "Your little workspace")}
             </small>
           </div>
         </div>
@@ -868,11 +888,11 @@ export default function Workspace() {
             <Icon name="settings" />
             Settings & feedback
           </button>
-          <div className="account">
+          <div className="account" title={userEmail || "Local workspace"}>
             <span className="avatar">{(userName || owner)[0]}</span>
             <div>
               <strong>{userName || owner}</strong>
-              <small>{userName ? "Signed in" : "Local trial workspace"}</small>
+              <small>{userEmail || "Local trial workspace"}</small>
             </div>
           </div>
         </div>
@@ -938,7 +958,12 @@ export default function Workspace() {
             >
               <Icon name="bell" />
             </button>
-            <span className="avatar small">{(userName || owner)[0]}</span>
+            <span
+              className="avatar small"
+              title={userEmail ? `Signed in as ${userEmail}` : owner}
+            >
+              {(userName || owner)[0]}
+            </span>
           </div>
         </header>
         <div className="content">
