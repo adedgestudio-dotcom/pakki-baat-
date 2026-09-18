@@ -36,7 +36,12 @@ export default function ChatComposer({
     );
   };
 
-  const handleSend = () => {\n    if (!message.trim() || voiceBusy) return;\n    onCapture();\n  };\n\n  const uploadControl = (
+  const handleSend = () => {
+    if (!message.trim() || voiceBusy) return;
+    onCapture();
+  };
+
+  const uploadControl = (
     <label
       className="chat-attach-button"
       aria-label="Attach screenshot or voice note"
@@ -192,7 +197,14 @@ export default function ChatComposer({
           />
 
           <div className="input-mic-button">
-            {message.trim() ? sendControl : <SimpleVoiceButton onTranscript={onMessageChange} onError={handleVoiceError} />}
+            {message.trim() ? (
+              sendControl
+            ) : (
+              <SimpleVoiceButton
+                onTranscript={onMessageChange}
+                onError={handleVoiceError}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -224,7 +236,9 @@ export default function ChatComposer({
         )}
       </div>
 
-      <div className="ai-note">On phone, tap the mic and speak. Your words appear here before you send.</div>
+      <div className="ai-note">
+        On phone, tap the mic and speak. Your words appear here before you send.
+      </div>
     </div>
   );
 }
