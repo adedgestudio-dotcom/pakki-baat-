@@ -414,6 +414,8 @@ export default function Workspace() {
       const token = await cloudToken();
       const form = new FormData();
       form.set("file", file);
+      form.set("mode", "transcribe");
+      form.set("today", day());
 
       const response = await fetch("/api/extract", {
         method: "POST",
