@@ -2864,3 +2864,50 @@ select:focus-visible {
 [data-theme="dark"] .hero p {
   color: #b9c8b8;
 }
+
+/* Dark-mode contrast for the new Today reminders card */
+[data-theme="dark"] .today-reminders {
+  background: #17271f;
+  border-color: #31483d;
+}
+[data-theme="dark"] .today-reminders .eyebrow {
+  color: #aebfb5;
+}
+[data-theme="dark"] .today-reminders h2 {
+  color: #f5efe2;
+}
+[data-theme="dark"] .today-reminders .count {
+  background: #31483d;
+  color: #dce9df;
+}
+[data-theme="dark"] .today-reminders .text-button {
+  color: #8fc9b7;
+}
+[data-theme="dark"] .reminder-empty {
+  border-color: #587064;
+  color: #e8f0ea;
+  background: #1d3027;
+}
+[data-theme="dark"] .reminder-empty strong {
+  color: #f5efe2;
+}
+[data-theme="dark"] .reminder-empty small {
+  color: #b8c8bf;
+}
+[data-theme="dark"] .reminder-empty > svg {
+  color: #9bc8b9;
+}
+[data-theme="dark"] .reminder-row {
+  background: #1d3027;
+  border-color: #365044;
+}
+[data-theme="dark"] .reminder-row strong {
+  color: #f5efe2;
+}
+[data-theme="dark"] .reminder-row small {
+  color: #b8c8bf;
+}
+[data-theme="dark"] .reminder-bell {
+  color: #a8d1c2;
+  background: #29483c;
+}
