@@ -568,12 +568,12 @@ main {
   line-height: 1.15;
   letter-spacing: -1px;
   margin: 14px 0 12px;
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  color: #263a33;
+  text-shadow: none;
 }
 .hero p {
   font-size: 11px;
-  color: #c5d4ba;
+  color: #6f7f70;
   margin-bottom: 17px;
 }
 .hero-art {
@@ -2856,4 +2856,11 @@ select:focus-visible {
   .today-reminders { padding: 18px; border-radius: 18px; }
   .reminder-row { grid-template-columns: 38px minmax(0, 1fr); }
   .reminder-row .outline.mini { grid-column: 2; justify-self: start; }
+}
+
+[data-theme="dark"] .hero h2 {
+  color: #f5efe2;
+}
+[data-theme="dark"] .hero p {
+  color: #b9c8b8;
 }
