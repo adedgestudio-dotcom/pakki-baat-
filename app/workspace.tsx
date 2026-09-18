@@ -1305,7 +1305,6 @@ export default function Workspace() {
                     onCapture={capture}
                     onToast={setToast}
                     onDraft={receiveAiDraft}
-                    onSendVoice={sendVoice}
                     voiceBusy={voiceBusy}
                   />
                 </div>
