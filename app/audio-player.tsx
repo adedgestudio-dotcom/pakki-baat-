@@ -3,16 +3,20 @@ import { useState, useRef, useEffect } from "react";
 
 interface AudioPlayerProps {
   audioBlob: Blob;
+  audioUrl?: string;
   duration: number;
   onDelete?: () => void;
   onTranscribe?: () => void;
+  onDownload?: () => void;
 }
 
 export default function AudioPlayer({
   audioBlob,
+  audioUrl,
   duration,
   onDelete,
   onTranscribe,
+  onDownload,
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -20,8 +24,7 @@ export default function AudioPlayer({
   const audioUrlRef = useRef<string>("");
 
   useEffect(() => {
-    // Create audio URL
-    const url = URL.createObjectURL(audioBlob);
+    const url = audioUrl || URL.createObjectURL(audioBlob);
     audioUrlRef.current = url;
 
     const audio = new Audio(url);
@@ -38,9 +41,9 @@ export default function AudioPlayer({
 
     return () => {
       audio.pause();
-      URL.revokeObjectURL(url);
+      if (!audioUrl) URL.revokeObjectURL(url);
     };
-  }, [audioBlob]);
+  }, [audioBlob, audioUrl]);
 
   const togglePlayPause = () => {
     if (!audioRef.current) return;
@@ -59,7 +62,8 @@ export default function AudioPlayer({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const progress = (currentTime / duration) * 100;
+  const safeDuration = duration > 0 ? duration : Math.max(currentTime, 1);
+  const progress = Math.min(100, (currentTime / safeDuration) * 100);
 
   return (
     <div className="audio-player">
@@ -116,6 +120,29 @@ export default function AudioPlayer({
               strokeLinejoin="round"
             >
               <path d="M12 20h9 M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+          </button>
+        )}
+        {onDownload && (
+          <button
+            className="audio-action-button download"
+            onClick={onDownload}
+            title="Download voice"
+            aria-label="Download voice"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 3v12" />
+              <path d="m7 10 5 5 5-5" />
+              <path d="M5 21h14" />
             </svg>
           </button>
         )}

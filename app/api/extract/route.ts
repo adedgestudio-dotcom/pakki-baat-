@@ -22,20 +22,24 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_KEY;
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publicKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const missingConfig = [
+    !apiKey && "GROQ_API_KEY",
+    !base && "NEXT_PUBLIC_SUPABASE_URL",
+    !publicKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    !service && "SUPABASE_SERVICE_ROLE_KEY",
+  ].filter(Boolean);
 
-  console.log("🔍 API Extract called");
-  console.log("✅ API Key exists:", !!apiKey);
-  console.log("✅ Supabase configured:", !!base && !!publicKey && !!service);
-
-  if (!apiKey || !base || !publicKey || !service) {
+  if (missingConfig.length) {
     return Response.json(
       {
         error:
-          "AI is not configured. You can still enter the details manually.",
+          "AI is not configured. Missing server setup: " +
+          missingConfig.join(", ") +
+          ". Add these in Vercel Environment Variables, then redeploy.",
       },
       { status: 503 }
     );
@@ -59,7 +63,7 @@ export async function POST(req: NextRequest) {
   try {
     // Verify user
     const userResponse = await fetch(`${base}/auth/v1/user`, {
-      headers: { apikey: publicKey, Authorization: auth },
+      headers: { apikey: publicKey as string, Authorization: auth },
       signal: AbortSignal.timeout(10000),
     });
 
@@ -119,7 +123,7 @@ export async function POST(req: NextRequest) {
     const credit = await fetch(`${base}/rest/v1/rpc/consume_ai_credit`, {
       method: "POST",
       headers: {
-        apikey: service,
+        apikey: service as string,
         Authorization: `Bearer ${service}`,
         "Content-Type": "application/json",
       },

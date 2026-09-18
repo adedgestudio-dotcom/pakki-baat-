@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import SimpleVoiceButton from "./simple-voice-button";
+import AudioPlayer from "./audio-player";
 import type { Job } from "@/lib/data";
 
 type Props = {
@@ -274,7 +275,11 @@ export default function ChatComposer({
             <strong>Voice note ready</strong>
             <small>Recorded {formatDuration(voiceDraft.duration)}</small>
           </div>
-          <audio controls src={voiceDraft.url} aria-label="Preview voice note" />
+          <AudioPlayer
+            audioBlob={voiceDraft.file}
+            audioUrl={voiceDraft.url}
+            duration={voiceDraft.duration}
+          />
           <div className="voice-draft-actions">
             <button type="button" className="outline" onClick={discardVoiceDraft} disabled={voiceBusy}>
               Delete

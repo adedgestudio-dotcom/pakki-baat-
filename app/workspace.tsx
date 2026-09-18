@@ -4,6 +4,7 @@ import "./workspace.css";
 import "./connections.css";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
+import AudioPlayer from "./audio-player";
 import { saveVoice, loadVoice, deleteVoice } from "@/lib/voice-messages";
 import {
   cloudConfigured,
@@ -89,6 +90,18 @@ const day = () => {
     "0"
   )}-${String(d.getDate()).padStart(2, "0")}`;
 };
+function accountNameFromEmail(session: Session | null) {
+  const email = session?.user.email?.trim();
+  if (!email) return null;
+  const local = email.split("@")[0]?.trim();
+  if (!local) return null;
+  return local
+    .replace(/[._-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
   const p: Record<string, string> = {
     home: "m3 10 9-7 9 7v10H3Z M9 20v-7h6v7",
@@ -154,16 +167,13 @@ export default function Workspace() {
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
   const loadingVoiceIds = useRef(new Set<string>());
-  // const activeUserIdRef = useRef<string | null>(null);
-  // const cloudHydratedRef = useRef(false);
+  const activeUserIdRef = useRef<string | null>(null);
+  const cloudHydratedRef = useRef(false);
 
   // Display name priority: custom name → Google/account name → email name → "there"
   const displayName = owner?.trim() || userName || "there";
   // Account workspaces are loaded after authentication. Never hydrate business data
   // from a shared browser key, otherwise one signed-out user can see another user's data.
-  useEffect(() => {
-    setReady(false);
-  }, []);
   useEffect(() => {
     const savedTheme = localStorage.getItem("pakki-baat-theme");
     const isDark = savedTheme === "dark";
@@ -174,84 +184,76 @@ export default function Workspace() {
   useEffect(() => {
     if (!cloudConfigured) return;
 
-    const extractUserName = (session: any) => {
-      console.log("🔍 extractUserName called with session:", session);
+    let cancelled = false;
 
-      if (!session?.user) {
-        console.log("❌ No session or user found");
-        setUserEmail(null);
-        return null;
+    async function applySession(session: Session | null) {
+      if (cancelled) return;
+      setLoggedIn(Boolean(session));
+      setUserEmail(session?.user.email || null);
+      setUserName(accountNameFromEmail(session));
+      activeUserIdRef.current = session?.user.id || null;
+
+      if (!session) {
+        cloudHydratedRef.current = false;
+        setReady(true);
+        return;
       }
 
-      const email = session.user.email || "";
-      console.log("📧 Email found:", email);
-      setUserEmail(email);
-
-      const metadata = session.user.user_metadata;
-      console.log("📋 Metadata:", metadata);
-
-      const fullName = metadata?.full_name || metadata?.name;
-      if (fullName) {
-        console.log("✅ Using full name:", fullName);
-        return fullName;
+      cloudHydratedRef.current = false;
+      setReady(false);
+      try {
+        const snapshot = await loadCloud();
+        if (cancelled || activeUserIdRef.current !== session.user.id) return;
+        if (snapshot && isSnapshot(snapshot)) {
+          restore(snapshot);
+        } else {
+          setJobs([]);
+          setOwner("");
+          setBusiness("My small business");
+          setChatTurns([]);
+          setPendingJob(null);
+          setChatStep("customer");
+        }
+      } catch {
+        if (!cancelled) setToast("Could not load your cloud workspace.");
+      } finally {
+        if (!cancelled && activeUserIdRef.current === session.user.id) {
+          cloudHydratedRef.current = true;
+          setReady(true);
+        }
       }
-
-      if (!email) {
-        console.log("❌ No email found");
-        return null;
-      }
-
-      const emailName = email.split("@")[0];
-      console.log("📝 Email name part:", emailName);
-
-      // Capitalize first letter
-      const capitalizedName =
-        emailName.charAt(0).toUpperCase() + emailName.slice(1);
-      console.log("✅ Using capitalized email name:", capitalizedName);
-      return capitalizedName;
-    };
-
-    console.log("🚀 Setting up session watcher...");
+    }
 
     void currentSession()
-      .then((session) => {
-        console.log("📥 Current session:", session);
-        setLoggedIn(Boolean(session));
-        const name = extractUserName(session);
-        console.log("📛 Setting userName to:", name);
-        setUserName(name);
-      })
-      .catch((err) => {
-        console.error("❌ Error getting session:", err);
-        setToast("Could not check Google sign-in.");
-      })
+      .then(applySession)
+      .catch(() => setToast("Could not check Google sign-in."))
       .finally(() => setAuthReady(true));
 
-    return watchSession((session) => {
-      console.log("👀 Session changed:", session);
-      setLoggedIn(Boolean(session));
-      const name = extractUserName(session);
-      console.log("📛 Updating userName to:", name);
-      setUserName(name);
+    const stopWatching = watchSession((session) => {
       setAuthReady(true);
+      void applySession(session);
     });
+
+    return () => {
+      cancelled = true;
+      stopWatching();
+    };
   }, []);
-  // Auto-save to cloud disabled for now
-  // useEffect(() => {
-  //   if (
-  //     !ready ||
-  //     !loggedIn ||
-  //     !activeUserIdRef.current ||
-  //     !cloudHydratedRef.current
-  //   )
-  //     return;
-  //   const timer = window.setTimeout(() => {
-  //     void saveCloud({ jobs, owner, business }).catch(() =>
-  //       setToast("Could not save your latest changes to the cloud.")
-  //     );
-  //   }, 500);
-  //   return () => window.clearTimeout(timer);
-  // }, [jobs, owner, business, ready, loggedIn]);
+  useEffect(() => {
+    if (
+      !ready ||
+      !loggedIn ||
+      !activeUserIdRef.current ||
+      !cloudHydratedRef.current
+    )
+      return;
+    const timer = window.setTimeout(() => {
+      void saveCloud({ jobs, owner, business }).catch(() =>
+        setToast("Could not save your latest changes to the cloud.")
+      );
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [jobs, owner, business, ready, loggedIn]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -1150,39 +1152,17 @@ export default function Workspace() {
                             {voiceUrls[turn.voiceId] === undefined ? (
                               <small>Loading voice note…</small>
                             ) : voiceUrls[turn.voiceId] ? (
-                              <audio
-                                controls
-                                src={voiceUrls[turn.voiceId]}
-                                aria-label="Play sent voice note"
+                              <AudioPlayer
+                                audioBlob={voiceFilesRef.current[turn.voiceId]}
+                                audioUrl={voiceUrls[turn.voiceId]}
+                                duration={turn.duration || 0}
+                                onTranscribe={() => retryVoice(turn.voiceId!)}
+                                onDownload={() => downloadVoiceInChat(turn.voiceId!)}
+                                onDelete={() => removeVoice(turn.voiceId!)}
                               />
                             ) : (
                               <small>Audio unavailable on this device.</small>
                             )}
-                            <div className="chat-turn-actions">
-                              {turn.text === "Voice note" && (
-                                <button
-                                  type="button"
-                                  disabled={voiceBusy}
-                                  onClick={() => void retryVoice(turn.voiceId!)}
-                                >
-                                  Retry transcription
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void downloadVoiceInChat(turn.voiceId!)
-                                }
-                              >
-                                Download voice
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void removeVoice(turn.voiceId!)}
-                              >
-                                Delete voice
-                              </button>
-                            </div>
                           </div>
                         )}
                         {(turn.text.includes("Please continue with Google") ||

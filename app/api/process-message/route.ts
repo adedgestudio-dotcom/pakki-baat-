@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const MODEL = process.env.OPENAI_EXTRACTION_MODEL || "gpt-4-turbo-preview";
+const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_KEY || "";
+const MODEL = process.env.GROQ_EXTRACTION_MODEL || "llama-3.1-8b-instant";
 
 type PendingCommitment = {
   customer?: string;
@@ -16,9 +16,9 @@ type PendingCommitment = {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!OPENAI_API_KEY) {
+    if (!GROQ_API_KEY) {
       return NextResponse.json(
-        { error: "OpenAI API key not configured" },
+        { error: "Groq API key not configured" },
         { status: 503 }
       );
     }
@@ -97,11 +97,11 @@ Extract information and determine the next question.`;
     console.log("🤖 Calling OpenAI for message:", message);
     console.log("📋 Current commitment:", currentCommitment);
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
         model: MODEL,
@@ -117,14 +117,14 @@ Extract information and determine the next question.`;
     if (!response.ok) {
       const error = await response.text();
       console.error("❌ OpenAI API error:", error);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      throw new Error(`Groq API error: ${response.status}`);
     }
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
 
     if (!content) {
-      throw new Error("No response from OpenAI");
+      throw new Error("No response from Groq");
     }
 
     const parsed = JSON.parse(content);
@@ -177,7 +177,7 @@ Extract information and determine the next question.`;
 
 export async function GET() {
   return NextResponse.json({
-    enabled: Boolean(OPENAI_API_KEY),
+    enabled: Boolean(GROQ_API_KEY),
     model: MODEL,
   });
 }
