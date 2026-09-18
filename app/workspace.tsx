@@ -16,7 +16,13 @@ import {
   signOut,
   watchSession,
 } from "@/lib/cloud";
-import { isSnapshot, calendarFile, type Job, type Reminder, type Snapshot } from "@/lib/data";
+import {
+  isSnapshot,
+  calendarFile,
+  type Job,
+  type Reminder,
+  type Snapshot,
+} from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
 type Tab = "Today" | "My assistant" | "Hisaab" | "Customers" | "Settings";
 type ChatTurn = {
@@ -564,7 +570,9 @@ export default function Workspace() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          message: pendingReminderText ? `${pendingReminderText}. Follow-up: ${message}` : message,
+          message: pendingReminderText
+            ? `${pendingReminderText}. Follow-up: ${message}`
+            : message,
           pending: pendingJob,
           today: day(),
         }),
@@ -579,7 +587,9 @@ export default function Workspace() {
 
       if (result.intent === "reminder") {
         if (result.nextQuestion) {
-          setPendingReminderText(pendingReminderText ? `${pendingReminderText}. ${message}` : message);
+          setPendingReminderText(
+            pendingReminderText ? `${pendingReminderText}. ${message}` : message
+          );
           say("assistant", result.nextQuestion);
           return;
         }
@@ -589,14 +599,25 @@ export default function Workspace() {
             text: String(result.reminder.text || "Reminder"),
             date: String(result.reminder.date),
             time: String(result.reminder.time || ""),
-            customer: result.reminder.customer ? String(result.reminder.customer) : undefined,
-            repeat: ["daily","weekly","monthly"].includes(result.reminder.repeat) ? result.reminder.repeat : "none",
+            customer: result.reminder.customer
+              ? String(result.reminder.customer)
+              : undefined,
+            repeat: ["daily", "weekly", "monthly"].includes(
+              result.reminder.repeat
+            )
+              ? result.reminder.repeat
+              : "none",
             done: false,
             createdAt: new Date().toISOString(),
           };
           setReminders((items) => [reminder, ...items]);
           setPendingReminderText("");
-          say("assistant", `Reminder set ✓ ${reminder.text} — ${reminder.date}${reminder.time ? " at " + reminder.time : ""}.`);
+          say(
+            "assistant",
+            `Reminder set ✓ ${reminder.text} — ${reminder.date}${
+              reminder.time ? " at " + reminder.time : ""
+            }.`
+          );
           return;
         }
       }
@@ -1025,24 +1046,76 @@ export default function Workspace() {
               <section className="today-reminders">
                 <div className="section-heading">
                   <div>
-                    <span className="eyebrow">DON’T KEEP IT ALL IN YOUR HEAD</span>
-                    <h2>Reminders <span className="count">{reminders.filter((r) => !r.done).length}</span></h2>
+                    <span className="eyebrow">
+                      DON’T KEEP IT ALL IN YOUR HEAD
+                    </span>
+                    <h2>
+                      Reminders{" "}
+                      <span className="count">
+                        {reminders.filter((r) => !r.done).length}
+                      </span>
+                    </h2>
                   </div>
-                  <button className="text-button" onClick={() => go("My assistant")}>+ Tell me a reminder</button>
+                  <button
+                    className="text-button"
+                    onClick={() => go("My assistant")}
+                  >
+                    + Tell me a reminder
+                  </button>
                 </div>
                 {reminders.filter((r) => !r.done).length ? (
                   <div className="reminder-list">
-                    {reminders.filter((r) => !r.done).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0,5).map((r) => (
-                      <div className="reminder-row" key={r.id}>
-                        <span className="reminder-bell"><Icon name="bell" size={18} /></span>
-                        <div><strong>{r.text}</strong><small>{r.date}{r.time ? " · " + r.time : ""}{r.repeat && r.repeat !== "none" ? " · " + r.repeat : ""}</small></div>
-                        <button className="outline mini" onClick={() => setReminders((items) => items.map((x) => x.id === r.id ? {...x, done:true} : x))}>Done ✓</button>
-                      </div>
-                    ))}
+                    {reminders
+                      .filter((r) => !r.done)
+                      .sort((a, b) =>
+                        (a.date + a.time).localeCompare(b.date + b.time)
+                      )
+                      .slice(0, 5)
+                      .map((r) => (
+                        <div className="reminder-row" key={r.id}>
+                          <span className="reminder-bell">
+                            <Icon name="bell" size={18} />
+                          </span>
+                          <div>
+                            <strong>{r.text}</strong>
+                            <small>
+                              {r.date}
+                              {r.time ? " · " + r.time : ""}
+                              {r.repeat && r.repeat !== "none"
+                                ? " · " + r.repeat
+                                : ""}
+                            </small>
+                          </div>
+                          <button
+                            className="outline mini"
+                            onClick={() =>
+                              setReminders((items) =>
+                                items.map((x) =>
+                                  x.id === r.id ? { ...x, done: true } : x
+                                )
+                              )
+                            }
+                          >
+                            Done ✓
+                          </button>
+                        </div>
+                      ))}
                   </div>
                 ) : (
-                  <button className="reminder-empty" onClick={() => { go("My assistant"); setMessage("Remind me tomorrow at 10 AM to "); }}>
-                    <Icon name="bell" size={20} /><span><strong>No reminders yet</strong><small>Try “Remind me tomorrow at 10 to call Sakina.”</small></span>
+                  <button
+                    className="reminder-empty"
+                    onClick={() => {
+                      go("My assistant");
+                      setMessage("Remind me tomorrow at 10 AM to ");
+                    }}
+                  >
+                    <Icon name="bell" size={20} />
+                    <span>
+                      <strong>No reminders yet</strong>
+                      <small>
+                        Try “Remind me tomorrow at 10 to call Sakina.”
+                      </small>
+                    </span>
                   </button>
                 )}
               </section>
@@ -1114,7 +1187,10 @@ export default function Workspace() {
                 <div>
                   <div className="eyebrow">A HELPING HAND, ALWAYS</div>
                   <h1>Your pocket assistant</h1>
-                  <p>Type or speak naturally. Orders, payments, baki and reminders all work here.</p>
+                  <p>
+                    Type or speak naturally. Orders, payments, baki and
+                    reminders all work here.
+                  </p>
                 </div>
               </div>
               <section className="chat-layout">
@@ -1179,7 +1255,9 @@ export default function Workspace() {
                     <div className="bubble">
                       <strong>Hi {displayName}!</strong>
                       <p>
-                        Tell me what happened just like you would in WhatsApp — an order, payment, baki or reminder. I’ll organise it for you.
+                        Tell me what happened just like you would in WhatsApp —
+                        an order, payment, baki or reminder. I’ll organise it
+                        for you.
                       </p>
                     </div>
                     {chatTurns.map((turn) => (
@@ -1215,7 +1293,9 @@ export default function Workspace() {
                                 audioUrl={voiceUrls[turn.voiceId]}
                                 duration={turn.duration || 0}
                                 onTranscribe={() => retryVoice(turn.voiceId!)}
-                                onDownload={() => downloadVoiceInChat(turn.voiceId!)}
+                                onDownload={() =>
+                                  downloadVoiceInChat(turn.voiceId!)
+                                }
                                 onDelete={() => removeVoice(turn.voiceId!)}
                               />
                             ) : (
@@ -1307,7 +1387,8 @@ export default function Workspace() {
                     onCapture={capture}
                     onToast={setToast}
                     onDraft={receiveAiDraft}
-                    onSendVoice={sendVoice}\n                  voiceBusy={voiceBusy}
+                    onSendVoice={sendVoice}
+                    voiceBusy={voiceBusy}
                   />
                 </div>
                 <aside className="capture-help">
@@ -1351,7 +1432,10 @@ export default function Workspace() {
                 <div>
                   <div className="eyebrow">ALL YOUR PROMISES, TOGETHER</div>
                   <h1>Hisaab</h1>
-                  <p>Your work, received money and baki — like your book, only easier to find.</p>
+                  <p>
+                    Your work, received money and baki — like your book, only
+                    easier to find.
+                  </p>
                 </div>
                 <button className="primary" onClick={() => setDraft(blank())}>
                   <Icon name="plus" />
@@ -1392,7 +1476,9 @@ export default function Workspace() {
                   <div className="empty">
                     <Icon name="list" size={36} />
                     <h3>Your hisaab book is empty</h3>
-                    <p>Tell Pakki Baat about an order or payment to get started.</p>
+                    <p>
+                      Tell Pakki Baat about an order or payment to get started.
+                    </p>
                   </div>
                 )}
               </section>
@@ -1490,7 +1576,11 @@ export default function Workspace() {
                   className="outline"
                   onClick={() =>
                     download(
-                      JSON.stringify({ jobs, owner, business, reminders }, null, 2),
+                      JSON.stringify(
+                        { jobs, owner, business, reminders },
+                        null,
+                        2
+                      ),
                       "pakki-baat-backup.json"
                     )
                   }
