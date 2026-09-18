@@ -132,7 +132,7 @@ export default function Workspace() {
   const [tab, setTab] = useState<Tab>("Today"),
     [jobs, setJobs] = useState<Job[]>([]),
     [ready, setReady] = useState(false),
-    [owner, setOwner] = useState("Asha"),
+    [owner, setOwner] = useState(""),
     [business, setBusiness] = useState("My small business"),
     [message, setMessage] = useState(""),
     [draft, setDraft] = useState<Job | null>(null),
@@ -156,6 +156,9 @@ export default function Workspace() {
   const loadingVoiceIds = useRef(new Set<string>());
   // const activeUserIdRef = useRef<string | null>(null);
   // const cloudHydratedRef = useRef(false);
+
+  // Display name priority: custom name → Google/account name → email name → "there"
+  const displayName = owner?.trim() || userName || "there";
   // Account workspaces are loaded after authentication. Never hydrate business data
   // from a shared browser key, otherwise one signed-out user can see another user's data.
   useEffect(() => {
@@ -838,13 +841,12 @@ export default function Workspace() {
           </span>
         </button>
         <div className="workspace">
-          <span className="avatar coral">{(userName || owner)[0]}</span>
+          <span className="avatar coral">
+            {displayName.charAt(0).toUpperCase()}
+          </span>
           <div>
-            <strong>{userName || business}</strong>
-            <small>
-              {userEmail ||
-                (userName ? "Your workspace" : "Your little workspace")}
-            </small>
+            <strong>{displayName}</strong>
+            <small>{userEmail || "Your workspace"}</small>
           </div>
         </div>
         <span className="eyebrow nav-label">YOUR WORKSPACE</span>
@@ -874,9 +876,11 @@ export default function Workspace() {
             Settings & feedback
           </button>
           <div className="account">
-            <span className="avatar">{(userName || owner)[0]}</span>
+            <span className="avatar">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
             <div>
-              <strong>{userName || owner}</strong>
+              <strong>{displayName}</strong>
               <small>{userEmail || "Local trial workspace"}</small>
             </div>
           </div>
@@ -943,7 +947,9 @@ export default function Workspace() {
             >
               <Icon name="bell" />
             </button>
-            <span className="avatar small">{(userName || owner)[0]}</span>
+            <span className="avatar small">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
           </div>
         </header>
         <div className="content">
@@ -953,7 +959,7 @@ export default function Workspace() {
                 <div>
                   <div className="eyebrow">A LITTLE CLARITY FOR YOUR DAY</div>
                   <h1>
-                    Hello, {userName || owner} <span className="sun">☀</span>
+                    Hello, {displayName} <span className="sun">☀</span>
                   </h1>
                   <p>Let’s make room for the work you love.</p>
                 </div>
@@ -1186,7 +1192,7 @@ export default function Workspace() {
                     )}
                     <span className="chat-date">Your conversation</span>
                     <div className="bubble">
-                      <strong>Hi {owner}!</strong>
+                      <strong>Hi {displayName}!</strong>
                       <p>
                         Tell me what your customer needs. I will ask for any
                         missing details before you save.
@@ -1531,7 +1537,9 @@ export default function Workspace() {
                     value={owner}
                     maxLength={60}
                     onChange={(e) => setOwner(e.target.value)}
+                    placeholder={userName || "Your name"}
                   />
+                  <small>This is how Pakki Baat will address you.</small>
                 </label>
                 <label>
                   Business name
