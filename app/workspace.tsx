@@ -9,6 +9,8 @@ import {
   cloudConfigured,
   cloudToken,
   currentSession,
+  loadCloud,
+  saveCloud,
   signInWithGoogle,
   signOut,
   watchSession,
@@ -151,36 +153,12 @@ export default function Workspace() {
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
   const loadingVoiceIds = useRef(new Set<string>());
-  // Hydrate the device workspace after SSR; browser storage is unavailable on the server.
+  const activeUserIdRef = useRef<string | null>(null);
+  const cloudHydratedRef = useRef(false);
+  // Account workspaces are loaded after authentication. Never hydrate business data
+  // from a shared browser key, otherwise one signed-out user can see another user's data.
   useEffect(() => {
-    try {
-      const snapshot = JSON.parse(
-        localStorage.getItem("pakki-baat-v1") || "null"
-      );
-      if (snapshot !== null) {
-        if (!isSnapshot(snapshot)) throw new Error("Invalid backup");
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setJobs(snapshot.jobs);
-        setOwner(snapshot.owner);
-        setBusiness(snapshot.business);
-      }
-    } catch {
-      setToast(
-        "Saved data could not be read. Restore a valid backup in Settings."
-      );
-      return;
-    }
-    try {
-      const chat = JSON.parse(
-        localStorage.getItem("pakki-baat-chat-v1") || "null"
-      );
-      if (isChatState(chat)) {
-        setChatTurns(chat.turns);
-        setPendingJob(chat.pending);
-        setChatStep(chat.step);
-      }
-    } catch {}
-    setReady(true);
+    setReady(false);
   }, []);
   useEffect(() => {
     const savedTheme = localStorage.getItem("pakki-baat-theme");
@@ -192,68 +170,79 @@ export default function Workspace() {
   useEffect(() => {
     if (!cloudConfigured) return;
 
-    const extractUserName = (session: any) => {
+    const clearWorkspace = () => {
+      activeUserIdRef.current = null;
+      cloudHydratedRef.current = false;
+      setJobs([]);
+      setOwner("Asha");
+      setBusiness("My small business");
+      setChatTurns([]);
+      setPendingJob(null);
+      setChatStep("customer");
+      setReady(true);
+    };
+
+    const applySession = async (session: any) => {
+      setLoggedIn(Boolean(session));
       if (!session?.user) {
         setUserEmail(null);
-        return null;
+        setUserName(null);
+        clearWorkspace();
+        return;
       }
 
       const email = String(session.user.email || "").trim();
-      setUserEmail(email || null);
-      if (!email) return null;
-
       const emailName = email.split("@")[0] || "";
-      return emailName
-        ? emailName.charAt(0).toUpperCase() + emailName.slice(1)
-        : null;
+      setUserEmail(email || null);
+      setUserName(emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : null);
+      activeUserIdRef.current = session.user.id;
+      cloudHydratedRef.current = false;
+      setReady(false);
+
+      try {
+        const saved = await loadCloud();
+        if (saved) {
+          if (!isSnapshot(saved)) throw new Error("Invalid cloud workspace");
+          setJobs(saved.jobs);
+          setOwner(saved.owner);
+          setBusiness(saved.business);
+        } else {
+          setJobs([]);
+          setOwner(emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : "Asha");
+          setBusiness("My small business");
+        }
+      } catch {
+        setToast("Could not load your cloud workspace. Please try again.");
+        setJobs([]);
+      } finally {
+        cloudHydratedRef.current = true;
+        setReady(true);
+      }
     };
 
     void currentSession()
-      .then((session) => {
-        setLoggedIn(Boolean(session));
-        setUserName(extractUserName(session));
-      })
+      .then(applySession)
       .catch(() => {
+        clearWorkspace();
         setToast("Could not check Google sign-in.");
       })
       .finally(() => setAuthReady(true));
 
     return watchSession((session) => {
-      setLoggedIn(Boolean(session));
-      setUserName(extractUserName(session));
+      void applySession(session);
       setAuthReady(true);
     });
   }, []);
   useEffect(() => {
-    if (!ready) return;
-    try {
-      localStorage.setItem(
-        "pakki-baat-v1",
-        JSON.stringify({ jobs, owner, business })
+    if (!ready || !loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
+    const timer = window.setTimeout(() => {
+      void saveCloud({ jobs, owner, business }).catch(() =>
+        setToast("Could not save your latest changes to the cloud.")
       );
-    } catch {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setToast("Storage is full. Export a backup before closing.");
-    }
-  }, [jobs, owner, business, ready]);
-  useEffect(() => {
-    if (!ready) return;
-    try {
-      localStorage.setItem(
-        "pakki-baat-chat-v1",
-        JSON.stringify({
-          turns: chatTurns,
-          pending: pendingJob,
-          step: chatStep,
-        })
-      );
-    } catch {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setToast(
-        "Conversation storage is full. Export your commitments before closing."
-      );
-    }
-  }, [chatTurns, pendingJob, chatStep, ready]);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [jobs, owner, business, ready, loggedIn]);
+
   useEffect(() => {
     for (const turn of chatTurns) {
       const id = turn.voiceId;
@@ -517,10 +506,18 @@ export default function Workspace() {
   async function handleSignOut() {
     try {
       await signOut();
+      activeUserIdRef.current = null;
+      cloudHydratedRef.current = false;
       setLoggedIn(false);
       setUserName(null);
       setUserEmail(null);
-      setToast("Signed out. Your device workspace is still here.");
+      setJobs([]);
+      setOwner("Asha");
+      setBusiness("My small business");
+      setChatTurns([]);
+      setPendingJob(null);
+      setChatStep("customer");
+      setToast("Signed out. Sign in to see your workspace.");
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : "Could not sign out.");
     }
