@@ -151,6 +151,7 @@ export default function Workspace() {
     [message, setMessage] = useState(""),
     [draft, setDraft] = useState<Job | null>(null),
     [pendingJob, setPendingJob] = useState<Job | null>(null),
+    [pendingReminderText, setPendingReminderText] = useState(""),
     [chatStep, setChatStep] = useState<ChatStep>("customer"),
     [chatTurns, setChatTurns] = useState<ChatTurn[]>([]),
     [voiceUrls, setVoiceUrls] = useState<Record<string, string>>({}),
@@ -561,7 +562,7 @@ export default function Workspace() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          message,
+          message: pendingReminderText ? `${pendingReminderText}. Follow-up: ${message}` : message,
           pending: pendingJob,
           today: day(),
         }),
@@ -576,6 +577,7 @@ export default function Workspace() {
 
       if (result.intent === "reminder") {
         if (result.nextQuestion) {
+          setPendingReminderText(pendingReminderText ? `${pendingReminderText}. ${message}` : message);
           say("assistant", result.nextQuestion);
           return;
         }
@@ -591,6 +593,7 @@ export default function Workspace() {
             createdAt: new Date().toISOString(),
           };
           setReminders((items) => [reminder, ...items]);
+          setPendingReminderText("");
           say("assistant", `Reminder set ✓ ${reminder.text} — ${reminder.date}${reminder.time ? " at " + reminder.time : ""}.`);
           return;
         }
