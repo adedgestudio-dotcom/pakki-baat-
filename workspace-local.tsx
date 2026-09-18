@@ -9,8 +9,6 @@ import {
   cloudConfigured,
   cloudToken,
   currentSession,
-  loadCloud,
-  saveCloud,
   signInWithGoogle,
   signOut,
   watchSession,
@@ -162,12 +160,36 @@ export default function Workspace() {
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
   const loadingVoiceIds = useRef(new Set<string>());
-  const activeUserIdRef = useRef<string | null>(null);
-  const cloudHydratedRef = useRef(false);
-  // Account workspaces are loaded after authentication. Never hydrate business data
-  // from a shared browser key, otherwise one signed-out user can see another user's data.
+  // Hydrate the device workspace after SSR; browser storage is unavailable on the server.
   useEffect(() => {
-    setReady(false);
+    try {
+      const snapshot = JSON.parse(
+        localStorage.getItem("pakki-baat-v1") || "null"
+      );
+      if (snapshot !== null) {
+        if (!isSnapshot(snapshot)) throw new Error("Invalid backup");
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setJobs(snapshot.jobs);
+        setOwner(snapshot.owner);
+        setBusiness(snapshot.business);
+      }
+    } catch {
+      setToast(
+        "Saved data could not be read. Restore a valid backup in Settings."
+      );
+      return;
+    }
+    try {
+      const chat = JSON.parse(
+        localStorage.getItem("pakki-baat-chat-v1") || "null"
+      );
+      if (isChatState(chat)) {
+        setChatTurns(chat.turns);
+        setPendingJob(chat.pending);
+        setChatStep(chat.step);
+      }
+    } catch {}
+    setReady(true);
   }, []);
   useEffect(() => {
     const savedTheme = localStorage.getItem("pakki-baat-theme");
@@ -179,84 +201,54 @@ export default function Workspace() {
   useEffect(() => {
     if (!cloudConfigured) return;
 
-    const extractUserName = (session: any) => {
-      console.log("🔍 extractUserName called with session:", session);
-
-      if (!session?.user) {
-        console.log("❌ No session or user found");
-        setUserEmail(null);
-        return null;
-      }
-
-      const email = session.user.email || "";
-      console.log("📧 Email found:", email);
-      setUserEmail(email);
-
-      const metadata = session.user.user_metadata;
-      console.log("📋 Metadata:", metadata);
-
-      const fullName = metadata?.full_name || metadata?.name;
-      if (fullName) {
-        console.log("✅ Using full name:", fullName);
-        return fullName;
-      }
-
-      if (!email) {
-        console.log("❌ No email found");
-        return null;
-      }
-
-      const emailName = email.split("@")[0];
-      console.log("📝 Email name part:", emailName);
-
-      // Capitalize first letter
-      const capitalizedName =
-        emailName.charAt(0).toUpperCase() + emailName.slice(1);
-      console.log("✅ Using capitalized email name:", capitalizedName);
-      return capitalizedName;
-    };
-
-    console.log("🚀 Setting up session watcher...");
-
     void currentSession()
       .then((session) => {
-        console.log("📥 Current session:", session);
         setLoggedIn(Boolean(session));
-        const name = extractUserName(session);
-        console.log("📛 Setting userName to:", name);
-        setUserName(name);
+        setUserEmail(session?.user.email || null);
+        setUserName(accountNameFromEmail(session));
       })
-      .catch((err) => {
-        console.error("❌ Error getting session:", err);
+      .catch(() => {
         setToast("Could not check Google sign-in.");
       })
       .finally(() => setAuthReady(true));
 
     return watchSession((session) => {
-      console.log("👀 Session changed:", session);
       setLoggedIn(Boolean(session));
-      const name = extractUserName(session);
-      console.log("📛 Updating userName to:", name);
-      setUserName(name);
+      setUserEmail(session?.user.email || null);
+      setUserName(accountNameFromEmail(session));
       setAuthReady(true);
     });
   }, []);
   useEffect(() => {
-    if (
-      !ready ||
-      !loggedIn ||
-      !activeUserIdRef.current ||
-      !cloudHydratedRef.current
-    )
-      return;
-    const timer = window.setTimeout(() => {
-      void saveCloud({ jobs, owner, business }).catch(() =>
-        setToast("Could not save your latest changes to the cloud.")
+    if (!ready) return;
+    try {
+      localStorage.setItem(
+        "pakki-baat-v1",
+        JSON.stringify({ jobs, owner, business })
       );
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [jobs, owner, business, ready, loggedIn]);
-
+    } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setToast("Storage is full. Export a backup before closing.");
+    }
+  }, [jobs, owner, business, ready]);
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      localStorage.setItem(
+        "pakki-baat-chat-v1",
+        JSON.stringify({
+          turns: chatTurns,
+          pending: pendingJob,
+          step: chatStep,
+        })
+      );
+    } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setToast(
+        "Conversation storage is full. Export your commitments before closing."
+      );
+    }
+  }, [chatTurns, pendingJob, chatStep, ready]);
   useEffect(() => {
     for (const turn of chatTurns) {
       const id = turn.voiceId;
@@ -520,18 +512,10 @@ export default function Workspace() {
   async function handleSignOut() {
     try {
       await signOut();
-      activeUserIdRef.current = null;
-      cloudHydratedRef.current = false;
       setLoggedIn(false);
       setUserName(null);
       setUserEmail(null);
-      setJobs([]);
-      setOwner("Asha");
-      setBusiness("My small business");
-      setChatTurns([]);
-      setPendingJob(null);
-      setChatStep("customer");
-      setToast("Signed out. Sign in to see your workspace.");
+      setToast("Signed out. Your device workspace is still here.");
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : "Could not sign out.");
     }
@@ -958,7 +942,18 @@ export default function Workspace() {
             >
               <Icon name="bell" />
             </button>
-            <span className="avatar small">{(userName || owner)[0]}</span>
+            <span
+              className="top-account"
+              tabIndex={loggedIn && userEmail ? 0 : -1}
+              aria-label={userEmail ? `Signed in as ${userEmail}` : undefined}
+            >
+              <span className="avatar small">{(userName || owner)[0]}</span>
+              {loggedIn && userEmail && (
+                <span className="top-account-email" role="tooltip">
+                  {userEmail}
+                </span>
+              )}
+            </span>
           </div>
         </header>
         <div className="content">
@@ -1128,7 +1123,7 @@ export default function Workspace() {
                 </section>
               </div>
               <footer>
-                Made with <span>♡</span> by Zorivo
+                Made for small businesses with big dreams. <span>♡</span>
               </footer>
             </>
           )}

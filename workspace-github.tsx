@@ -16,7 +16,6 @@ import {
   watchSession,
 } from "@/lib/cloud";
 import { isSnapshot, calendarFile, type Job, type Snapshot } from "@/lib/data";
-import type { Session } from "@supabase/supabase-js";
 type Tab = "Today" | "My assistant" | "Commitments" | "Customers" | "Settings";
 type ChatTurn = {
   id: string;
@@ -28,14 +27,6 @@ type ChatTurn = {
 };
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
-function accountNameFromEmail(session: Session | null) {
-  const email = session?.user.email?.trim() || "";
-  const localPart = email.split("@")[0] || "";
-  const readable = localPart.replace(/[._-]+/g, " ").trim();
-  return readable
-    ? readable.replace(/\b\w/g, (letter) => letter.toUpperCase())
-    : null;
-}
 function isRealDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, date] = value.split("-").map(Number);
@@ -179,76 +170,71 @@ export default function Workspace() {
   useEffect(() => {
     if (!cloudConfigured) return;
 
-    const extractUserName = (session: any) => {
-      console.log("🔍 extractUserName called with session:", session);
-
-      if (!session?.user) {
-        console.log("❌ No session or user found");
-        setUserEmail(null);
-        return null;
-      }
-
-      const email = session.user.email || "";
-      console.log("📧 Email found:", email);
-      setUserEmail(email);
-
-      const metadata = session.user.user_metadata;
-      console.log("📋 Metadata:", metadata);
-
-      const fullName = metadata?.full_name || metadata?.name;
-      if (fullName) {
-        console.log("✅ Using full name:", fullName);
-        return fullName;
-      }
-
-      if (!email) {
-        console.log("❌ No email found");
-        return null;
-      }
-
-      const emailName = email.split("@")[0];
-      console.log("📝 Email name part:", emailName);
-
-      // Capitalize first letter
-      const capitalizedName =
-        emailName.charAt(0).toUpperCase() + emailName.slice(1);
-      console.log("✅ Using capitalized email name:", capitalizedName);
-      return capitalizedName;
+    const clearWorkspace = () => {
+      activeUserIdRef.current = null;
+      cloudHydratedRef.current = false;
+      setJobs([]);
+      setOwner("Asha");
+      setBusiness("My small business");
+      setChatTurns([]);
+      setPendingJob(null);
+      setChatStep("customer");
+      setReady(true);
     };
 
-    console.log("🚀 Setting up session watcher...");
+    const applySession = async (session: any) => {
+      setLoggedIn(Boolean(session));
+      if (!session?.user) {
+        setUserEmail(null);
+        setUserName(null);
+        clearWorkspace();
+        return;
+      }
+
+      const email = String(session.user.email || "").trim();
+      const emailName = email.split("@")[0] || "";
+      setUserEmail(email || null);
+      setUserName(emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : null);
+      activeUserIdRef.current = session.user.id;
+      cloudHydratedRef.current = false;
+      setReady(false);
+
+      try {
+        const saved = await loadCloud();
+        if (saved) {
+          if (!isSnapshot(saved)) throw new Error("Invalid cloud workspace");
+          setJobs(saved.jobs);
+          setOwner(saved.owner);
+          setBusiness(saved.business);
+        } else {
+          setJobs([]);
+          setOwner(emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : "Asha");
+          setBusiness("My small business");
+        }
+      } catch {
+        setToast("Could not load your cloud workspace. Please try again.");
+        setJobs([]);
+      } finally {
+        cloudHydratedRef.current = true;
+        setReady(true);
+      }
+    };
 
     void currentSession()
-      .then((session) => {
-        console.log("📥 Current session:", session);
-        setLoggedIn(Boolean(session));
-        const name = extractUserName(session);
-        console.log("📛 Setting userName to:", name);
-        setUserName(name);
-      })
-      .catch((err) => {
-        console.error("❌ Error getting session:", err);
+      .then(applySession)
+      .catch(() => {
+        clearWorkspace();
         setToast("Could not check Google sign-in.");
       })
       .finally(() => setAuthReady(true));
 
     return watchSession((session) => {
-      console.log("👀 Session changed:", session);
-      setLoggedIn(Boolean(session));
-      const name = extractUserName(session);
-      console.log("📛 Updating userName to:", name);
-      setUserName(name);
+      void applySession(session);
       setAuthReady(true);
     });
   }, []);
   useEffect(() => {
-    if (
-      !ready ||
-      !loggedIn ||
-      !activeUserIdRef.current ||
-      !cloudHydratedRef.current
-    )
-      return;
+    if (!ready || !loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
     const timer = window.setTimeout(() => {
       void saveCloud({ jobs, owner, business }).catch(() =>
         setToast("Could not save your latest changes to the cloud.")
@@ -958,7 +944,14 @@ export default function Workspace() {
             >
               <Icon name="bell" />
             </button>
-            <span className="avatar small">{(userName || owner)[0]}</span>
+            <span className="account-avatar-wrap" tabIndex={0}>
+              <span className="avatar small">{(userName || owner)[0]}</span>
+              {userEmail && (
+                <span className="account-avatar-tooltip" role="tooltip">
+                  {userEmail}
+                </span>
+              )}
+            </span>
           </div>
         </header>
         <div className="content">
@@ -1128,7 +1121,7 @@ export default function Workspace() {
                 </section>
               </div>
               <footer>
-                Made with <span>♡</span> by Zorivo
+                Made for small businesses with big dreams. <span>♡</span>
               </footer>
             </>
           )}

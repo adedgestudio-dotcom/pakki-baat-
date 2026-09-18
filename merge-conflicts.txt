@@ -1,0 +1,149 @@
+diff --cc app/workspace.css
+index 99bb7f9,1f73819..0000000
+--- a/app/workspace.css
++++ b/app/workspace.css
+@@@ -124,8 -124,9 +124,14 @@@ strong 
+    color: var(--ink);
+    padding: 8px 12px;
+    border-radius: 12px;
+++<<<<<<< Updated upstream
+ +  transition: none;
+ +}
+++=======
++   transition: background 0.2s;
++ }
++ .brand:hover { background: transparent; }
+++>>>>>>> Stashed changes
+  .brand-mark {
+    width: 31px;
+    height: 31px;
+@@@ -494,12 -534,11 +539,20 @@@ main 
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin: 14px 0 12px;
+++<<<<<<< Updated upstream
+ +  color: #2b3834;
+ +  text-shadow: none;
+ +}
+ +.hero p {
+ +  font-size: 11px;
+ +  color: #5f6f65;
+++=======
++   color: #30443b;
++ }
++ .hero p {
++   font-size: 11px;
++   color: #66776d;
+++>>>>>>> Stashed changes
+    margin-bottom: 17px;
+  }
+  .hero-art {
+diff --cc app/workspace.tsx
+index 81ef476,e49d0ee..0000000
+--- a/app/workspace.tsx
++++ b/app/workspace.tsx
+@@@ -170,66 -201,21 +179,82 @@@ export default function Workspace() 
+    useEffect(() => {
+      if (!cloudConfigured) return;
+  
+++<<<<<<< Updated upstream
+ +    const clearWorkspace = () => {
+ +      activeUserIdRef.current = null;
+ +      cloudHydratedRef.current = false;
+ +      setJobs([]);
+ +      setOwner("Asha");
+ +      setBusiness("My small business");
+ +      setChatTurns([]);
+ +      setPendingJob(null);
+ +      setChatStep("customer");
+ +      setReady(true);
+ +    };
+ +
+ +    const applySession = async (session: any) => {
+ +      setLoggedIn(Boolean(session));
+ +      if (!session?.user) {
+ +        setUserEmail(null);
+ +        setUserName(null);
+ +        clearWorkspace();
+ +        return;
+ +      }
+ +
+ +      const email = String(session.user.email || "").trim();
+ +      const emailName = email.split("@")[0] || "";
+ +      setUserEmail(email || null);
+ +      setUserName(emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : null);
+ +      activeUserIdRef.current = session.user.id;
+ +      cloudHydratedRef.current = false;
+ +      setReady(false);
+ +
+ +      try {
+ +        const saved = await loadCloud();
+ +        if (saved) {
+ +          if (!isSnapshot(saved)) throw new Error("Invalid cloud workspace");
+ +          setJobs(saved.jobs);
+ +          setOwner(saved.owner);
+ +          setBusiness(saved.business);
+ +        } else {
+ +          setJobs([]);
+ +          setOwner(emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : "Asha");
+ +          setBusiness("My small business");
+ +        }
+ +      } catch {
+ +        setToast("Could not load your cloud workspace. Please try again.");
+ +        setJobs([]);
+ +      } finally {
+ +        cloudHydratedRef.current = true;
+ +        setReady(true);
+ +      }
+ +    };
+ +
+ +    void currentSession()
+ +      .then(applySession)
+ +      .catch(() => {
+ +        clearWorkspace();
+++=======
++     void currentSession()
++       .then((session) => {
++         setLoggedIn(Boolean(session));
++         setUserEmail(session?.user.email || null);
++         setUserName(accountNameFromEmail(session));
++       })
++       .catch(() => {
+++>>>>>>> Stashed changes
+          setToast("Could not check Google sign-in.");
+        })
+        .finally(() => setAuthReady(true));
+  
+      return watchSession((session) => {
+++<<<<<<< Updated upstream
+ +      void applySession(session);
+++=======
++       setLoggedIn(Boolean(session));
++       setUserEmail(session?.user.email || null);
++       setUserName(accountNameFromEmail(session));
+++>>>>>>> Stashed changes
+        setAuthReady(true);
+      });
+    }, []);
+@@@ -944,10 -942,14 +969,21 @@@
+              >
+                <Icon name="bell" />
+              </button>
+++<<<<<<< Updated upstream
+ +            <span className="account-avatar-wrap" tabIndex={0}>
+ +              <span className="avatar small">{(userName || owner)[0]}</span>
+ +              {userEmail && (
+ +                <span className="account-avatar-tooltip" role="tooltip">
+++=======
++             <span
++               className="top-account"
++               tabIndex={loggedIn && userEmail ? 0 : -1}
++               aria-label={userEmail ? `Signed in as ${userEmail}` : undefined}
++             >
++               <span className="avatar small">{(userName || owner)[0]}</span>
++               {loggedIn && userEmail && (
++                 <span className="top-account-email" role="tooltip">
+++>>>>>>> Stashed changes
+                    {userEmail}
+                  </span>
+                )}

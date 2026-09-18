@@ -107,41 +107,10 @@ strong {
   background: #fff;
   position: fixed;
   inset: 0 auto 0 0;
-  height: 100vh;
-
   border-right: 1px solid var(--line);
   padding: 34px 22px 20px;
-
   display: flex;
   flex-direction: column;
-
-  /* Make sidebar scrollable */
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-}
-
-/* Cleaner sidebar scrollbar */
-.sidebar {
-  scrollbar-width: thin;
-  scrollbar-color: #c5d4c0 transparent;
-}
-
-.sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background: #c5d4c0;
-  border-radius: 10px;
-}
-
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: #b0c4ab;
 }
 .brand {
   display: inline-flex;
@@ -155,12 +124,9 @@ strong {
   color: var(--ink);
   padding: 8px 12px;
   border-radius: 12px;
-  transition: none;
+  transition: background 0.2s;
 }
-
-.brand:hover {
-  background: transparent;
-}
+.brand:hover { background: transparent; }
 .brand-mark {
   width: 31px;
   height: 31px;
@@ -260,7 +226,7 @@ strong {
   opacity: 0;
   visibility: hidden;
   transform: translateY(-3px);
-  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+  transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
   pointer-events: none;
 }
 .top-account:hover .top-account-email,
@@ -568,12 +534,11 @@ main {
   line-height: 1.15;
   letter-spacing: -1px;
   margin: 14px 0 12px;
-  color: #ffffff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  color: #30443b;
 }
 .hero p {
   font-size: 11px;
-  color: #c5d4ba;
+  color: #66776d;
   margin-bottom: 17px;
 }
 .hero-art {
@@ -909,16 +874,13 @@ main {
 }
 footer {
   text-align: center;
-  font-size: 10px;
-  color: #8b9a80;
+  font-size: 9px;
+  color: #a5afa1;
   margin-top: 30px;
-  padding: 15px 0;
 }
 footer span {
-  color: #ff7556;
-  margin: 0 3px;
-  display: inline-block;
-  animation: pulse 2s ease-in-out infinite;
+  color: #b48c7b;
+  margin-left: 5px;
 }
 .chat-layout {
   display: grid;
@@ -2701,53 +2663,4 @@ select:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-}
-
-.account-avatar-wrap {
-  position: relative;
-  display: inline-flex;
-}
-.account-avatar-tooltip {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 30;
-  max-width: 260px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 11px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-2px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
-}
-.account-avatar-wrap:hover .account-avatar-tooltip,
-.account-avatar-wrap:focus-within .account-avatar-tooltip {
-  opacity: 1;
-  transform: translateY(0);
-}
-.account-avatar-wrap .avatar.small {
-  cursor: default;
-}
-[data-theme="dark"] .hero {
-  background: linear-gradient(135deg, #1d2a25 0%, #23342d 100%);
-  border-color: #344b40;
-}
-[data-theme="dark"] .hero h2 {
-  color: #f3f7f4;
-}
-[data-theme="dark"] .hero p {
-  color: #c9d8cf;
-}
-[data-theme="dark"] .pill {
-  background: #31483d;
-  color: #d9e8df;
-}
-[data-theme="dark"] .account-avatar-tooltip {
-  background: #f2f6f3;
-  color: #1e2d27;
 }
