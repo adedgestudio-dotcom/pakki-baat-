@@ -871,7 +871,7 @@ export default function Workspace() {
             pakki baat<span className="brand-dot">.</span>
           </span>
         </button>
-        <div className="workspace" title={userEmail || business}>
+        <div className="workspace">
           <span className="avatar coral">{(userName || owner)[0]}</span>
           <div>
             <strong>{userName || business}</strong>
@@ -907,7 +907,7 @@ export default function Workspace() {
             <Icon name="settings" />
             Settings & feedback
           </button>
-          <div className="account" title={userEmail || "Local workspace"}>
+          <div className="account">
             <span className="avatar">{(userName || owner)[0]}</span>
             <div>
               <strong>{userName || owner}</strong>
@@ -979,12 +979,7 @@ export default function Workspace() {
             >
               <Icon name="bell" />
             </button>
-            <span
-              className="avatar small"
-              title={userEmail ? `Signed in as ${userEmail}` : owner}
-            >
-              {(userName || owner)[0]}
-            </span>
+            <span className="avatar small">{(userName || owner)[0]}</span>
           </div>
         </header>
         <div className="content">
