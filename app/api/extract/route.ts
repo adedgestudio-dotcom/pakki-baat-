@@ -13,7 +13,7 @@ function isTimeoutError(error: unknown) {
 export async function GET() {
   return Response.json({
     enabled: Boolean(
-      process.env.OPENAI_API_KEY &&
+      process.env.GROQ_API_KEY &&
         process.env.SUPABASE_SERVICE_ROLE_KEY &&
         process.env.NEXT_PUBLIC_SUPABASE_URL &&
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publicKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -150,10 +150,10 @@ export async function POST(req: NextRequest) {
       console.log("🎤 Transcribing audio...");
       const audio = new FormData();
       audio.set("file", file);
-      audio.set("model", process.env.OPENAI_TRANSCRIPTION_MODEL || "whisper-1");
+      audio.set("model", process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo");
 
       const trans = await fetch(
-        "https://api.openai.com/v1/audio/transcriptions",
+        "https://api.groq.com/openai/v1/audio/transcriptions",
         {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}` },
@@ -184,8 +184,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Extract details using GPT
-    console.log("🤖 Extracting details with GPT...");
+    // Extract details using AI
+    console.log("🤖 Extracting details with AI...");
 
     const systemPrompt = `You are extracting business commitment details. Return ONLY valid JSON with these fields:
 {
@@ -210,14 +210,14 @@ Rules:
       /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "unknown"
     }\n\nCustomer message: ${transcript || "Read the attached screenshot."}`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_EXTRACTION_MODEL || "gpt-4-turbo-preview",
+        model: process.env.GROQ_EXTRACTION_MODEL || "llama-3.1-8b-instant",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
