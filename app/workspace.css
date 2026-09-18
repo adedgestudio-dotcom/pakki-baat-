@@ -2978,3 +2978,31 @@ select:focus-visible {
     justify-content: center;
   }
 }
+
+/* Voice note card: explicit light/dark contrast */
+[data-theme="dark"] .voice-draft-card {
+  background: #1d352b;
+  border-color: #3d5b4e;
+}
+[data-theme="dark"] .voice-draft-card strong { color: #f5efe2; }
+[data-theme="dark"] .voice-draft-card small { color: #b7c8be; }
+[data-theme="dark"] .voice-draft-card .audio-player,
+[data-theme="dark"] .voice-draft-card audio { color-scheme: dark; }
+@media (max-width: 800px) {
+  .voice-draft-card {
+    padding: 11px;
+    border-radius: 16px;
+    gap: 8px;
+  }
+  .voice-draft-actions { gap: 8px; }
+  .voice-draft-actions .outline,
+  .voice-draft-actions .primary { min-height: 42px; }
+  .inline-recording-strip {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 132px;
+    width: auto;
+    max-width: none;
+  }
+}
