@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, pending } = await request.json();
+    const { message, pending, today } = await request.json();
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       ? `\n\nWhat we already know:\n${knownFields.join("\n")}`
       : "";
 
-    const systemPrompt = `You are Pakki Baat's assistant helping extract commitment details from natural conversation.
+    const systemPrompt = `You are Pakki Baat's friendly small-business assistant. Today is ${today || new Date().toISOString().slice(0,10)}. Help users who may be more comfortable with WhatsApp and a handwritten hisaab book.\n\nFirst detect whether the message is mainly a REMINDER request (for example: remind me tomorrow to call Sakina; every Friday remind me to check baki) or a COMMITMENT/payment/order message.\n\nFor a reminder, return ONLY JSON: {\"intent\":\"reminder\",\"reminder\":{\"text\":\"what to remember\",\"date\":\"YYYY-MM-DD\",\"time\":\"HH:MM or empty\",\"customer\":\"optional name\",\"repeat\":\"none|daily|weekly|monthly\"},\"nextQuestion\":\"only if date is missing, otherwise null\"}. Resolve relative dates using today. If user says morning use 09:00, afternoon 15:00, evening 19:00.\n\nFor a commitment, set intent to commitment and follow these rules.\n\nExtract commitment details from natural conversation.
 
 Extract information from the user's message and update the commitment. Return ONLY a JSON object.
 
@@ -94,7 +94,7 @@ The nextQuestion should ask for the MOST IMPORTANT missing field:
 
 Extract information and determine the next question.`;
 
-    console.log("🤖 Calling OpenAI for message:", message);
+    console.log("🤖 Calling Groq for message:", message);
     console.log("📋 Current commitment:", currentCommitment);
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -116,7 +116,7 @@ Extract information and determine the next question.`;
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("❌ OpenAI API error:", error);
+      console.error("❌ Groq API error:", error);
       throw new Error(`Groq API error: ${response.status}`);
     }
 
@@ -127,8 +127,8 @@ Extract information and determine the next question.`;
       throw new Error("No response from Groq");
     }
 
-    const parsed = JSON.parse(content);
-    console.log("✅ OpenAI response:", parsed);
+    const parsed = JSON.parse(content);\n    if (parsed.intent === \"reminder\") {\n      return NextResponse.json({ intent: \"reminder\", reminder: parsed.reminder || null, nextQuestion: parsed.nextQuestion || null, isComplete: Boolean(parsed.reminder?.date && !parsed.nextQuestion) });\n    }
+    console.log("✅ Groq response:", parsed);
 
     // Merge extracted data with current commitment
     const updated: PendingCommitment = { ...currentCommitment };
