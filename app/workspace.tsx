@@ -16,9 +16,9 @@ import {
   signOut,
   watchSession,
 } from "@/lib/cloud";
-import { isSnapshot, calendarFile, type Job, type Snapshot } from "@/lib/data";
+import { isSnapshot, calendarFile, type Job, type Reminder, type Snapshot } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
-type Tab = "Today" | "My assistant" | "Commitments" | "Customers" | "Settings";
+type Tab = "Today" | "My assistant" | "Hisaab" | "Customers" | "Settings";
 type ChatTurn = {
   id: string;
   role: "me" | "assistant";
@@ -144,6 +144,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
 export default function Workspace() {
   const [tab, setTab] = useState<Tab>("Today"),
     [jobs, setJobs] = useState<Job[]>([]),
+    [reminders, setReminders] = useState<Reminder[]>([]),
     [ready, setReady] = useState(false),
     [owner, setOwner] = useState(""),
     [business, setBusiness] = useState("My small business"),
@@ -208,6 +209,7 @@ export default function Workspace() {
           restore(snapshot);
         } else {
           setJobs([]);
+          setReminders([]);
           setOwner("");
           setBusiness("My small business");
           setChatTurns([]);
@@ -248,12 +250,12 @@ export default function Workspace() {
     )
       return;
     const timer = window.setTimeout(() => {
-      void saveCloud({ jobs, owner, business }).catch(() =>
+      void saveCloud({ jobs, owner, business, reminders }).catch(() =>
         setToast("Could not save your latest changes to the cloud.")
       );
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [jobs, owner, business, ready, loggedIn]);
+  }, [jobs, owner, business, reminders, ready, loggedIn]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -330,7 +332,7 @@ export default function Workspace() {
   const nav: [Tab, string][] = [
     ["Today", "home"],
     ["My assistant", "chat"],
-    ["Commitments", "list"],
+    ["Hisaab", "list"],
     ["Customers", "people"],
   ];
   const open = jobs.filter((j) => j.status !== "Completed"),
@@ -497,7 +499,11 @@ export default function Workspace() {
       setLoggedIn(false);
       setUserName(null);
       setUserEmail(null);
-      setToast("Signed out. Your device workspace is still here.");
+      setReminders([]);
+      setJobs([]);
+      setChatTurns([]);
+      setPendingJob(null);
+      setToast("Signed out. Your account workspace is hidden on this device.");
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : "Could not sign out.");
     }
@@ -557,6 +563,7 @@ export default function Workspace() {
         body: JSON.stringify({
           message,
           pending: pendingJob,
+          today: day(),
         }),
       });
 
@@ -566,6 +573,28 @@ export default function Workspace() {
 
       const result = await response.json();
       console.log("✅ Processing result:", result);
+
+      if (result.intent === "reminder") {
+        if (result.nextQuestion) {
+          say("assistant", result.nextQuestion);
+          return;
+        }
+        if (result.reminder?.date) {
+          const reminder: Reminder = {
+            id: crypto.randomUUID(),
+            text: String(result.reminder.text || "Reminder"),
+            date: String(result.reminder.date),
+            time: String(result.reminder.time || ""),
+            customer: result.reminder.customer ? String(result.reminder.customer) : undefined,
+            repeat: ["daily","weekly","monthly"].includes(result.reminder.repeat) ? result.reminder.repeat : "none",
+            done: false,
+            createdAt: new Date().toISOString(),
+          };
+          setReminders((items) => [reminder, ...items]);
+          say("assistant", `Reminder set ✓ ${reminder.text} — ${reminder.date}${reminder.time ? " at " + reminder.time : ""}.`);
+          return;
+        }
+      }
 
       setPendingJob(result.updated);
 
@@ -710,6 +739,7 @@ export default function Workspace() {
   }
   function restore(s: Snapshot) {
     setJobs(s.jobs);
+    setReminders(s.reminders || []);
     setOwner(s.owner);
     setBusiness(s.business);
     setChatTurns([]);
@@ -937,7 +967,7 @@ export default function Workspace() {
               <section className="stats">
                 <button
                   onClick={() => {
-                    go("Commitments");
+                    go("Hisaab");
                     setFilter("Payment due");
                   }}
                 >
@@ -951,7 +981,7 @@ export default function Workspace() {
                 </button>
                 <button
                   onClick={() => {
-                    go("Commitments");
+                    go("Hisaab");
                     setFilter("Due now");
                   }}
                 >
@@ -969,7 +999,7 @@ export default function Workspace() {
                 </button>
                 <button
                   onClick={() => {
-                    go("Commitments");
+                    go("Hisaab");
                     setFilter("Waiting");
                   }}
                 >
@@ -987,6 +1017,30 @@ export default function Workspace() {
                   <Icon name="arrow" size={18} />
                 </button>
               </section>
+              <section className="today-reminders">
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">DON’T KEEP IT ALL IN YOUR HEAD</span>
+                    <h2>Reminders <span className="count">{reminders.filter((r) => !r.done).length}</span></h2>
+                  </div>
+                  <button className="text-button" onClick={() => go("My assistant")}>+ Tell me a reminder</button>
+                </div>
+                {reminders.filter((r) => !r.done).length ? (
+                  <div className="reminder-list">
+                    {reminders.filter((r) => !r.done).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0,5).map((r) => (
+                      <div className="reminder-row" key={r.id}>
+                        <span className="reminder-bell"><Icon name="bell" size={18} /></span>
+                        <div><strong>{r.text}</strong><small>{r.date}{r.time ? " · " + r.time : ""}{r.repeat && r.repeat !== "none" ? " · " + r.repeat : ""}</small></div>
+                        <button className="outline mini" onClick={() => setReminders((items) => items.map((x) => x.id === r.id ? {...x, done:true} : x))}>Done ✓</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <button className="reminder-empty" onClick={() => { go("My assistant"); setMessage("Remind me tomorrow at 10 AM to "); }}>
+                    <Icon name="bell" size={20} /><span><strong>No reminders yet</strong><small>Try “Remind me tomorrow at 10 to call Sakina.”</small></span>
+                  </button>
+                )}
+              </section>
               <div className="lower-grid">
                 <section className="panel">
                   <div className="section-heading">
@@ -996,7 +1050,7 @@ export default function Workspace() {
                     </h2>
                     <button
                       className="text-button"
-                      onClick={() => go("Commitments")}
+                      onClick={() => go("Hisaab")}
                     >
                       View all <Icon name="arrow" size={15} />
                     </button>
@@ -1055,7 +1109,7 @@ export default function Workspace() {
                 <div>
                   <div className="eyebrow">A HELPING HAND, ALWAYS</div>
                   <h1>Your pocket assistant</h1>
-                  <p>Start with what your customer said.</p>
+                  <p>Type or speak naturally. Orders, payments, baki and reminders all work here.</p>
                 </div>
               </div>
               <section className="chat-layout">
@@ -1120,8 +1174,7 @@ export default function Workspace() {
                     <div className="bubble">
                       <strong>Hi {displayName}!</strong>
                       <p>
-                        Tell me what your customer needs. I will ask for any
-                        missing details before you save.
+                        Tell me what happened just like you would in WhatsApp — an order, payment, baki or reminder. I’ll organise it for you.
                       </p>
                     </div>
                     {chatTurns.map((turn) => (
@@ -1229,38 +1282,6 @@ export default function Workspace() {
                         )}
                       </div>
                     ))}
-                    {pendingJob && (
-                      <div className="chat-review-card">
-                        <strong>Working draft</strong>
-                        <p>
-                          {pendingJob.customer || "Customer to add"} ·{" "}
-                          {pendingJob.work}
-                        </p>
-                        <div className="chat-review-actions">
-                          <button
-                            type="button"
-                            className="primary"
-                            onClick={() => setDraft(pendingJob)}
-                          >
-                            Review details
-                          </button>
-                          <button
-                            type="button"
-                            className="text-button"
-                            onClick={() => {
-                              setPendingJob(null);
-                              setChatStep("customer");
-                              say(
-                                "assistant",
-                                "Okay, let us start a new commitment. What did your customer ask for?"
-                              );
-                            }}
-                          >
-                            Start new
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     {!chatTurns.length && (
                       <button
                         className="example"
@@ -1291,17 +1312,17 @@ export default function Workspace() {
                     [
                       "1",
                       "Start the conversation",
-                      "Paste your customer’s message or write a short note.",
+                      "Type it or say it naturally, just like sending a WhatsApp message.",
                     ],
                     [
                       "2",
                       "Answer the follow-up questions",
-                      "Review the price, payment and date. You stay in control.",
+                      "I’ll ask only for the missing detail, one question at a time.",
                     ],
                     [
                       "3",
-                      "Review and save",
-                      "Copy the suggested customer reply from the thread.",
+                      "Done and remembered",
+                      "Orders go to Hisaab and reminders appear on Today.",
                     ],
                   ].map(([n, t, d]) => (
                     <div key={n}>
@@ -1320,17 +1341,17 @@ export default function Workspace() {
               </section>
             </>
           )}
-          {tab === "Commitments" && (
+          {tab === "Hisaab" && (
             <>
               <div className="page-heading">
                 <div>
                   <div className="eyebrow">ALL YOUR PROMISES, TOGETHER</div>
-                  <h1>Commitments</h1>
-                  <p>Know what’s agreed, what’s due and what’s done.</p>
+                  <h1>Hisaab</h1>
+                  <p>Your work, received money and baki — like your book, only easier to find.</p>
                 </div>
                 <button className="primary" onClick={() => setDraft(blank())}>
                   <Icon name="plus" />
-                  New commitment
+                  Add entry
                 </button>
               </div>
               <div className="toolbar">
@@ -1338,7 +1359,7 @@ export default function Workspace() {
                   <Icon name="search" size={19} />
                   <input
                     aria-label="Search commitments"
-                    placeholder="Search customer or work…"
+                    placeholder="Search name, work or hisaab…"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
@@ -1366,8 +1387,8 @@ export default function Workspace() {
                 ) : (
                   <div className="empty">
                     <Icon name="list" size={36} />
-                    <h3>No commitments here yet</h3>
-                    <p>Add a message or create a commitment to get started.</p>
+                    <h3>Your hisaab book is empty</h3>
+                    <p>Tell Pakki Baat about an order or payment to get started.</p>
                   </div>
                 )}
               </section>
@@ -1401,7 +1422,7 @@ export default function Workspace() {
                         className="customer-card"
                         key={c}
                         onClick={() => {
-                          go("Commitments");
+                          go("Hisaab");
                           setQuery(c);
                         }}
                       >
@@ -1465,7 +1486,7 @@ export default function Workspace() {
                   className="outline"
                   onClick={() =>
                     download(
-                      JSON.stringify({ jobs, owner, business }, null, 2),
+                      JSON.stringify({ jobs, owner, business, reminders }, null, 2),
                       "pakki-baat-backup.json"
                     )
                   }
@@ -1485,7 +1506,7 @@ export default function Workspace() {
                   />
                 </label>
                 <CloudSettings
-                  snapshot={{ jobs, owner, business }}
+                  snapshot={{ jobs, owner, business, reminders }}
                   onRestore={restore}
                   dark={dark}
                   onToggleTheme={toggleTheme}
