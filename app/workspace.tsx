@@ -193,64 +193,34 @@ export default function Workspace() {
     if (!cloudConfigured) return;
 
     const extractUserName = (session: any) => {
-      console.log("🔍 extractUserName called with session:", session);
-
       if (!session?.user) {
-        console.log("❌ No session or user found");
         setUserEmail(null);
         return null;
       }
 
-      const email = session.user.email || "";
-      console.log("📧 Email found:", email);
-      setUserEmail(email);
+      const email = String(session.user.email || "").trim();
+      setUserEmail(email || null);
+      if (!email) return null;
 
-      const metadata = session.user.user_metadata;
-      console.log("📋 Metadata:", metadata);
-
-      const fullName = metadata?.full_name || metadata?.name;
-      if (fullName) {
-        console.log("✅ Using full name:", fullName);
-        return fullName;
-      }
-
-      if (!email) {
-        console.log("❌ No email found");
-        return null;
-      }
-
-      const emailName = email.split("@")[0];
-      console.log("📝 Email name part:", emailName);
-
-      // Capitalize first letter
-      const capitalizedName =
-        emailName.charAt(0).toUpperCase() + emailName.slice(1);
-      console.log("✅ Using capitalized email name:", capitalizedName);
-      return capitalizedName;
+      const emailName = email.split("@")[0] || "";
+      return emailName
+        ? emailName.charAt(0).toUpperCase() + emailName.slice(1)
+        : null;
     };
-
-    console.log("🚀 Setting up session watcher...");
 
     void currentSession()
       .then((session) => {
-        console.log("📥 Current session:", session);
         setLoggedIn(Boolean(session));
-        const name = extractUserName(session);
-        console.log("📛 Setting userName to:", name);
-        setUserName(name);
+        setUserName(extractUserName(session));
       })
-      .catch((err) => {
-        console.error("❌ Error getting session:", err);
+      .catch(() => {
         setToast("Could not check Google sign-in.");
       })
       .finally(() => setAuthReady(true));
 
     return watchSession((session) => {
-      console.log("👀 Session changed:", session);
       setLoggedIn(Boolean(session));
-      const name = extractUserName(session);
-      console.log("📛 Updating userName to:", name);
-      setUserName(name);
+      setUserName(extractUserName(session));
       setAuthReady(true);
     });
   }, []);
@@ -926,9 +896,7 @@ export default function Workspace() {
             <span className="saved-dot" />
             {ready
               ? loggedIn
-                ? userEmail
-                  ? `Connected: ${userEmail}`
-                  : "Google connected"
+                ? "Google connected"
                 : "Device workspace"
               : "Storage unavailable"}
             {authReady && !loggedIn && (
@@ -979,7 +947,14 @@ export default function Workspace() {
             >
               <Icon name="bell" />
             </button>
-            <span className="avatar small">{(userName || owner)[0]}</span>
+            <span className="account-avatar-wrap" tabIndex={0}>
+              <span className="avatar small">{(userName || owner)[0]}</span>
+              {userEmail && (
+                <span className="account-avatar-tooltip" role="tooltip">
+                  {userEmail}
+                </span>
+              )}
+            </span>
           </div>
         </header>
         <div className="content">
