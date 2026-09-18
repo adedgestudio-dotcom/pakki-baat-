@@ -36,7 +36,7 @@ export default function CloudSettings({ snapshot, onRestore, dark, onToggleTheme
       <button type="button" className={dark ? "switch on" : "switch"} role="switch" aria-checked={dark} aria-label="Toggle dark mode" onClick={onToggleTheme}><span /></button>
     </div>
     <h3>Keep your business with you</h3>
-    <p>Sign in with Google for AI voice transcription and cloud backup.</p>
+    <p>Sign in with Google to keep this workspace linked to your account and use AI voice transcription.</p>
     {!cloudConfigured
       ? <div className="notice">Cloud setup is not connected yet. Local trial features work now.</div>
       : checking
@@ -49,9 +49,9 @@ export default function CloudSettings({ snapshot, onRestore, dark, onToggleTheme
           : <div className="cloud-buttons">
               <button className="primary" disabled={busy} onClick={() => action(async () => { if (!confirm("Replace your cloud backup with this device’s workspace? Export a local backup first if needed.")) return; await saveCloud(snapshot); setStatus("Cloud backup saved."); })}>Save cloud backup</button>
               <button className="outline" disabled={busy} onClick={() => action(async () => { const saved = await loadCloud(); if (!saved) { setStatus("No cloud backup yet."); return; } if (!isSnapshot(saved)) throw new Error("The cloud backup is not a valid workspace."); if (confirm("Restore cloud backup? This replaces this device’s current workspace.")) { onRestore(saved); setStatus("Cloud backup restored."); } })}>Restore cloud backup</button>
-              <button className="text-button" disabled={busy} onClick={() => action(async () => { await signOut(); setStatus("Signed out. Local data is still on this device."); })}>Sign out</button>
+              <button className="text-button" disabled={busy} onClick={() => action(async () => { await signOut(); setStatus("Signed out. Sign in again to see your workspace."); })}>Sign out</button>
             </div>}
     {status && <p role="status">{status}</p>}
-    <small>Your Google sign-in stays active after refresh. Backups remain manual.</small>
+    <small>Your workspace is saved to the signed-in account. Signing out hides that account’s business data on this device.</small>
   </div>;
 }
