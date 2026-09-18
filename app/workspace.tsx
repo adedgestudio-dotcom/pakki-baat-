@@ -578,11 +578,12 @@ export default function Workspace() {
         }),
       });
 
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("Failed to process message");
+        const reason = String(result.error || "Failed to process message");
+        console.error("❌ Assistant API failed:", response.status, result);
+        throw new Error(reason);
       }
-
-      const result = await response.json();
       console.log("✅ Processing result:", result);
 
       if (result.intent === "reminder") {
@@ -646,9 +647,10 @@ export default function Workspace() {
       }
     } catch (error) {
       console.error("❌ Error processing message:", error);
+      const reason = error instanceof Error ? error.message : "Unknown error";
       say(
         "assistant",
-        "Sorry, I had trouble understanding that. Could you try again?"
+        "I heard your message, but I could not process it: " + reason
       );
     }
   }
