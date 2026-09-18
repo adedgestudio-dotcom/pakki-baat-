@@ -4,10 +4,12 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 function isTimeoutError(error: unknown) {
-  return error instanceof Error &&
+  return (
+    error instanceof Error &&
     (error.name === "TimeoutError" ||
       error.name === "AbortError" ||
-      /aborted due to timeout/i.test(error.message));
+      /aborted due to timeout/i.test(error.message))
+  );
 }
 
 export async function GET() {
@@ -99,11 +101,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supportedFile = file instanceof File
-      ? file.type.startsWith("image/")
-        ? ["image/png", "image/jpeg", "image/webp"].includes(file.type)
-        : ["audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg", "audio/wav", "audio/x-wav", "video/webm", "application/octet-stream", ""].includes(file.type) || /\.(mp3|m4a|mp4|wav|webm|ogg)$/i.test(file.name)
-      : true;
+    const supportedFile =
+      file instanceof File
+        ? file.type.startsWith("image/")
+          ? ["image/png", "image/jpeg", "image/webp"].includes(file.type)
+          : [
+              "audio/mpeg",
+              "audio/mp4",
+              "audio/webm",
+              "audio/ogg",
+              "audio/wav",
+              "audio/x-wav",
+              "video/webm",
+              "application/octet-stream",
+              "",
+            ].includes(file.type) ||
+            /\.(mp3|m4a|mp4|wav|webm|ogg)$/i.test(file.name)
+        : true;
 
     if (file instanceof File && (file.size > 2_000_000 || !supportedFile)) {
       return Response.json(
@@ -154,7 +168,10 @@ export async function POST(req: NextRequest) {
       console.log("🎤 Transcribing audio...");
       const audio = new FormData();
       audio.set("file", file);
-      audio.set("model", process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo");
+      audio.set(
+        "model",
+        process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo"
+      );
 
       const trans = await fetch(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -214,24 +231,27 @@ Rules:
       /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "unknown"
     }\n\nCustomer message: ${transcript || "Read the attached screenshot."}`;
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.GROQ_EXTRACTION_MODEL || "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-        max_tokens: 1000,
-      }),
-      signal: AbortSignal.timeout(35000),
-    });
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: process.env.GROQ_EXTRACTION_MODEL || "llama-3.1-8b-instant",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.3,
+          max_tokens: 1000,
+        }),
+        signal: AbortSignal.timeout(35000),
+      }
+    );
 
     if (!response.ok) {
       const error = await response.text();
@@ -258,8 +278,8 @@ Rules:
         error: isTimeoutError(e)
           ? "Transcription took too long. Tap Retry transcription to try again, or record a shorter voice note."
           : e instanceof Error
-            ? e.message
-            : "Capture failed. Please try manual entry.",
+          ? e.message
+          : "Capture failed. Please try manual entry.",
       },
       { status: 502 }
     );
