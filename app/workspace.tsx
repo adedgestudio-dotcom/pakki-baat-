@@ -360,38 +360,35 @@ export default function Workspace() {
       [...turns, { id: crypto.randomUUID(), role, text, replyFor }].slice(-80)
     );
   }
-  function readyToReview(job: Job) {
-    setPendingJob(job);
-    setChatStep("ready");
-    say(
-      "assistant",
-      "I have the details so far. Open Review details to check and save them, or tell me what to change."
-    );
-  }
   async function sendVoice(file: File, duration: number, transcript: string) {
     const id = crypto.randomUUID();
     const url = URL.createObjectURL(file);
     voiceUrlsRef.current[id] = url;
     voiceFilesRef.current[id] = file;
     setVoiceUrls((urls) => ({ ...urls, [id]: url }));
+
+    const voiceText = transcript || "Voice note";
     setChatTurns((turns) =>
       [
         ...turns,
         {
           id: crypto.randomUUID(),
           role: "me" as const,
-          text: transcript || "Voice note",
+          text: voiceText,
           voiceId: id,
           duration,
         },
       ].slice(-80)
     );
+
     if (transcript) {
       setMessage("");
-      respondTo(transcript, false);
+      // Process the transcribed voice message through unified flow
+      void processAssistantMessage(transcript, "voice");
     } else {
       void transcribeSentVoice(file, id);
     }
+
     try {
       await saveVoice(id, file);
     } catch {
@@ -408,66 +405,59 @@ export default function Workspace() {
         throw new Error(
           "This recording is over the 2 MB AI limit. Record a shorter note."
         );
-      const settings = await fetch("/api/extract").then((response) =>
-        response.json()
-      );
-      if (!settings.enabled)
-        throw new Error(
-          "AI transcription is not configured on this server yet."
-        );
+
       const token = await cloudToken();
       const form = new FormData();
       form.set("file", file);
-      form.set("today", new Date().toLocaleDateString("en-CA"));
+
       const response = await fetch("/api/extract", {
         method: "POST",
         headers: { Authorization: "Bearer " + token },
         body: form,
       });
+
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.error || "Transcription failed.");
-      const transcript = String(result.text || result.draft?.source || "")
+
+      const transcript = String(result.text || "")
         .trim()
         .slice(0, 6000);
+
       if (!transcript)
         throw new Error("No speech was detected in the recording.");
+
+      // Update the chat turn with the transcript
       setChatTurns((turns) =>
         turns.map((turn) =>
           turn.voiceId === id ? { ...turn, text: transcript } : turn
         )
       );
 
-      if (result.draft) {
-        const draft = {
-          ...blank(),
-          ...result.draft,
-          source: transcript,
-        } as Job;
-        draft.total = Number.isFinite(Number(draft.total))
-          ? Number(draft.total)
-          : 0;
-        draft.paid = Number.isFinite(Number(draft.paid))
-          ? Number(draft.paid)
-          : 0;
-        if (draft.paid > draft.total) draft.paid = 0;
-        setPendingJob(draft);
-        setChatStep("ready");
-        say("assistant", "I heard: " + transcript);
-        say(
-          "assistant",
-          "I prepared the details slip from your voice note. Open Review details to check it, or copy the suggested customer reply below."
-        );
-        say("assistant", replyText(draft), draft);
-      } else {
-        respondTo(transcript, false);
-      }
+      // Process through unified conversation flow
+      say("assistant", "I heard: " + transcript);
+      await processAssistantMessage(transcript, "voice");
+
     } catch (cause) {
       const reason =
         cause instanceof Error ? cause.message : "Transcription failed.";
       if (reason.includes("Continue with Google")) {
         say(
           "assistant",
+          "Please continue with Google to turn on AI voice transcription. After sign in, tap Retry transcription and I will listen to this voice note, write the text, and prepare the details slip."
+        );
+      } else {
+        say(
+          "assistant",
+          "Your voice note is in the chat, but I could not read it: " +
+            reason +
+            " Tap Retry transcription or type the details."
+        );
+      }
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
           "Please continue with Google to turn on AI voice transcription. After sign in, tap Retry transcription and I will listen to this voice note, write the text, and prepare the details slip."
         );
       } else {
@@ -561,125 +551,77 @@ export default function Workspace() {
       setToast("Could not delete the stored audio on this device.");
     }
   }
+  async function processAssistantMessage(
+    message: string,
+    source: "text" | "voice"
+  ) {
+    try {
+      console.log(`📨 Processing ${source} message:`, message);
+
+      const token = await cloudToken();
+
+      const response = await fetch("/api/process-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message,
+          pending: pendingJob,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to process message");
+      }
+
+      const result = await response.json();
+      console.log("✅ Processing result:", result);
+
+      setPendingJob(result.updated);
+
+      if (result.isComplete) {
+        // Save the commitment
+        const item: Job = {
+          ...blank(),
+          ...result.updated,
+          id: crypto.randomUUID(),
+          customer: result.updated.customer?.trim() || "",
+          work: result.updated.work?.trim() || "",
+          status: result.updated.confirmed ? "Confirmed" : "Waiting",
+        };
+
+        setJobs((p) => [item, ...p]);
+        setPendingJob(null);
+        setChatStep("customer");
+
+        say("assistant", "Saved ✓");
+        say(
+          "assistant",
+          `Here's what I can send to ${item.customer}:`,
+          item
+        );
+      } else if (result.nextQuestion) {
+        say("assistant", result.nextQuestion);
+      }
+    } catch (error) {
+      console.error("❌ Error processing message:", error);
+      say(
+        "assistant",
+        "Sorry, I had trouble understanding that. Could you try again?"
+      );
+    }
+  }
+
   function capture() {
     const input = message.trim();
     if (!input || voiceBusy) return;
     setMessage("");
-    respondTo(input, true);
+    say("me", input);
+    void processAssistantMessage(input, "text");
   }
-  function respondTo(input: string, recordUser: boolean) {
-    if (recordUser) say("me", input);
-    if (!pendingJob) {
-      const totalMatch = input.match(
-        /total(?:\s+is)?\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
-      );
-      const paidMatch = input.match(
-        /(?:paid|received|advance)\s*[:=-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
-      );
-      const next = {
-        ...blank(),
-        work: input.slice(0, 500),
-        source: input.slice(0, 12000),
-        total: totalMatch ? Number(totalMatch[1].replaceAll(",", "")) : 0,
-        paid: paidMatch ? Number(paidMatch[1].replaceAll(",", "")) : 0,
-      };
-      setPendingJob(next);
-      setChatStep("customer");
-      say("assistant", "Got it. What is the customer's name?");
-      return;
-    }
-    const next = { ...pendingJob };
-    if (chatStep === "customer") {
-      next.customer = input.slice(0, 100);
-      setPendingJob(next);
-      if (!next.total) {
-        setChatStep("total");
-        say(
-          "assistant",
-          "Thanks. What is the total price in rupees? You can say 0 if it is not decided."
-        );
-      } else if (!next.paid || next.paid > next.total) {
-        setChatStep("paid");
-        say(
-          "assistant",
-          "How much has the customer already paid? Enter 0 if nothing has been received."
-        );
-      } else {
-        setChatStep("date");
-        say(
-          "assistant",
-          "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding."
-        );
-      }
-      return;
-    }
-    if (chatStep === "total" || chatStep === "paid") {
-      const amount = Number(input.replace(/[₹,\s]/g, ""));
-      if (!Number.isFinite(amount) || amount < 0) {
-        say("assistant", "Please enter an amount such as 2000, or 0 if none.");
-        return;
-      }
-      if (chatStep === "total") {
-        next.total = amount;
-        setPendingJob(next);
-        setChatStep("paid");
-        say(
-          "assistant",
-          "How much has the customer already paid? Enter 0 if nothing has been received."
-        );
-      } else {
-        if (amount > next.total) {
-          say(
-            "assistant",
-            "The received amount cannot be more than the total. Please check it."
-          );
-          return;
-        }
-        next.paid = amount;
-        setPendingJob(next);
-        setChatStep("date");
-        say(
-          "assistant",
-          "When is it due? Enter YYYY-MM-DD, or say skip if you are still deciding."
-        );
-      }
-      return;
-    }
-    if (chatStep === "date") {
-      if (isRealDate(input)) next.date = input;
-      else if (!/^(skip|later|not sure)$/i.test(input)) {
-        say("assistant", "Please enter a date as YYYY-MM-DD, or say skip.");
-        return;
-      }
-      readyToReview(next);
-      return;
-    }
-    const total = input.match(
-      /total\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
-    );
-    const paid = input.match(
-      /(?:paid|received)\s*(?:is|:)?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
-    );
-    const date = input.match(/\b\d{4}-\d{2}-\d{2}\b/);
-    if (total) next.total = Number(total[1].replaceAll(",", ""));
-    if (paid) next.paid = Number(paid[1].replaceAll(",", ""));
-    if (date) next.date = date[0];
-    if (next.paid > next.total) {
-      say(
-        "assistant",
-        "The received amount is higher than the total. Tell me the corrected amounts or use Review details."
-      );
-      return;
-    }
-    if (total || paid || date) {
-      readyToReview(next);
-    } else {
-      say(
-        "assistant",
-        "I can update a total, paid amount or date here. For names and other details, open Review details."
-      );
-    }
-  }
+
   function receiveAiDraft(job: Job) {
     setPendingJob(job);
     setChatStep("ready");
