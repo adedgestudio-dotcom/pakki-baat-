@@ -1305,7 +1305,7 @@ export default function Workspace() {
                     onCapture={capture}
                     onToast={setToast}
                     onDraft={receiveAiDraft}
-                    voiceBusy={voiceBusy}
+                    onSendVoice={sendVoice}\n                  voiceBusy={voiceBusy}
                   />
                 </div>
                 <aside className="capture-help">
