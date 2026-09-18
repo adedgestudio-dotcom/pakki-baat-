@@ -36,7 +36,7 @@ export default function ChatComposer({
     );
   };
 
-  const uploadControl = (
+  const handleSend = () => {\n    if (!message.trim() || voiceBusy) return;\n    onCapture();\n  };\n\n  const uploadControl = (
     <label
       className="chat-attach-button"
       aria-label="Attach screenshot or voice note"
