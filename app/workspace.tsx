@@ -437,7 +437,6 @@ export default function Workspace() {
       // Process through unified conversation flow
       say("assistant", "I heard: " + transcript);
       await processAssistantMessage(transcript, "voice");
-
     } catch (cause) {
       const reason =
         cause instanceof Error ? cause.message : "Transcription failed.";
@@ -458,20 +457,7 @@ export default function Workspace() {
       setVoiceBusy(false);
     }
   }
-          "Please continue with Google to turn on AI voice transcription. After sign in, tap Retry transcription and I will listen to this voice note, write the text, and prepare the details slip."
-        );
-      } else {
-        say(
-          "assistant",
-          "Your voice note is in the chat, but I could not read it: " +
-            reason +
-            " Tap Retry transcription or type the details."
-        );
-      }
-    } finally {
-      setVoiceBusy(false);
-    }
-  }
+
   async function retryVoice(id: string) {
     if (voiceBusy) return;
     try {
@@ -597,11 +583,7 @@ export default function Workspace() {
         setChatStep("customer");
 
         say("assistant", "Saved ✓");
-        say(
-          "assistant",
-          `Here's what I can send to ${item.customer}:`,
-          item
-        );
+        say("assistant", `Here's what I can send to ${item.customer}:`, item);
       } else if (result.nextQuestion) {
         say("assistant", result.nextQuestion);
       }
