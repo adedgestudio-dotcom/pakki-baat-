@@ -483,7 +483,7 @@ main {
 .pill {
   display: inline-block;
   background: #e0e8d5;
-  color: #748361;
+  color: #5a6b4d;
   border-radius: 5px;
   padding: 6px 9px;
   letter-spacing: 1.3px;
@@ -497,10 +497,12 @@ main {
   line-height: 1.15;
   letter-spacing: -1px;
   margin: 14px 0 12px;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 .hero p {
   font-size: 11px;
-  color: #7c8974;
+  color: #c5d4ba;
   margin-bottom: 17px;
 }
 .hero-art {
