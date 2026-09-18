@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import SimpleVoiceButton from "./simple-voice-button";
+import AudioPlayer from "./audio-player";
 import type { Job } from "@/lib/data";
 
 type Props = {
@@ -9,6 +10,11 @@ type Props = {
   onCapture: () => void;
   onToast: (message: string) => void;
   onDraft: (job: Job) => void;
+  onSendVoice: (
+    file: File,
+    duration: number,
+    transcript: string
+  ) => Promise<void>;
   voiceBusy: boolean;
 };
 
@@ -17,9 +23,16 @@ export default function ChatComposer({
   onMessageChange,
   onCapture,
   onToast,
+  onSendVoice,
   voiceBusy,
 }: Props) {
   const [showInputOptions, setShowInputOptions] = useState(false);
+  const [voiceDraft, setVoiceDraft] = useState<{
+    file: File;
+    url: string;
+    duration: number;
+  } | null>(null);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
@@ -28,17 +41,64 @@ export default function ChatComposer({
     }
   };
 
+  const handleVoiceRecordingComplete = (audioBlob: Blob, duration: number) => {
+    if (voiceDraft?.url) URL.revokeObjectURL(voiceDraft.url);
+
+    const extension = audioBlob.type.includes("mp4")
+      ? "m4a"
+      : audioBlob.type.includes("ogg")
+        ? "ogg"
+        : "webm";
+    const file = new File([audioBlob], `pakki-baat-voice-note.${extension}`, {
+      type: audioBlob.type,
+    });
+
+    setVoiceDraft({ file, url: URL.createObjectURL(file), duration });
+    onToast("Voice note ready. Tap send when you are ready.");
+  };
+
+  const sendVoiceDraft = () => {
+    if (!voiceDraft || voiceBusy) return;
+
+    const draft = voiceDraft;
+    onSendVoice(draft.file, draft.duration, message.trim())
+      .then(() => {
+        URL.revokeObjectURL(draft.url);
+        setVoiceDraft(null);
+        onMessageChange("");
+      })
+      .catch((err) => {
+        onToast(
+          err instanceof Error ? err.message : "Failed to process voice recording"
+        );
+      });
+  };
+
+  const discardVoiceDraft = () => {
+    if (!voiceDraft) return;
+    URL.revokeObjectURL(voiceDraft.url);
+    setVoiceDraft(null);
+  };
+
+  const handleSend = () => {
+    if (voiceDraft) {
+      sendVoiceDraft();
+      return;
+    }
+
+    onCapture();
+  };
+
+  const formatDuration = (seconds: number) => {
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
   const handleVoiceError = (error: string) => {
     onToast(
       error.includes("Permission denied")
         ? "Please allow microphone access in your browser, then try again."
         : error
     );
-  };
-
-  const handleSend = () => {
-    if (!message.trim() || voiceBusy) return;
-    onCapture();
   };
 
   const uploadControl = (
@@ -72,10 +132,10 @@ export default function ChatComposer({
     <button
       type="button"
       className="send-icon-button"
-      aria-label={"Send message"}
-      title={"Send message"}
+      aria-label={voiceDraft ? "Send voice note" : "Check details"}
+      title={voiceDraft ? "Send voice note" : "Check details"}
       onClick={handleSend}
-      disabled={voiceBusy || !message.trim()}
+      disabled={voiceBusy || (!message.trim() && !voiceDraft)}
     >
       <svg
         width="19"
@@ -189,7 +249,7 @@ export default function ChatComposer({
           <textarea
             id="paste-input"
             aria-label="Customer message"
-            placeholder="Type or speak what happened…"
+            placeholder={voiceDraft ? "Add a note before sending voice..." : "Paste a message or tell me what's needed..."}
             value={message}
             onChange={(e) => onMessageChange(e.target.value)}
             maxLength={6000}
@@ -197,11 +257,11 @@ export default function ChatComposer({
           />
 
           <div className="input-mic-button">
-            {message.trim() ? (
+            {message.trim() || voiceDraft ? (
               sendControl
             ) : (
               <SimpleVoiceButton
-                onTranscript={onMessageChange}
+                onRecordingComplete={handleVoiceRecordingComplete}
                 onError={handleVoiceError}
               />
             )}
@@ -209,9 +269,31 @@ export default function ChatComposer({
         </div>
       </div>
 
+      {voiceDraft && (
+        <div className="voice-draft-card">
+          <div>
+            <strong>Voice note ready</strong>
+            <small>Recorded {formatDuration(voiceDraft.duration)}</small>
+          </div>
+          <AudioPlayer
+            audioBlob={voiceDraft.file}
+            audioUrl={voiceDraft.url}
+            duration={voiceDraft.duration}
+          />
+          <div className="voice-draft-actions">
+            <button type="button" className="outline" onClick={discardVoiceDraft} disabled={voiceBusy}>
+              Delete
+            </button>
+            <button type="button" className="primary" onClick={sendVoiceDraft} disabled={voiceBusy}>
+              {voiceBusy ? "Sending..." : "Send voice"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="composer-actions">
         <span className="char-counter">
-          {message.length}/6000 · You can edit before sending
+          {message.length}/6000 - Review before saving
         </span>
         {message.trim() && (
           <button
@@ -219,7 +301,7 @@ export default function ChatComposer({
             onClick={handleSend}
             disabled={voiceBusy}
           >
-            Send{" "}
+            Check details{" "}
             <svg
               width="18"
               height="18"
@@ -237,7 +319,7 @@ export default function ChatComposer({
       </div>
 
       <div className="ai-note">
-        On phone, tap the mic and speak. Your words appear here before you send.
+        Voice notes and attachments need AI setup; manual text capture works now.
       </div>
     </div>
   );
