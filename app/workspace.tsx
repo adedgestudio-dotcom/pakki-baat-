@@ -28,14 +28,6 @@ type ChatTurn = {
 };
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
-function accountNameFromEmail(session: Session | null) {
-  const email = session?.user.email?.trim() || "";
-  const localPart = email.split("@")[0] || "";
-  const readable = localPart.replace(/[._-]+/g, " ").trim();
-  return readable
-    ? readable.replace(/\b\w/g, (letter) => letter.toUpperCase())
-    : null;
-}
 function isRealDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, date] = value.split("-").map(Number);
@@ -162,8 +154,8 @@ export default function Workspace() {
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
   const loadingVoiceIds = useRef(new Set<string>());
-  const activeUserIdRef = useRef<string | null>(null);
-  const cloudHydratedRef = useRef(false);
+  // const activeUserIdRef = useRef<string | null>(null);
+  // const cloudHydratedRef = useRef(false);
   // Account workspaces are loaded after authentication. Never hydrate business data
   // from a shared browser key, otherwise one signed-out user can see another user's data.
   useEffect(() => {
@@ -241,21 +233,22 @@ export default function Workspace() {
       setAuthReady(true);
     });
   }, []);
-  useEffect(() => {
-    if (
-      !ready ||
-      !loggedIn ||
-      !activeUserIdRef.current ||
-      !cloudHydratedRef.current
-    )
-      return;
-    const timer = window.setTimeout(() => {
-      void saveCloud({ jobs, owner, business }).catch(() =>
-        setToast("Could not save your latest changes to the cloud.")
-      );
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [jobs, owner, business, ready, loggedIn]);
+  // Auto-save to cloud disabled for now
+  // useEffect(() => {
+  //   if (
+  //     !ready ||
+  //     !loggedIn ||
+  //     !activeUserIdRef.current ||
+  //     !cloudHydratedRef.current
+  //   )
+  //     return;
+  //   const timer = window.setTimeout(() => {
+  //     void saveCloud({ jobs, owner, business }).catch(() =>
+  //       setToast("Could not save your latest changes to the cloud.")
+  //     );
+  //   }, 500);
+  //   return () => window.clearTimeout(timer);
+  // }, [jobs, owner, business, ready, loggedIn]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -520,18 +513,10 @@ export default function Workspace() {
   async function handleSignOut() {
     try {
       await signOut();
-      activeUserIdRef.current = null;
-      cloudHydratedRef.current = false;
       setLoggedIn(false);
       setUserName(null);
       setUserEmail(null);
-      setJobs([]);
-      setOwner("Asha");
-      setBusiness("My small business");
-      setChatTurns([]);
-      setPendingJob(null);
-      setChatStep("customer");
-      setToast("Signed out. Sign in to see your workspace.");
+      setToast("Signed out. Your device workspace is still here.");
     } catch (cause) {
       setToast(cause instanceof Error ? cause.message : "Could not sign out.");
     }
