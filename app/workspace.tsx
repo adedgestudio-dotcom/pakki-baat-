@@ -108,6 +108,7 @@ function accountNameFromEmail(session: Session | null) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
+const LOCAL_WORKSPACE_ID = "local";
 const localWorkspaceKey = (userId: string) =>
   "pakki-baat-workspace:" + userId;
 function readLocalWorkspace(userId: string) {
@@ -222,6 +223,10 @@ export default function Workspace() {
 
       if (!session) {
         cloudHydratedRef.current = false;
+        const localSnapshot = readLocalWorkspace(LOCAL_WORKSPACE_ID);
+        if (localSnapshot) {
+          restore(localSnapshot);
+        }
         setReady(true);
         return;
       }
@@ -279,15 +284,15 @@ export default function Workspace() {
     };
   }, []);
   useEffect(() => {
-    if (
-      !ready ||
-      !loggedIn ||
-      !activeUserIdRef.current ||
-      !cloudHydratedRef.current
-    )
-      return;
+    if (!ready) return;
     const snapshot = { jobs, owner, business, reminders };
-    writeLocalWorkspace(activeUserIdRef.current, snapshot);
+    const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
+    writeLocalWorkspace(storageUserId, snapshot);
+
+    if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) {
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       void saveCloud(snapshot).catch(() =>
         setToast("Saved on this device. Cloud backup could not update yet.")
