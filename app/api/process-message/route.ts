@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_KEY || "";
-const MODEL = process.env.GROQ_EXTRACTION_MODEL || "llama-3.1-8b-instant";
+const MODEL = process.env.GROQ_EXTRACTION_MODEL || "openai/gpt-oss-20b";
 
 type PendingCommitment = {
   customer?: string;
@@ -36,20 +36,31 @@ export async function POST(request: NextRequest) {
 
     // Build context about what we already know
     const knownFields = [];
-    if (currentCommitment.customer) knownFields.push(`customer: ${currentCommitment.customer}`);
-    if (currentCommitment.work) knownFields.push(`work: ${currentCommitment.work}`);
-    if (currentCommitment.total !== undefined) knownFields.push(`total: ₹${currentCommitment.total}`);
-    if (currentCommitment.paid !== undefined) knownFields.push(`paid: ₹${currentCommitment.paid}`);
-    if (currentCommitment.balance !== undefined) knownFields.push(`balance: ₹${currentCommitment.balance}`);
-    if (currentCommitment.date) knownFields.push(`date: ${currentCommitment.date}`);
-    if (currentCommitment.time) knownFields.push(`time: ${currentCommitment.time}`);
-    if (currentCommitment.confirmed !== undefined) knownFields.push(`confirmed: ${currentCommitment.confirmed}`);
+    if (currentCommitment.customer)
+      knownFields.push(`customer: ${currentCommitment.customer}`);
+    if (currentCommitment.work)
+      knownFields.push(`work: ${currentCommitment.work}`);
+    if (currentCommitment.total !== undefined)
+      knownFields.push(`total: ₹${currentCommitment.total}`);
+    if (currentCommitment.paid !== undefined)
+      knownFields.push(`paid: ₹${currentCommitment.paid}`);
+    if (currentCommitment.balance !== undefined)
+      knownFields.push(`balance: ₹${currentCommitment.balance}`);
+    if (currentCommitment.date)
+      knownFields.push(`date: ${currentCommitment.date}`);
+    if (currentCommitment.time)
+      knownFields.push(`time: ${currentCommitment.time}`);
+    if (currentCommitment.confirmed !== undefined)
+      knownFields.push(`confirmed: ${currentCommitment.confirmed}`);
 
-    const contextText = knownFields.length > 0
-      ? `\n\nWhat we already know:\n${knownFields.join("\n")}`
-      : "";
+    const contextText =
+      knownFields.length > 0
+        ? `\n\nWhat we already know:\n${knownFields.join("\n")}`
+        : "";
 
-    const systemPrompt = `You are Pakki Baat's friendly small-business assistant. Today is ${today || new Date().toISOString().slice(0,10)}. Help users who may be more comfortable with WhatsApp and a handwritten hisaab book.\n\nFirst detect whether the message is mainly a REMINDER request (for example: remind me tomorrow to call Sakina; every Friday remind me to check baki) or a COMMITMENT/payment/order message.\n\nFor a reminder, return ONLY JSON: {"intent":"reminder","reminder":{"text":"what to remember","date":"YYYY-MM-DD","time":"HH:MM or empty","customer":"optional name","repeat":"none|daily|weekly|monthly"},"nextQuestion":"only if date is missing, otherwise null"}. Resolve relative dates using today. If user says morning use 09:00, afternoon 15:00, evening 19:00.\n\nFor a commitment, set intent to commitment and follow these rules.\n\nExtract commitment details from natural conversation.
+    const systemPrompt = `You are Pakki Baat's friendly small-business assistant. Today is ${
+      today || new Date().toISOString().slice(0, 10)
+    }. Help users who may be more comfortable with WhatsApp and a handwritten hisaab book.\n\nFirst detect whether the message is mainly a REMINDER request (for example: remind me tomorrow to call Sakina; every Friday remind me to check baki) or a COMMITMENT/payment/order message.\n\nFor a reminder, return ONLY JSON: {"intent":"reminder","reminder":{"text":"what to remember","date":"YYYY-MM-DD","time":"HH:MM or empty","customer":"optional name","repeat":"none|daily|weekly|monthly"},"nextQuestion":"only if date is missing, otherwise null"}. Resolve relative dates using today. If user says morning use 09:00, afternoon 15:00, evening 19:00.\n\nFor a commitment, set intent to commitment and follow these rules.\n\nExtract commitment details from natural conversation.
 
 Extract information from the user's message and update the commitment. Return ONLY a JSON object.
 
@@ -97,22 +108,25 @@ Extract information and determine the next question.`;
     console.log("🤖 Calling Groq for message:", message);
     console.log("📋 Current commitment:", currentCommitment);
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.1,
-        response_format: { type: "json_object" },
-      }),
-    });
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+        }),
+      }
+    );
 
     if (!response.ok) {
       const error = await response.text();
@@ -128,48 +142,87 @@ Extract information and determine the next question.`;
     }
 
     const parsed = JSON.parse(content);
-    if (parsed.intent === "reminder") {\n      return NextResponse.json({ intent: "reminder", reminder: parsed.reminder || null, nextQuestion: parsed.nextQuestion || null, isComplete: Boolean(parsed.reminder?.date && !parsed.nextQuestion) });\n    }
-    console.log("✅ Groq response:", parsed);
+    console.log("✅ Groq raw response:", parsed);
 
-    // Merge extracted data with current commitment
-    const updated: PendingCommitment = { ...currentCommitment };
-
-    if (parsed.extracted) {
-      const ext = parsed.extracted;
-      
-      if (ext.customer !== undefined) updated.customer = ext.customer;
-      if (ext.work !== undefined) updated.work = ext.work;
-      if (ext.total !== undefined) updated.total = Number(ext.total);
-      if (ext.paid !== undefined) updated.paid = Number(ext.paid);
-      if (ext.balance !== undefined) updated.balance = Number(ext.balance);
-      if (ext.date !== undefined) updated.date = ext.date;
-      if (ext.time !== undefined) updated.time = ext.time;
-      if (ext.confirmed !== undefined) updated.confirmed = ext.confirmed;
-
-      // Calculate missing values if possible
-      if (updated.total !== undefined && updated.paid !== undefined && updated.balance === undefined) {
-        updated.balance = updated.total - updated.paid;
-      }
-      if (updated.total !== undefined && updated.balance !== undefined && updated.paid === undefined) {
-        updated.paid = updated.total - updated.balance;
-      }
-      if (updated.paid !== undefined && updated.balance !== undefined && updated.total === undefined) {
-        updated.total = updated.paid + updated.balance;
-      }
+    if (parsed.intent === "reminder") {
+      return NextResponse.json({
+        intent: "reminder",
+        reminder: parsed.reminder || null,
+        nextQuestion: parsed.nextQuestion || null,
+        isComplete: Boolean(parsed.reminder?.date && !parsed.nextQuestion),
+      });
     }
 
-    return NextResponse.json({
-      updated,
-      nextQuestion: parsed.nextQuestion,
-      isComplete: !parsed.nextQuestion && updated.confirmed,
-    });
+    // Default to commitment intent if not specified
+    if (!parsed.intent || parsed.intent === "commitment") {
+      console.log("Processing as commitment");
 
+      // Merge extracted data with current commitment
+      const updated: PendingCommitment = { ...currentCommitment };
+
+      if (parsed.extracted) {
+        const ext = parsed.extracted;
+
+        if (ext.customer !== undefined) updated.customer = ext.customer;
+        if (ext.work !== undefined) updated.work = ext.work;
+        if (ext.total !== undefined) updated.total = Number(ext.total);
+        if (ext.paid !== undefined) updated.paid = Number(ext.paid);
+        if (ext.balance !== undefined) updated.balance = Number(ext.balance);
+        if (ext.date !== undefined) updated.date = ext.date;
+        if (ext.time !== undefined) updated.time = ext.time;
+        if (ext.confirmed !== undefined) updated.confirmed = ext.confirmed;
+
+        // Calculate missing values if possible
+        if (
+          updated.total !== undefined &&
+          updated.paid !== undefined &&
+          updated.balance === undefined
+        ) {
+          updated.balance = updated.total - updated.paid;
+        }
+        if (
+          updated.total !== undefined &&
+          updated.balance !== undefined &&
+          updated.paid === undefined
+        ) {
+          updated.paid = updated.total - updated.balance;
+        }
+        if (
+          updated.paid !== undefined &&
+          updated.balance !== undefined &&
+          updated.total === undefined
+        ) {
+          updated.total = updated.paid + updated.balance;
+        }
+      }
+
+      return NextResponse.json({
+        updated,
+        nextQuestion: parsed.nextQuestion,
+        isComplete: !parsed.nextQuestion && updated.confirmed,
+      });
+    }
+
+    // Unknown intent
+    return NextResponse.json(
+      { error: `Unknown intent: ${parsed.intent}` },
+      { status: 400 }
+    );
   } catch (error) {
     console.error("❌ Error processing message:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error("Error details:", {
+      message: errorMessage,
+      stack: errorStack,
+      rawError: error,
+    });
+
     return NextResponse.json(
-      { 
-        error: error instanceof Error ? error.message : "Failed to process message",
-        details: error instanceof Error ? error.stack : undefined
+      {
+        error: errorMessage || "Failed to process message",
+        details: errorStack,
       },
       { status: 500 }
     );

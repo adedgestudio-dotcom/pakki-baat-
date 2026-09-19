@@ -108,6 +108,25 @@ function accountNameFromEmail(session: Session | null) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
+const localWorkspaceKey = (userId: string) =>
+  "pakki-baat-workspace:" + userId;
+function readLocalWorkspace(userId: string) {
+  try {
+    const raw = localStorage.getItem(localWorkspaceKey(userId));
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw);
+    return isSnapshot(snapshot) ? snapshot : null;
+  } catch {
+    return null;
+  }
+}
+function writeLocalWorkspace(userId: string, snapshot: Snapshot) {
+  try {
+    localStorage.setItem(localWorkspaceKey(userId), JSON.stringify(snapshot));
+  } catch {
+    // Browser storage can be full or disabled. Cloud save still gets a chance.
+  }
+}
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
   const p: Record<string, string> = {
     home: "m3 10 9-7 9 7v10H3Z M9 20v-7h6v7",
@@ -210,9 +229,13 @@ export default function Workspace() {
       cloudHydratedRef.current = false;
       setReady(false);
       try {
-        const snapshot = await loadCloud();
+        const cloudSnapshot = await loadCloud();
         if (cancelled || activeUserIdRef.current !== session.user.id) return;
-        if (snapshot && isSnapshot(snapshot)) {
+        const localSnapshot = readLocalWorkspace(session.user.id);
+        const snapshot = cloudSnapshot && isSnapshot(cloudSnapshot)
+          ? cloudSnapshot
+          : localSnapshot;
+        if (snapshot) {
           restore(snapshot);
         } else {
           setJobs([]);
@@ -224,7 +247,14 @@ export default function Workspace() {
           setChatStep("customer");
         }
       } catch {
-        if (!cancelled) setToast("Could not load your cloud workspace.");
+        if (!cancelled) {
+          const localSnapshot = readLocalWorkspace(session.user.id);
+          if (localSnapshot) {
+            restore(localSnapshot);
+          } else {
+            setToast("Could not load your cloud workspace.");
+          }
+        }
       } finally {
         if (!cancelled && activeUserIdRef.current === session.user.id) {
           cloudHydratedRef.current = true;
@@ -256,9 +286,11 @@ export default function Workspace() {
       !cloudHydratedRef.current
     )
       return;
+    const snapshot = { jobs, owner, business, reminders };
+    writeLocalWorkspace(activeUserIdRef.current, snapshot);
     const timer = window.setTimeout(() => {
-      void saveCloud({ jobs, owner, business, reminders }).catch(() =>
-        setToast("Could not save your latest changes to the cloud.")
+      void saveCloud(snapshot).catch(() =>
+        setToast("Saved on this device. Cloud backup could not update yet.")
       );
     }, 500);
     return () => window.clearTimeout(timer);
