@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_KEY || "";
-const MODEL = process.env.GROQ_EXTRACTION_MODEL || "openai/gpt-oss-20b";
+const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
+const DEPRECATED_GROQ_MODELS = new Set(["llama-3.1-8b-instant","llama-3.3-70b-versatile"]);
+function groqModel(){const configured=process.env.GROQ_EXTRACTION_MODEL?.trim();return configured&&!DEPRECATED_GROQ_MODELS.has(configured)?configured:DEFAULT_GROQ_MODEL;}
+const MODEL = groqModel();
 
 type PendingCommitment = {
   customer?: string;
