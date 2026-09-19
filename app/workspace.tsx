@@ -21,6 +21,8 @@ import {
   calendarFile,
   type Job,
   type Reminder,
+  type Payment,
+  type CustomerNote,
   type Snapshot,
 } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
