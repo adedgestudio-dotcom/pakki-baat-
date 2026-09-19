@@ -146,9 +146,17 @@ Extract information and determine the next question.`;
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("❌ Groq API error:", error);
-      throw new Error(`Groq API error: ${response.status}`);
+      const upstream = await response.text();
+      console.error("❌ Groq API error:", response.status, upstream);
+      let message = `Groq API error: ${response.status}`;
+      try {
+        const parsed = JSON.parse(upstream);
+        message = parsed?.error?.message || parsed?.error || message;
+      } catch {}
+      return NextResponse.json(
+        { error: message, upstreamStatus: response.status },
+        { status: response.status === 429 ? 429 : 502 }
+      );
     }
 
     const result = await response.json();
@@ -255,7 +263,7 @@ Extract information and determine the next question.`;
     return NextResponse.json(
       {
         error: errorMessage || "Failed to process message",
-        details: errorStack,
+        ...(process.env.NODE_ENV !== "production" ? { details: errorStack } : {}),
       },
       { status: 500 }
     );
