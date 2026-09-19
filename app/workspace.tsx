@@ -1551,7 +1551,7 @@ export default function Workspace() {
                   </div>
                   <div className="customer-quick-actions">
                     <button className="primary" onClick={()=>{go("My assistant");setMessage(selectedCustomer+" ");}}>+ Add update</button>
-                    <button className="outline" onClick={()=>{go("My assistant");setMessage("Remind me about "+selectedCustomer+" ");}}><Icon name="bell" size={17}/> Reminder</button>
+                    <button className="outline" onClick={()=>{go("My assistant");setMessage("Remind me about "+selectedCustomer+" ");}}><Icon name="bell" size={17}/> Add reminder</button>
                   </div>
                   <div className="customer-book-section">
                     <div className="section-title-row"><div><span className="eyebrow">HISAAB & WORK</span><h2>History</h2></div></div>
