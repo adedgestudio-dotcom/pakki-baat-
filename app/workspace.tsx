@@ -697,6 +697,29 @@ export default function Workspace() {
         return;
       }
 
+      if (result.intent === "edit") {
+        if (!selectedCustomer) { say("assistant", "Open the customer first so I know which entry to change."); return; }
+        const latest = jobs.find(j => j.customer === selectedCustomer);
+        if (!latest) { say("assistant", "There is no order to change yet for " + selectedCustomer + "."); return; }
+        const changes = result.changes || {};
+        const next: Job = {
+          ...latest,
+          ...(typeof changes.work === "string" ? { work: changes.work } : {}),
+          ...(Number.isFinite(Number(changes.total)) ? { total: Number(changes.total) } : {}),
+          ...(Number.isFinite(Number(changes.paid)) ? { paid: Number(changes.paid) } : {}),
+          ...(typeof changes.date === "string" ? { date: changes.date } : {}),
+          ...(typeof changes.time === "string" ? { time: changes.time } : {}),
+          ...(["Waiting","Confirmed","Completed"].includes(changes.status) ? { status: changes.status } : {}),
+        };
+        if (next.total < next.paid) { say("assistant", "That would make the received amount higher than the total. Tell me the correct total or payment."); return; }
+        if (next.paid > latest.paid) {
+          setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: latest.id, amount: next.paid-latest.paid, date: day(), note: "Payment correction", createdAt: new Date().toISOString() }, ...items]);
+        }
+        setJobs(items => items.map(j => j.id===latest.id ? next : j));
+        say("assistant", "Updated " + selectedCustomer + " ✓");
+        return;
+      }
+
       setPendingJob(result.updated);
 
       if (result.isComplete) {
