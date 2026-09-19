@@ -400,7 +400,7 @@ export default function Workspace() {
     setFilter("All");
   }
   function openCustomerAssistant(seed = "") {
-    setTab("My assistant");
+    setTab("Hisaab");
     setQuery("");
     setFilter("All");
     setPendingJob(null);
@@ -729,7 +729,7 @@ export default function Workspace() {
       setPendingJob(result.updated);
 
       if (result.isComplete) {
-        // Save the commitment
+        // Prepare a receipt first. The user decides when it becomes a saved entry.
         const item: Job = {
           ...blank(),
           ...result.updated,
@@ -738,13 +738,9 @@ export default function Workspace() {
           work: result.updated.work?.trim() || "",
           status: result.updated.confirmed ? "Confirmed" : "Waiting",
         };
-
-        setJobs((p) => [item, ...p]);
-        setPendingJob(null);
-        setChatStep("customer");
-
-        say("assistant", "Saved ✓");
-        say("assistant", `Here's what I can send to ${item.customer}:`, item);
+        setPendingJob(item);
+        setChatStep("ready");
+        say("assistant", "I got the details. Check this before saving:", item);
       } else if (result.nextQuestion) {
         say("assistant", result.nextQuestion);
       }
@@ -756,6 +752,19 @@ export default function Workspace() {
         "I heard your message, but I could not process it: " + reason
       );
     }
+  }
+
+  function savePendingEntry(item: Job) {
+    if (!selectedCustomer) return;
+    const saved = { ...item, customer: selectedCustomer };
+    setJobs(items => [saved, ...items.filter(j => j.id !== saved.id)]);
+    if (saved.paid > 0 && !payments.some(p => p.jobId === saved.id)) {
+      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: saved.paid, date: day(), note: "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    }
+    setPendingJob(null);
+    setChatStep("customer");
+    say("assistant", "Entry saved ✓");
+    setToast("Saved in " + selectedCustomer + "'s hisaab.");
   }
 
   function capture() {
@@ -1596,7 +1605,7 @@ export default function Workspace() {
                         {chatTurns.filter(turn=>turn.customer===selectedCustomer).map(turn=><div key={turn.id} className={`chat-turn ${turn.role==="me"?"from-me":"from-assistant"}`}>
                           <span className="chat-speaker">{turn.role==="me"?"You":"Pakki Baat"}</span>
                           <div className="chat-turn-text">{turn.text}</div>
-                          {turn.replyFor && <div className="saved-detail-card"><strong>{turn.replyFor.work}</strong><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div></dl><div className="chat-turn-actions"><button type="button" onClick={()=>copy(replyText(turn.replyFor!))}>Copy reply</button><button type="button" onClick={()=>setDraft(turn.replyFor!)}>Edit details</button></div></div>}
+                          {turn.replyFor && <div className="saved-detail-card"><strong>{turn.replyFor.work}</strong><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div></dl><div className="chat-turn-actions">{!jobs.some(j=>j.id===turn.replyFor!.id) && <button type="button" className="primary" onClick={()=>savePendingEntry(turn.replyFor!)}>Save entry</button>}<button type="button" onClick={()=>copy(replyText(turn.replyFor!))}>Copy reply</button><button type="button" onClick={()=>setDraft(turn.replyFor!)}>Edit details</button></div></div>}
                         </div>)}
                       </div>
                       <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
