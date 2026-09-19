@@ -199,7 +199,8 @@ export default function Workspace() {
     [payments, setPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
     [newCustomerOpen, setNewCustomerOpen] = useState(false),
-    [newCustomerName, setNewCustomerName] = useState("");
+    [newCustomerName, setNewCustomerName] = useState(""),
+    [customerChatOpen, setCustomerChatOpen] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -782,16 +783,22 @@ export default function Workspace() {
 
   function finishCustomerChat() {
     if (!selectedCustomer || voiceBusy) return;
-    if (pendingJob && pendingJob.work?.trim()) {
-      const alreadyShown = chatTurns.some(turn => turn.replyFor?.id === pendingJob.id);
-      if (!alreadyShown) say("assistant", "Details ready. Save when everything looks right:", pendingJob);
-      setChatStep("ready");
-      setToast("Details card ready.");
+    if (!pendingJob || !pendingJob.work?.trim()) {
+      setToast("Add the entry details first, then tap Save.");
       return;
     }
+    const saved = { ...pendingJob, customer: selectedCustomer };
+    setJobs(items => [saved, ...items.filter(j => j.id !== saved.id)]);
+    if (saved.paid > 0 && !payments.some(p => p.jobId === saved.id)) {
+      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: saved.paid, date: day(), note: "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    }
+    setPendingJob(null);
+    setPendingReminderText("");
+    setChatStep("customer");
     setMessage("");
-    say("me", "Done");
-    void processAssistantMessage("yes, confirm the details and prepare the final card", "text");
+    setCustomerChatOpen(false);
+    setChatTurns(turns => turns.filter(turn => turn.customer !== selectedCustomer));
+    setToast("Saved in " + selectedCustomer + "'s hisaab.");
   }
 
   function receiveAiDraft(job: Job) {
@@ -799,7 +806,7 @@ export default function Workspace() {
     setChatStep("ready");
     say(
       "assistant",
-      "I read the attachment and filled in a draft. Open Review details to check it, or keep chatting."
+      "I read the attachment and added the details. Keep chatting or tap Save when you're done."
     );
   }
   function save() {
@@ -830,7 +837,7 @@ export default function Workspace() {
 
     setPendingJob(null);
     setChatStep("customer");
-    setTab("My assistant");
+    setTab("Hisaab");
     say("assistant", replyText(item), item);
     setMessage("");
     setToast("Saved. Your next steps are ready.");
@@ -1582,7 +1589,7 @@ export default function Workspace() {
                       const entries=jobs.filter(j=>j.customer===name);
                       const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
                       const latest=entries[0];
-                      return <button className="customer-row-card" key={name} onClick={()=>{setSelectedCustomer(name);setMessage("");}}>
+                      return <button className="customer-row-card" key={name} onClick={()=>{setSelectedCustomer(name);setMessage("");setCustomerChatOpen(jobs.filter(j=>j.customer===name).length===0);}}>
                         <span className="avatar large">{name[0]}</span>
                         <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Open customer chat"} · {entries.length} saved {entries.length===1?"entry":"entries"}</small></span>
                         <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
@@ -1599,26 +1606,30 @@ export default function Workspace() {
                     <span className="avatar large">{selectedCustomer?.[0] || "?"}</span>
                     <div><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
                   </div>
+                  {customerChatOpen ? (
                   <section className="chat-layout customer-folder-chat">
                     <div className="chat-panel">
                       <div className="chat-header"><Icon name="chat"/><div><strong>{selectedCustomer}</strong><small>Type or send a voice note — this chat belongs only to {selectedCustomer}</small></div></div>
                       <div className="chat-body" ref={chatBodyRef} role="log" aria-label={selectedCustomer+" hisaab chat"} aria-live="polite">
                         <span className="chat-date">Customer book</span>
                         {!chatTurns.some(turn=>turn.customer===selectedCustomer) && <div className="bubble"><strong>Start an entry</strong><p>For example: “2 kg cake, ₹5,000 total, ₹2,000 received, Sunday 5 PM.”</p></div>}
-                        {chatTurns.filter(turn=>turn.customer===selectedCustomer).map(turn=><div key={turn.id} className={`chat-turn ${turn.role==="me"?"from-me":"from-assistant"}`}>
-                          <span className="chat-speaker">{turn.role==="me"?"You":"Pakki Baat"}</span>
-                          <div className="chat-turn-text">{turn.text}</div>
-                          {turn.replyFor && <div className="saved-detail-card"><strong>{turn.replyFor.work}</strong><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div></dl><div className="chat-turn-actions">{!jobs.some(j=>j.id===turn.replyFor!.id) && <button type="button" className="primary" onClick={()=>savePendingEntry(turn.replyFor!)}>Save entry</button>}<button type="button" onClick={()=>copy(replyText(turn.replyFor!))}>Copy</button><button type="button" disabled title="Coming soon">Send on WhatsApp</button><button type="button" onClick={()=>setDraft(turn.replyFor!)}>Edit details</button><button type="button" onClick={()=>{setPendingJob(turn.replyFor!);setPendingReminderText("");setMessage("Remind me ");setToast("Tell me when you want this reminder.");}}>Set reminder</button></div></div>}
-                        </div>)}
+                        {chatTurns.filter(turn=>turn.customer===selectedCustomer).map(turn=><div key={turn.id} className={`chat-turn ${turn.role==="me"?"from-me":"from-assistant"}`}><span className="chat-speaker">{turn.role==="me"?"You":"Pakki Baat"}</span><div className="chat-turn-text">{turn.text}</div></div>)}
                       </div>
                       <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
                       <div style={{display:"flex",justifyContent:"flex-end",padding:"0 16px 16px"}}>
-                        <button type="button" className="primary" onClick={finishCustomerChat} disabled={voiceBusy}>Done <Icon name="check" size={17}/></button>
+                        <button type="button" className="primary" onClick={finishCustomerChat} disabled={voiceBusy || !pendingJob?.work?.trim()}>Save <Icon name="check" size={17}/></button>
                       </div>
                     </div>
                   </section>
+                  ) : (
+                    <div className="customer-chat-closed">
+                      <button className="primary" type="button" onClick={()=>{setPendingJob(null);setChatStep("customer");setMessage("");setCustomerChatOpen(true);}}>
+                        <Icon name="plus" size={17}/> Add entry
+                      </button>
+                    </div>
+                  )}
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
-                    <div className="customer-timeline">{customerJobs.map(j=><button className="customer-timeline-entry" key={j.id} onClick={()=>setDraft(j)}><span className="timeline-dot"/><span className="timeline-content"><strong>{j.work}</strong><small>{j.date||"No date"}{j.time?" · "+j.time:""}</small><span>Total {money(j.total)} · Received {money(j.paid)}</span></span><span className="timeline-baki"><strong>{money(j.total-j.paid)}</strong><small>baki</small></span></button>)}</div>
+                    <div className="saved-entry-grid">{customerJobs.map(j=><article className="saved-detail-card customer-saved-card" key={j.id}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="chat-turn-actions"><button type="button" onClick={()=>copy(replyText(j))}>Copy</button><button type="button" disabled title="Coming soon">Send on WhatsApp</button><button type="button" onClick={()=>setDraft(j)}>Edit details</button><button type="button" onClick={()=>{setPendingJob(j);setPendingReminderText("");setMessage("Remind me ");setCustomerChatOpen(true);setToast("Tell me when you want this reminder.");}}>Set reminder</button></div></article>)}</div>
                   </div>
                   {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
@@ -1855,6 +1866,7 @@ export default function Workspace() {
               setNotes(items=>items.some(n=>n.customer===customer)?items:[{id:crypto.randomUUID(),customer,text:"Customer created",createdAt:new Date().toISOString()},...items]);
               setSelectedCustomer(customer);
               setMessage("");
+              setCustomerChatOpen(true);
               setNewCustomerOpen(false);
             }}>
               <label>Customer name<input autoFocus maxLength={100} placeholder="e.g. Asha" value={newCustomerName} onChange={e=>setNewCustomerName(e.target.value)}/></label>
@@ -1875,7 +1887,7 @@ export default function Workspace() {
             <div className="section-heading">
               <div>
                 <span className="eyebrow">YOU’RE IN CONTROL</span>
-                <h2 id="review-title">Check the details</h2>
+                <h2 id="review-title">Edit details</h2>
               </div>
               <button
                 className="icon-button"
@@ -2011,7 +2023,7 @@ export default function Workspace() {
                   </button>
                 )}
                 <button className="primary" type="submit">
-                  Save & prepare reply <Icon name="check" size={18} />
+                  Save changes <Icon name="check" size={18} />
                 </button>
               </div>
             </form>
