@@ -1890,7 +1890,7 @@ export default function Workspace() {
                     autoFocus
                     required
                     maxLength={100}
-                    value={draft.customer}
+                    value={draft.customer || ""}
                     onChange={(e) =>
                       setDraft({ ...draft, customer: e.target.value })
                     }
@@ -1901,7 +1901,7 @@ export default function Workspace() {
                   <textarea
                     required
                     maxLength={500}
-                    value={draft.work}
+                    value={draft.work || ""}
                     onChange={(e) =>
                       setDraft({ ...draft, work: e.target.value })
                     }
@@ -1937,7 +1937,7 @@ export default function Workspace() {
                   Due date
                   <input
                     type="date"
-                    value={draft.date}
+                    value={draft.date || ""}
                     onChange={(e) =>
                       setDraft({ ...draft, date: e.target.value })
                     }
@@ -1947,7 +1947,7 @@ export default function Workspace() {
                   Due time
                   <input
                     type="time"
-                    value={draft.time}
+                    value={draft.time || ""}
                     onChange={(e) =>
                       setDraft({ ...draft, time: e.target.value })
                     }
