@@ -778,6 +778,20 @@ export default function Workspace() {
     void processAssistantMessage(input, "text");
   }
 
+  function finishCustomerChat() {
+    if (!selectedCustomer || voiceBusy) return;
+    if (pendingJob && pendingJob.work?.trim()) {
+      const alreadyShown = chatTurns.some(turn => turn.replyFor?.id === pendingJob.id);
+      if (!alreadyShown) say("assistant", "Details ready. Save when everything looks right:", pendingJob);
+      setChatStep("ready");
+      setToast("Details card ready.");
+      return;
+    }
+    setMessage("");
+    say("me", "Done");
+    void processAssistantMessage("yes, confirm the details and prepare the final card", "text");
+  }
+
   function receiveAiDraft(job: Job) {
     setPendingJob(job);
     setChatStep("ready");
@@ -1612,6 +1626,9 @@ export default function Workspace() {
                         </div>)}
                       </div>
                       <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
+                      <div style={{display:"flex",justifyContent:"flex-end",padding:"0 16px 16px"}}>
+                        <button type="button" className="primary" onClick={finishCustomerChat} disabled={voiceBusy}>Done <Icon name="check" size={17}/></button>
+                      </div>
                     </div>
                   </section>
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
