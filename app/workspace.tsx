@@ -1593,7 +1593,7 @@ export default function Workspace() {
                 <section className="customer-detail">
                   <button className="text-button customer-back" onClick={()=>{setSelectedCustomer(null);setMessage("");}}>← Hisaab</button>
                   <div className="customer-profile-head">
-                    <span className="avatar large">{selectedCustomer[0]}</span>
+                    <span className="avatar large">{selectedCustomer?.[0] || "?"}</span>
                     <div><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
                   </div>
                   <section className="chat-layout customer-folder-chat">
@@ -1651,7 +1651,7 @@ export default function Workspace() {
                 <section className="customer-detail">
                   <button className="text-button customer-back" onClick={()=>setSelectedCustomer(null)}>← All customers</button>
                   <div className="customer-profile-head">
-                    <span className="avatar large">{selectedCustomer[0]}</span>
+                    <span className="avatar large">{selectedCustomer?.[0] || "?"}</span>
                     <div><h1>{selectedCustomer}</h1><p>{customerJobs.length} {customerJobs.length===1?"entry":"entries"} in this customer book</p></div>
                   </div>
                   <div className="customer-summary-strip">
