@@ -680,16 +680,18 @@ export default function Workspace() {
         const customer = selectedCustomer || String(result.payment?.customer || "");
         if (!customer) { say("assistant", "Which customer is this payment from?"); return; }
         if (!(amount > 0)) { say("assistant", "How much did they pay?"); return; }
-        let remaining = amount;
-        setJobs(items => items.map(job => {
-          if (job.customer !== customer || remaining <= 0 || job.paid >= job.total) return job;
-          const applied = Math.min(remaining, job.total - job.paid);
-          remaining -= applied;
-          return { ...job, paid: job.paid + applied };
-        }));
-        const payment: Payment = { id: crypto.randomUUID(), customer, amount, date: String(result.payment?.date || day()), note: result.payment?.note ? String(result.payment.note) : undefined, createdAt: new Date().toISOString() };
-        setPayments(items => [payment, ...items]);
-        say("assistant", `Saved ✓ ₹${amount.toLocaleString("en-IN")} received from ${customer}. Hisaab updated.`);
+        const latest = jobs.find(j => j.customer === customer && j.paid < j.total);
+        if (latest) {
+          const preview: Job = { ...latest, id: crypto.randomUUID(), paid: Math.min(latest.total, latest.paid + amount), source: message };
+          setPendingJob(preview);
+          setChatStep("ready");
+          say("assistant", "I got the details. Check this before saving:", preview);
+        } else {
+          const preview: Job = { ...blank(), id: crypto.randomUUID(), customer, work: String(result.payment?.note || "Payment received"), total: amount, paid: amount, date: String(result.payment?.date || day()), source: message, status: "Confirmed" };
+          setPendingJob(preview);
+          setChatStep("ready");
+          say("assistant", "I got the payment details. Check this before saving:", preview);
+        }
         return;
       }
 
@@ -1605,7 +1607,7 @@ export default function Workspace() {
                         {chatTurns.filter(turn=>turn.customer===selectedCustomer).map(turn=><div key={turn.id} className={`chat-turn ${turn.role==="me"?"from-me":"from-assistant"}`}>
                           <span className="chat-speaker">{turn.role==="me"?"You":"Pakki Baat"}</span>
                           <div className="chat-turn-text">{turn.text}</div>
-                          {turn.replyFor && <div className="saved-detail-card"><strong>{turn.replyFor.work}</strong><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div></dl><div className="chat-turn-actions">{!jobs.some(j=>j.id===turn.replyFor!.id) && <button type="button" className="primary" onClick={()=>savePendingEntry(turn.replyFor!)}>Save entry</button>}<button type="button" onClick={()=>copy(replyText(turn.replyFor!))}>Copy reply</button><button type="button" onClick={()=>setDraft(turn.replyFor!)}>Edit details</button></div></div>}
+                          {turn.replyFor && <div className="saved-detail-card"><strong>{turn.replyFor.work}</strong><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div></dl><div className="chat-turn-actions">{!jobs.some(j=>j.id===turn.replyFor!.id) && <button type="button" className="primary" onClick={()=>savePendingEntry(turn.replyFor!)}>Save entry</button>}<button type="button" onClick={()=>copy(replyText(turn.replyFor!))}>Copy</button><button type="button" disabled title="Coming soon">Send on WhatsApp</button><button type="button" onClick={()=>setDraft(turn.replyFor!)}>Edit details</button></div></div>}
                         </div>)}
                       </div>
                       <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
