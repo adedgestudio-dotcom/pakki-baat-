@@ -416,7 +416,7 @@ export default function Workspace() {
   }
   function say(role: ChatTurn["role"], text: string, replyFor?: Job) {
     setChatTurns((turns) =>
-      [...turns, { id: crypto.randomUUID(), role, text, replyFor }].slice(-80)
+      [...turns, { id: crypto.randomUUID(), role, text, replyFor, customer: selectedCustomer || undefined }].slice(-80)
     );
   }
   async function sendVoice(file: File, duration: number, transcript: string) {
@@ -1376,7 +1376,7 @@ export default function Workspace() {
                         for you.
                       </p>
                     </div>
-                    {chatTurns.map((turn) => (
+                    {chatTurns.filter(turn => selectedCustomer ? turn.customer === selectedCustomer : !turn.customer).map((turn) => (
                       <div
                         key={turn.id}
                         className={`chat-turn ${
