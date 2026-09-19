@@ -132,8 +132,8 @@ export default function ChatComposer({
     <button
       type="button"
       className="send-icon-button"
-      aria-label={voiceDraft ? "Send voice note" : "Check details"}
-      title={voiceDraft ? "Send voice note" : "Check details"}
+      aria-label={voiceDraft ? "Send voice note" : "Organise details"}
+      title={voiceDraft ? "Send voice note" : "Organise details"}
       onClick={handleSend}
       disabled={voiceBusy || (!message.trim() && !voiceDraft)}
     >
@@ -291,32 +291,7 @@ export default function ChatComposer({
         </div>
       )}
 
-      <div className="composer-actions">
-        <span className="char-counter">
-          {message.length}/6000 - Review before saving
-        </span>
-        {message.trim() && (
-          <button
-            className="primary check-details-button"
-            onClick={handleSend}
-            disabled={voiceBusy}
-          >
-            Check details{" "}
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14 m-6-6 6 6-6 6" />
-            </svg>
-          </button>
-        )}
-      </div>
+      <div className="composer-actions"><span className="char-counter">{message.length}/6000</span></div>
 
       <div className="ai-note">
         Type or send a voice note. Pakki Baat will organise it for you.
