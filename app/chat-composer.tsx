@@ -242,30 +242,42 @@ export default function ChatComposer({
         </div>
       )}
 
-      <div className="chat-compose-row">
-        <div className="desktop-input-actions">{uploadControl}</div>
+      <div className="smart-input-shell">
+        <div className="smart-input-topline">
+          <span className="smart-input-status"><i /> Quick add</span>
+          <span>Type or voice</span>
+        </div>
 
-        <div className="input-with-mic">
-          <textarea
-            id="paste-input"
-            aria-label="Customer message"
-            placeholder={voiceDraft ? "Add a note before sending voice..." : "Paste a message or tell me what's needed..."}
-            value={message}
-            onChange={(e) => onMessageChange(e.target.value)}
-            maxLength={6000}
-            disabled={voiceBusy}
-          />
+        <div className="chat-compose-row">
+          <div className="desktop-input-actions">{uploadControl}</div>
 
-          <div className="input-mic-button">
-            {message.trim() || voiceDraft ? (
-              sendControl
-            ) : (
-              <SimpleVoiceButton
-                onRecordingComplete={handleVoiceRecordingComplete}
-                onError={handleVoiceError}
-              />
-            )}
+          <div className="input-with-mic">
+            <textarea
+              id="paste-input"
+              aria-label="Customer message"
+              placeholder={voiceDraft ? "Add a note before sending voice..." : "Tell me what happened… e.g. 2 kg cake, ₹2,000 total, ₹1,000 received"}
+              value={message}
+              onChange={(e) => onMessageChange(e.target.value)}
+              maxLength={6000}
+              disabled={voiceBusy}
+            />
+
+            <div className="input-mic-button">
+              {message.trim() || voiceDraft ? (
+                sendControl
+              ) : (
+                <SimpleVoiceButton
+                  onRecordingComplete={handleVoiceRecordingComplete}
+                  onError={handleVoiceError}
+                />
+              )}
+            </div>
           </div>
+        </div>
+
+        <div className="smart-input-footer">
+          <span>Pakki Baat will organise the details for you.</span>
+          <span>{message.length}/6000</span>
         </div>
       </div>
 
@@ -291,11 +303,7 @@ export default function ChatComposer({
         </div>
       )}
 
-      <div className="composer-actions"><span className="char-counter">{message.length}/6000</span></div>
-
-      <div className="ai-note">
-        Type or send a voice note. Pakki Baat will organise it for you.
-      </div>
+      
     </div>
   );
 }
