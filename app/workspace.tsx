@@ -146,6 +146,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     check: "m5 12 4 4L19 6",
     bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4",
     clock: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2",
+    calendar: "M6 2v4 M18 2v4 M3 9h18 M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z",
     copy: "M9 9h12v12H9Z M5 15H3V3h12v2",
     search: "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0 m-2 5 6 6",
     close: "m6 6 12 12 M6 18 18 6",
@@ -1284,14 +1285,14 @@ export default function Workspace() {
                     className="reminder-empty"
                     onClick={() => {
                       go("Hisaab");
-                      setMessage("Remind me tomorrow at 10 AM to ");
+                      setToast("Open a customer entry and tap Set reminder.");
                     }}
                   >
                     <Icon name="bell" size={20} />
                     <span>
                       <strong>No reminders yet</strong>
                       <small>
-                        Try “Remind me tomorrow at 10 to call Sakina.”
+                        Open a customer entry and tap Set reminder.
                       </small>
                     </span>
                   </button>
@@ -1672,7 +1673,7 @@ export default function Workspace() {
                     </div>
                   )}
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
-                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.createdAt || j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="chat-turn-actions"><button type="button" onClick={()=>copy(replyText(j))}>Copy</button><button type="button" disabled title="Coming soon">Send on WhatsApp</button><button type="button" onClick={()=>setDraft(j)}>Edit details</button><button type="button" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Set reminder</button></div></article>)}</div>
+                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="chat-turn-actions"><button type="button" onClick={()=>copy(replyText(j))}>Copy</button><button type="button" disabled title="Coming soon">Send on WhatsApp</button><button type="button" onClick={()=>setDraft(j)}>Edit details</button><button type="button" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Set reminder</button></div></article>)}</div>
                   </div>
                   {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
