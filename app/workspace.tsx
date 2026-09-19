@@ -286,7 +286,7 @@ export default function Workspace() {
       !cloudHydratedRef.current
     )
       return;
-    const snapshot = { jobs, owner, business, reminders };
+    const snapshot = { jobs, owner, business, reminders, payments, notes };
     writeLocalWorkspace(activeUserIdRef.current, snapshot);
     const timer = window.setTimeout(() => {
       void saveCloud(snapshot).catch(() =>
@@ -294,7 +294,7 @@ export default function Workspace() {
       );
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [jobs, owner, business, reminders, ready, loggedIn]);
+  }, [jobs, owner, business, reminders, payments, notes, ready, loggedIn]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -634,7 +634,7 @@ export default function Workspace() {
             time: String(result.reminder.time || ""),
             customer: result.reminder.customer
               ? String(result.reminder.customer)
-              : undefined,
+              : selectedCustomer || undefined,
             repeat: ["daily", "weekly", "monthly"].includes(
               result.reminder.repeat
             )
@@ -655,6 +655,35 @@ export default function Workspace() {
         }
       }
 
+      if (result.intent === "payment") {
+        if (result.nextQuestion) { say("assistant", result.nextQuestion); return; }
+        const amount = Number(result.payment?.amount || 0);
+        const customer = selectedCustomer || String(result.payment?.customer || "");
+        if (!customer) { say("assistant", "Which customer is this payment from?"); return; }
+        if (!(amount > 0)) { say("assistant", "How much did they pay?"); return; }
+        let remaining = amount;
+        setJobs(items => items.map(job => {
+          if (job.customer !== customer || remaining <= 0 || job.paid >= job.total) return job;
+          const applied = Math.min(remaining, job.total - job.paid);
+          remaining -= applied;
+          return { ...job, paid: job.paid + applied };
+        }));
+        const payment: Payment = { id: crypto.randomUUID(), customer, amount, date: String(result.payment?.date || day()), note: result.payment?.note ? String(result.payment.note) : undefined, createdAt: new Date().toISOString() };
+        setPayments(items => [payment, ...items]);
+        say("assistant", `Saved ✓ ₹${amount.toLocaleString("en-IN")} received from ${customer}. Hisaab updated.`);
+        return;
+      }
+
+      if (result.intent === "note") {
+        const customer = selectedCustomer;
+        const text = String(result.note?.text || "").trim();
+        if (!customer) { say("assistant", "Open the customer first so I know where to save this note."); return; }
+        if (!text) { say("assistant", "What note should I remember?"); return; }
+        setNotes(items => [{ id: crypto.randomUUID(), customer, text, createdAt: new Date().toISOString() }, ...items]);
+        say("assistant", "Saved to " + customer + " ✓");
+        return;
+      }
+
       setPendingJob(result.updated);
 
       if (result.isComplete) {
@@ -663,7 +692,7 @@ export default function Workspace() {
           ...blank(),
           ...result.updated,
           id: crypto.randomUUID(),
-          customer: result.updated.customer?.trim() || "",
+          customer: result.updated.customer?.trim() || selectedCustomer || "",
           work: result.updated.work?.trim() || "",
           status: result.updated.confirmed ? "Confirmed" : "Waiting",
         };
@@ -832,10 +861,31 @@ export default function Workspace() {
       <Icon name="arrow" size={16}/>
     </button>
   );
-  const customerNames = Array.from(new Set(jobs.map(j=>j.customer))).filter(Boolean);
+  const customerNames = Array.from(new Set([...jobs.map(j=>j.customer), ...payments.map(p=>p.customer), ...notes.map(n=>n.customer), ...reminders.map(r=>r.customer || "")])).filter(Boolean);
   const customerJobs = selectedCustomer ? jobs.filter(j=>j.customer===selectedCustomer) : [];
   const customerReminders = selectedCustomer ? reminders.filter(r=>r.customer===selectedCustomer && !r.done) : [];
   const selectedBaki = customerJobs.reduce((sum,j)=>sum+j.total-j.paid,0);
+  const customerPayments = selectedCustomer ? payments.filter(p=>p.customer===selectedCustomer) : [];
+  const customerNotes = selectedCustomer ? notes.filter(n=>n.customer===selectedCustomer) : [];
+  function completeReminder(id:string) {
+    setReminders(items=>items.map(r=>{
+      if(r.id!==id)return r;
+      if(!r.repeat || r.repeat==="none") return {...r,done:true};
+      const next=new Date(r.date+"T12:00:00");
+      if(r.repeat==="daily")next.setDate(next.getDate()+1);
+      if(r.repeat==="weekly")next.setDate(next.getDate()+7);
+      if(r.repeat==="monthly")next.setMonth(next.getMonth()+1);
+      const date=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
+      return {...r,date,done:false};
+    }));
+  }
+  function snoozeReminder(id:string) {
+    setReminders(items=>items.map(r=>{
+      if(r.id!==id)return r;
+      const next=new Date(r.date+"T12:00:00"); next.setDate(next.getDate()+1);
+      return {...r,date:`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`};
+    }));
+  }
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1111,18 +1161,10 @@ export default function Workspace() {
                                 : ""}
                             </small>
                           </div>
-                          <button
-                            className="outline mini"
-                            onClick={() =>
-                              setReminders((items) =>
-                                items.map((x) =>
-                                  x.id === r.id ? { ...x, done: true } : x
-                                )
-                              )
-                            }
-                          >
-                            Done ✓
-                          </button>
+                          <div className="reminder-actions">
+                            <button className="outline mini" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
+                            <button className="outline mini" onClick={()=>completeReminder(r.id)}>Done ✓</button>
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -1563,7 +1605,9 @@ export default function Workspace() {
                       </button>)}
                     </div>
                   </div>
-                  {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small></div>)}</div>}
+                  {customerPayments.length>0 && <div className="customer-book-section"><span className="eyebrow">PAYMENTS</span><div className="customer-timeline">{customerPayments.map(p=><div className="customer-history-row" key={p.id}><span><strong>Payment received</strong><small>{p.date}{p.note?" · "+p.note:""}</small></span><strong>+{money(p.amount)}</strong></div>)}</div></div>}
+                  {customerNotes.length>0 && <div className="customer-book-section"><span className="eyebrow">NOTES</span><div className="customer-timeline">{customerNotes.map(n=><div className="customer-history-row" key={n.id}><span><strong>{n.text}</strong><small>{new Date(n.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</small></span></div>)}</div></div>}
+                  {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
               )}
             </>
