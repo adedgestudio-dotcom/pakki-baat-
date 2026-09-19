@@ -34,6 +34,7 @@ type ChatTurn = {
   replyFor?: Job;
   voiceId?: string;
   duration?: number;
+  customer?: string;
 };
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
@@ -62,6 +63,7 @@ function isChatState(value: unknown): value is ChatState {
         turn.text.length <= 12000 &&
         (!turn.voiceId ||
           (typeof turn.voiceId === "string" && turn.voiceId.length <= 100)) &&
+        (turn.customer === undefined || typeof turn.customer === "string") &&
         (turn.duration === undefined ||
           (Number.isFinite(turn.duration) &&
             turn.duration >= 0 &&
@@ -436,6 +438,7 @@ export default function Workspace() {
           text: voiceText,
           voiceId: id,
           duration,
+          customer: selectedCustomer || undefined,
         },
       ].slice(-80)
     );
