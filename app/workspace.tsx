@@ -678,7 +678,8 @@ export default function Workspace() {
         setChatStep("customer");
 
         say("assistant", "Saved ✓");
-        say("assistant", `Here's what I can send to ${item.customer}:`, item);
+        say("assistant", replyText(item), item);
+        setMessage("");
       } else if (result.nextQuestion) {
         say("assistant", result.nextQuestion);
       }
@@ -1373,6 +1374,37 @@ export default function Workspace() {
                               </svg>
                               Continue with Google
                             </button>
+                          </div>
+                        )}
+                        {turn.replyFor && (
+                          <div className="saved-detail-card">
+                            <strong>{turn.replyFor.customer}</strong>
+                            <span>{turn.replyFor.work}</span>
+                            <dl>
+                              <div>
+                                <dt>Total</dt>
+                                <dd>{money(turn.replyFor.total)}</dd>
+                              </div>
+                              <div>
+                                <dt>Received</dt>
+                                <dd>{money(turn.replyFor.paid)}</dd>
+                              </div>
+                              <div>
+                                <dt>Baki</dt>
+                                <dd>{money(turn.replyFor.total - turn.replyFor.paid)}</dd>
+                              </div>
+                              <div>
+                                <dt>Due</dt>
+                                <dd>
+                                  {turn.replyFor.date || "Date not set"}
+                                  {turn.replyFor.time ? " · " + turn.replyFor.time : ""}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>Status</dt>
+                                <dd>{turn.replyFor.status}</dd>
+                              </div>
+                            </dl>
                           </div>
                         )}
                         {turn.replyFor && (
