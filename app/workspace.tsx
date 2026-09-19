@@ -206,7 +206,8 @@ export default function Workspace() {
     [reminderDate, setReminderDate] = useState(""),
     [reminderTime, setReminderTime] = useState("09:00"),
     [reminderRepeat, setReminderRepeat] = useState<"none"|"daily"|"weekly"|"monthly">("none"),
-    [reminderText, setReminderText] = useState("");
+    [reminderText, setReminderText] = useState(""),
+    [entryMode, setEntryMode] = useState<"quick"|"form">("quick");
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -775,6 +776,23 @@ export default function Workspace() {
     setChatStep("customer");
     say("assistant", "Entry saved ✓");
     setToast("Saved in " + selectedCustomer + "'s hisaab.");
+  }
+
+  function startEntry(mode: "quick" | "form") {
+    if (!selectedCustomer) return;
+    setEntryMode(mode);
+    setMessage("");
+    setPendingJob(mode === "form" ? { ...blank(), id: crypto.randomUUID(), customer: selectedCustomer, status: "Confirmed" } : null);
+    setCustomerChatOpen(true);
+  }
+  function amountValue(value: number) {
+    return value > 0 ? String(value) : "";
+  }
+  function updatePendingAmount(field: "total" | "paid", raw: string) {
+    if (!pendingJob) return;
+    const value = raw === "" ? 0 : Number(raw);
+    if (!Number.isFinite(value) || value < 0) return;
+    setPendingJob({ ...pendingJob, [field]: value });
   }
 
   function capture() {
@@ -1646,30 +1664,43 @@ export default function Workspace() {
                   {customerChatOpen ? (
                     <section className="smart-entry-panel">
                       <div className="smart-entry-head">
-                        <div><span className="eyebrow">NEW ENTRY</span><h2>What happened with {selectedCustomer}?</h2><p>Type or speak naturally. Pakki Baat will organise it into a card.</p></div>
+                        <div><span className="eyebrow">NEW ENTRY</span><h2>{entryMode==="quick" ? `Tell me what happened with ${selectedCustomer}` : `Add details for ${selectedCustomer}`}</h2><p>{entryMode==="quick" ? "Type or speak naturally. Pakki Baat will fill the details for you." : "Fill only what you know. Date and time are optional."}</p></div>
                         <button className="icon-button" aria-label="Close entry" onClick={()=>{setCustomerChatOpen(false);setPendingJob(null);setMessage("");}}><Icon name="close"/></button>
                       </div>
-                      <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
-                      <p className="smart-example">Try: “2 kg chocolate cake, ₹5,000 total, ₹2,000 received, Sunday 5 PM.”</p>
-                      {pendingJob?.work?.trim() && (
-                        <article className="smart-preview-card">
-                          <div className="smart-preview-title"><div><span className="eyebrow">HERE'S WHAT I GOT</span><h3>{pendingJob.work}</h3></div><button type="button" onClick={()=>setDraft(pendingJob)}>Edit</button></div>
-                          <dl>
-                            <div><dt>Total</dt><dd>{money(pendingJob.total)}</dd></div>
-                            <div><dt>Received</dt><dd>{money(pendingJob.paid)}</dd></div>
-                            <div className="baki"><dt>Baki</dt><dd>{money(Math.max(0,pendingJob.total-pendingJob.paid))}</dd></div>
-                            <div><dt>Due</dt><dd>{pendingJob.date || <button type="button" className="text-button" onClick={()=>setDraft(pendingJob)}>+ Add date</button>}</dd></div>
-                            <div><dt>Time</dt><dd>{pendingJob.time || <button type="button" className="text-button" onClick={()=>setDraft(pendingJob)}>+ Add time</button>}</dd></div>
-                          </dl>
-                          <button type="button" className="primary smart-save" onClick={finishCustomerChat}>Save to {selectedCustomer} <Icon name="check" size={17}/></button>
-                        </article>
+                      <div className="entry-mode-tabs" role="tablist" aria-label="Entry method">
+                        <button type="button" className={entryMode==="quick"?"active":""} onClick={()=>startEntry("quick")}>✨ Quick entry</button>
+                        <button type="button" className={entryMode==="form"?"active":""} onClick={()=>startEntry("form")}>Form</button>
+                      </div>
+                      {entryMode==="quick" ? (
+                        <>
+                          <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
+                          <p className="smart-example">Try: “2 kg chocolate cake, ₹5,000 total, ₹2,000 received, Sunday 5 PM.”</p>
+                          {pendingJob?.work?.trim() && (
+                            <article className="smart-preview-card">
+                              <div className="smart-preview-title"><div><span className="eyebrow">PAKKI BAAT FILLED THIS</span><h3>{pendingJob.work}</h3></div><button type="button" onClick={()=>setEntryMode("form")}>Edit</button></div>
+                              <dl><div><dt>Total</dt><dd>{money(pendingJob.total)}</dd></div><div><dt>Received</dt><dd>{money(pendingJob.paid)}</dd></div><div className="baki"><dt>Baki</dt><dd>{money(Math.max(0,pendingJob.total-pendingJob.paid))}</dd></div><div><dt>Due</dt><dd>{pendingJob.date || "Optional"}</dd></div><div><dt>Time</dt><dd>{pendingJob.time || "Optional"}</dd></div></dl>
+                              <button type="button" className="primary smart-save" onClick={finishCustomerChat}>Save to {selectedCustomer} <Icon name="check" size={17}/></button>
+                            </article>
+                          )}
+                        </>
+                      ) : pendingJob && (
+                        <form className="inline-entry-form" onSubmit={e=>{e.preventDefault();finishCustomerChat();}}>
+                          <label className="full">What’s the work? *<textarea autoFocus required maxLength={500} placeholder="e.g. 2 kg chocolate cake" value={pendingJob.work || ""} onChange={e=>setPendingJob({...pendingJob,work:e.target.value})}/></label>
+                          <div className="inline-form-grid">
+                            <label>Total amount (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="e.g. 2000" value={amountValue(pendingJob.total)} onChange={e=>updatePendingAmount("total",e.target.value)}/></label>
+                            <label>Amount received (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="e.g. 1000" value={amountValue(pendingJob.paid)} onChange={e=>updatePendingAmount("paid",e.target.value)}/></label>
+                            <label>Due date <span>optional</span><input type="date" value={pendingJob.date || ""} onChange={e=>setPendingJob({...pendingJob,date:e.target.value})}/></label>
+                            <label>Due time <span>optional</span><input type="time" value={pendingJob.time || ""} onChange={e=>setPendingJob({...pendingJob,time:e.target.value})}/></label>
+                          </div>
+                          <button type="submit" className="primary smart-save" disabled={!pendingJob.work.trim() || pendingJob.paid>pendingJob.total}>Save to {selectedCustomer} <Icon name="check" size={17}/></button>
+                          {pendingJob.paid>pendingJob.total && <p className="form-error">Received amount cannot be more than the total.</p>}
+                        </form>
                       )}
                     </section>
                   ) : (
-                    <div className="customer-chat-closed">
-                      <button className="primary" type="button" onClick={()=>{setPendingJob(null);setChatStep("customer");setMessage("");setCustomerChatOpen(true);}}>
-                        <Icon name="plus" size={17}/> Add entry
-                      </button>
+                    <div className="entry-choice">
+                      <div><span className="eyebrow">ADD TO {selectedCustomer?.toUpperCase()}</span><h3>How would you like to add it?</h3><p>Both save to the same hisaab.</p></div>
+                      <div className="entry-choice-actions"><button className="primary" type="button" onClick={()=>startEntry("quick")}>✨ Type or speak</button><button className="outline" type="button" onClick={()=>startEntry("form")}>Fill a form</button></div>
                     </div>
                   )}
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
@@ -1922,7 +1953,8 @@ export default function Workspace() {
               setNotes(items=>items.some(n=>n.customer===customer)?items:[{id:crypto.randomUUID(),customer,text:"Customer created",createdAt:new Date().toISOString()},...items]);
               setSelectedCustomer(customer);
               setMessage("");
-              setCustomerChatOpen(true);
+              setCustomerChatOpen(false);
+              setEntryMode("quick");
               setNewCustomerOpen(false);
             }}>
               <label>Customer name<input autoFocus maxLength={100} placeholder="e.g. Asha" value={newCustomerName} onChange={e=>setNewCustomerName(e.target.value)}/></label>
@@ -1991,9 +2023,10 @@ export default function Workspace() {
                     min="0"
                     max="100000000"
                     step="0.01"
-                    value={draft.total}
+                    value={amountValue(draft.total)}
+                    placeholder="e.g. 2000"
                     onChange={(e) =>
-                      setDraft({ ...draft, total: Number(e.target.value) })
+                      setDraft({ ...draft, total: e.target.value === "" ? 0 : Number(e.target.value) })
                     }
                   />
                 </label>
@@ -2004,9 +2037,10 @@ export default function Workspace() {
                     min="0"
                     max={draft.total}
                     step="0.01"
-                    value={draft.paid}
+                    value={amountValue(draft.paid)}
+                    placeholder="e.g. 1000"
                     onChange={(e) =>
-                      setDraft({ ...draft, paid: Number(e.target.value) })
+                      setDraft({ ...draft, paid: e.target.value === "" ? 0 : Number(e.target.value) })
                     }
                   />
                 </label>
@@ -2044,12 +2078,7 @@ export default function Workspace() {
                   </select>
                 </label>
               </div>
-              {(!draft.date || !draft.time) && (
-                <div className="warning">
-                  Date or time still missing. Ask your customer before promising
-                  a deadline.
-                </div>
-              )}
+
               {draft.source && (
                 <details>
                   <summary>Original message</summary>
