@@ -112,7 +112,7 @@ function accountNameFromEmail(session: Session | null) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
-const localWorkspaceKey = (userId: string) =>
+const LOCAL_WORKSPACE_ID = "local";\nconst localWorkspaceKey = (userId: string) =>
   "pakki-baat-workspace:" + userId;
 function readLocalWorkspace(userId: string) {
   try {
@@ -229,6 +229,8 @@ export default function Workspace() {
 
       if (!session) {
         cloudHydratedRef.current = false;
+        const localSnapshot = readLocalWorkspace(LOCAL_WORKSPACE_ID);
+        if (localSnapshot) restore(localSnapshot);
         setReady(true);
         return;
       }
@@ -288,15 +290,11 @@ export default function Workspace() {
     };
   }, []);
   useEffect(() => {
-    if (
-      !ready ||
-      !loggedIn ||
-      !activeUserIdRef.current ||
-      !cloudHydratedRef.current
-    )
-      return;
+    if (!ready) return;
     const snapshot = { jobs, owner, business, reminders, payments, notes };
-    writeLocalWorkspace(activeUserIdRef.current, snapshot);
+    const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
+    writeLocalWorkspace(storageUserId, snapshot);
+    if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
     const timer = window.setTimeout(() => {
       void saveCloud(snapshot).catch(() =>
         setToast("Saved on this device. Cloud backup could not update yet.")
@@ -1454,6 +1452,9 @@ export default function Workspace() {
                               Continue with Google
                             </button>
                           </div>
+                        )}
+                        {turn.replyFor && (
+                          <div className="saved-detail-card"><strong>{turn.replyFor.customer}</strong><span>{turn.replyFor.work}</span><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Date not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div><div><dt>Status</dt><dd>{turn.replyFor.status}</dd></div></dl></div>
                         )}
                         {turn.replyFor && (
                           <div className="chat-turn-actions">
