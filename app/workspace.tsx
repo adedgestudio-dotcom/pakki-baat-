@@ -189,7 +189,10 @@ export default function Workspace() {
     [loggedIn, setLoggedIn] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
-    [dark, setDark] = useState(false),\n    [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+    [dark, setDark] = useState(false),
+    [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
+    [payments, setPayments] = useState<Payment[]>([]),
+    [notes, setNotes] = useState<CustomerNote[]>([]);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -607,6 +610,7 @@ export default function Workspace() {
             : message,
           pending: pendingJob,
           today: day(),
+          customerContext: selectedCustomer || undefined,
         }),
       });
 
@@ -1592,8 +1596,8 @@ export default function Workspace() {
                     <div className="baki"><small>Baki</small><strong>{money(selectedBaki)}</strong></div>
                   </div>
                   <div className="customer-quick-actions">
-                    <button className="primary" onClick={()=>{go("My assistant");setMessage(selectedCustomer+" ");}}>+ Add update</button>
-                    <button className="outline" onClick={()=>{go("My assistant");setMessage("Remind me about "+selectedCustomer+" ");}}><Icon name="bell" size={17}/> Add reminder</button>
+                    <button className="primary" onClick={()=>{go("My assistant");setMessage("");}}>+ Add update</button>
+                    <button className="outline" onClick={()=>{go("My assistant");setMessage("Remind me ");}}><Icon name="bell" size={17}/> Add reminder</button>
                   </div>
                   <div className="customer-book-section">
                     <div className="section-title-row"><div><span className="eyebrow">HISAAB & WORK</span><h2>History</h2></div></div>
