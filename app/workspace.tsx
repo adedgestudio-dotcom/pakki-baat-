@@ -197,7 +197,9 @@ export default function Workspace() {
     [dark, setDark] = useState(false),
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
     [payments, setPayments] = useState<Payment[]>([]),
-    [notes, setNotes] = useState<CustomerNote[]>([]);
+    [notes, setNotes] = useState<CustomerNote[]>([]),
+    [newCustomerOpen, setNewCustomerOpen] = useState(false),
+    [newCustomerName, setNewCustomerName] = useState("");
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -1007,6 +1009,12 @@ export default function Workspace() {
             <Icon name="settings" />
             Settings & feedback
           </button>
+          {loggedIn && (
+            <button className="settings-button" onClick={() => void handleSignOut()}>
+              <Icon name="arrow" />
+              Sign out
+            </button>
+          )}
           <div className="account">
             <span className="avatar">
               {displayName.charAt(0).toUpperCase()}
@@ -1025,12 +1033,6 @@ export default function Workspace() {
             <strong>{tab}</strong>
           </div>
           <div className="top-actions">
-            <span className="saved-dot" />
-            {ready
-              ? loggedIn
-                ? "Google connected"
-                : "Device workspace"
-              : "Storage unavailable"}
             {authReady && !loggedIn && (
               <button
                 type="button"
@@ -1044,15 +1046,6 @@ export default function Workspace() {
                 }
               >
                 Login / Sign up
-              </button>
-            )}
-            {cloudConfigured && authReady && loggedIn && (
-              <button
-                type="button"
-                className="text-button top-signout"
-                onClick={() => void handleSignOut()}
-              >
-                Sign out
               </button>
             )}
             <button
@@ -1581,14 +1574,7 @@ export default function Workspace() {
                       <h1>Hisaab</h1>
                       <p>One customer, one place. Open a name and continue where you left off.</p>
                     </div>
-                    <button className="primary" onClick={() => {
-                      const name = window.prompt("Customer name");
-                      if (!name?.trim()) return;
-                      const customer = name.trim();
-                      setNotes(items => items.some(n => n.customer === customer) ? items : [{id:crypto.randomUUID(),customer,text:"Customer created",createdAt:new Date().toISOString()},...items]);
-                      setSelectedCustomer(customer);
-                      setMessage("");
-                    }}><Icon name="plus" /> New entry</button>
+                    <button className="primary" onClick={() => { setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /> New entry</button>
                   </div>
                   <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
                   <div className="customer-list-mobile">
@@ -1854,6 +1840,29 @@ export default function Workspace() {
           <span>Settings</span>
         </button>
       </nav>
+      {newCustomerOpen && (
+        <div className="modal-backdrop" onClick={() => setNewCustomerOpen(false)}>
+          <section className="new-customer-modal" role="dialog" aria-modal="true" aria-labelledby="new-customer-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button new-customer-close" aria-label="Close" onClick={()=>setNewCustomerOpen(false)}><Icon name="close"/></button>
+            <span className="new-customer-icon"><Icon name="people" size={24}/></span>
+            <span className="eyebrow">NEW HISAAB</span>
+            <h2 id="new-customer-title">Who is this for?</h2>
+            <p>Add the customer name. You can tell Pakki Baat the rest naturally.</p>
+            <form onSubmit={e=>{
+              e.preventDefault();
+              const customer=newCustomerName.trim();
+              if(!customer)return;
+              setNotes(items=>items.some(n=>n.customer===customer)?items:[{id:crypto.randomUUID(),customer,text:"Customer created",createdAt:new Date().toISOString()},...items]);
+              setSelectedCustomer(customer);
+              setMessage("");
+              setNewCustomerOpen(false);
+            }}>
+              <label>Customer name<input autoFocus maxLength={100} placeholder="e.g. Asha" value={newCustomerName} onChange={e=>setNewCustomerName(e.target.value)}/></label>
+              <button className="primary" type="submit" disabled={!newCustomerName.trim()}>Continue <Icon name="arrow" size={17}/></button>
+            </form>
+          </section>
+        </div>
+      )}
       {draft && (
         <div className="modal-backdrop" onClick={() => setDraft(null)}>
           <section
