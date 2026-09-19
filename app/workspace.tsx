@@ -391,9 +391,18 @@ export default function Workspace() {
           : j.status === filter))
   );
   function go(t: Tab) {
+    if (t === "My assistant") setSelectedCustomer(null);
     setTab(t);
     setQuery("");
     setFilter("All");
+  }
+  function openCustomerAssistant(seed = "") {
+    setTab("My assistant");
+    setQuery("");
+    setFilter("All");
+    setPendingJob(null);
+    setPendingReminderText("");
+    setMessage(seed);
   }
   function toggleTheme() {
     const next = !dark;
@@ -754,6 +763,11 @@ export default function Workspace() {
       customer: draft.customer.trim(),
       work: draft.work.trim(),
     };
+    const previous = jobs.find(j => j.id === item.id);
+    const previousPaid = previous?.paid || 0;
+    if (item.paid > previousPaid) {
+      setPayments(items => [{ id: crypto.randomUUID(), customer: item.customer, jobId: item.id, amount: item.paid - previousPaid, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    }
     setJobs((p) => [item, ...p.filter((j) => j.id !== item.id)]);
     setDraft(null);
 
@@ -1596,8 +1610,8 @@ export default function Workspace() {
                     <div className="baki"><small>Baki</small><strong>{money(selectedBaki)}</strong></div>
                   </div>
                   <div className="customer-quick-actions">
-                    <button className="primary" onClick={()=>{go("My assistant");setMessage("");}}>+ Add update</button>
-                    <button className="outline" onClick={()=>{go("My assistant");setMessage("Remind me ");}}><Icon name="bell" size={17}/> Add reminder</button>
+                    <button className="primary" onClick={()=>openCustomerAssistant()}>+ Add update</button>
+                    <button className="outline" onClick={()=>openCustomerAssistant("Remind me ")}><Icon name="bell" size={17}/> Add reminder</button>
                   </div>
                   <div className="customer-book-section">
                     <div className="section-title-row"><div><span className="eyebrow">HISAAB & WORK</span><h2>History</h2></div></div>
