@@ -21,6 +21,8 @@ import {
   calendarFile,
   type Job,
   type Reminder,
+  type Payment,
+  type CustomerNote,
   type Snapshot,
 } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
@@ -32,6 +34,7 @@ type ChatTurn = {
   replyFor?: Job;
   voiceId?: string;
   duration?: number;
+  customer?: string;
 };
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
@@ -60,6 +63,7 @@ function isChatState(value: unknown): value is ChatState {
         turn.text.length <= 12000 &&
         (!turn.voiceId ||
           (typeof turn.voiceId === "string" && turn.voiceId.length <= 100)) &&
+        (turn.customer === undefined || typeof turn.customer === "string") &&
         (turn.duration === undefined ||
           (Number.isFinite(turn.duration) &&
             turn.duration >= 0 &&
@@ -108,8 +112,7 @@ function accountNameFromEmail(session: Session | null) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
-const LOCAL_WORKSPACE_ID = "local";
-const localWorkspaceKey = (userId: string) =>
+const LOCAL_WORKSPACE_ID = "local";\nconst localWorkspaceKey = (userId: string) =>
   "pakki-baat-workspace:" + userId;
 function readLocalWorkspace(userId: string) {
   try {
@@ -190,7 +193,10 @@ export default function Workspace() {
     [loggedIn, setLoggedIn] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
-    [dark, setDark] = useState(false);
+    [dark, setDark] = useState(false),
+    [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
+    [payments, setPayments] = useState<Payment[]>([]),
+    [notes, setNotes] = useState<CustomerNote[]>([]);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -224,9 +230,7 @@ export default function Workspace() {
       if (!session) {
         cloudHydratedRef.current = false;
         const localSnapshot = readLocalWorkspace(LOCAL_WORKSPACE_ID);
-        if (localSnapshot) {
-          restore(localSnapshot);
-        }
+        if (localSnapshot) restore(localSnapshot);
         setReady(true);
         return;
       }
@@ -245,6 +249,8 @@ export default function Workspace() {
         } else {
           setJobs([]);
           setReminders([]);
+          setPayments([]);
+          setNotes([]);
           setOwner("");
           setBusiness("My small business");
           setChatTurns([]);
@@ -285,21 +291,17 @@ export default function Workspace() {
   }, []);
   useEffect(() => {
     if (!ready) return;
-    const snapshot = { jobs, owner, business, reminders };
+    const snapshot = { jobs, owner, business, reminders, payments, notes };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     writeLocalWorkspace(storageUserId, snapshot);
-
-    if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) {
-      return;
-    }
-
+    if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
     const timer = window.setTimeout(() => {
       void saveCloud(snapshot).catch(() =>
         setToast("Saved on this device. Cloud backup could not update yet.")
       );
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [jobs, owner, business, reminders, ready, loggedIn]);
+  }, [jobs, owner, business, reminders, payments, notes, ready, loggedIn]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -393,9 +395,18 @@ export default function Workspace() {
           : j.status === filter))
   );
   function go(t: Tab) {
+    if (t === "My assistant") setSelectedCustomer(null);
     setTab(t);
     setQuery("");
     setFilter("All");
+  }
+  function openCustomerAssistant(seed = "") {
+    setTab("My assistant");
+    setQuery("");
+    setFilter("All");
+    setPendingJob(null);
+    setPendingReminderText("");
+    setMessage(seed);
   }
   function toggleTheme() {
     const next = !dark;
@@ -405,7 +416,7 @@ export default function Workspace() {
   }
   function say(role: ChatTurn["role"], text: string, replyFor?: Job) {
     setChatTurns((turns) =>
-      [...turns, { id: crypto.randomUUID(), role, text, replyFor }].slice(-80)
+      [...turns, { id: crypto.randomUUID(), role, text, replyFor, customer: selectedCustomer || undefined }].slice(-80)
     );
   }
   async function sendVoice(file: File, duration: number, transcript: string) {
@@ -425,6 +436,7 @@ export default function Workspace() {
           text: voiceText,
           voiceId: id,
           duration,
+          customer: selectedCustomer || undefined,
         },
       ].slice(-80)
     );
@@ -546,6 +558,8 @@ export default function Workspace() {
       setUserName(null);
       setUserEmail(null);
       setReminders([]);
+      setPayments([]);
+      setNotes([]);
       setJobs([]);
       setChatTurns([]);
       setPendingJob(null);
@@ -612,6 +626,7 @@ export default function Workspace() {
             : message,
           pending: pendingJob,
           today: day(),
+          customerContext: selectedCustomer || undefined,
         }),
       });
 
@@ -639,7 +654,7 @@ export default function Workspace() {
             time: String(result.reminder.time || ""),
             customer: result.reminder.customer
               ? String(result.reminder.customer)
-              : undefined,
+              : selectedCustomer || undefined,
             repeat: ["daily", "weekly", "monthly"].includes(
               result.reminder.repeat
             )
@@ -660,6 +675,58 @@ export default function Workspace() {
         }
       }
 
+      if (result.intent === "payment") {
+        if (result.nextQuestion) { say("assistant", result.nextQuestion); return; }
+        const amount = Number(result.payment?.amount || 0);
+        const customer = selectedCustomer || String(result.payment?.customer || "");
+        if (!customer) { say("assistant", "Which customer is this payment from?"); return; }
+        if (!(amount > 0)) { say("assistant", "How much did they pay?"); return; }
+        let remaining = amount;
+        setJobs(items => items.map(job => {
+          if (job.customer !== customer || remaining <= 0 || job.paid >= job.total) return job;
+          const applied = Math.min(remaining, job.total - job.paid);
+          remaining -= applied;
+          return { ...job, paid: job.paid + applied };
+        }));
+        const payment: Payment = { id: crypto.randomUUID(), customer, amount, date: String(result.payment?.date || day()), note: result.payment?.note ? String(result.payment.note) : undefined, createdAt: new Date().toISOString() };
+        setPayments(items => [payment, ...items]);
+        say("assistant", `Saved ✓ ₹${amount.toLocaleString("en-IN")} received from ${customer}. Hisaab updated.`);
+        return;
+      }
+
+      if (result.intent === "note") {
+        const customer = selectedCustomer;
+        const text = String(result.note?.text || "").trim();
+        if (!customer) { say("assistant", "Open the customer first so I know where to save this note."); return; }
+        if (!text) { say("assistant", "What note should I remember?"); return; }
+        setNotes(items => [{ id: crypto.randomUUID(), customer, text, createdAt: new Date().toISOString() }, ...items]);
+        say("assistant", "Saved to " + customer + " ✓");
+        return;
+      }
+
+      if (result.intent === "edit") {
+        if (!selectedCustomer) { say("assistant", "Open the customer first so I know which entry to change."); return; }
+        const latest = jobs.find(j => j.customer === selectedCustomer);
+        if (!latest) { say("assistant", "There is no order to change yet for " + selectedCustomer + "."); return; }
+        const changes = result.changes || {};
+        const next: Job = {
+          ...latest,
+          ...(typeof changes.work === "string" ? { work: changes.work } : {}),
+          ...(Number.isFinite(Number(changes.total)) ? { total: Number(changes.total) } : {}),
+          ...(Number.isFinite(Number(changes.paid)) ? { paid: Number(changes.paid) } : {}),
+          ...(typeof changes.date === "string" ? { date: changes.date } : {}),
+          ...(typeof changes.time === "string" ? { time: changes.time } : {}),
+          ...(["Waiting","Confirmed","Completed"].includes(changes.status) ? { status: changes.status } : {}),
+        };
+        if (next.total < next.paid) { say("assistant", "That would make the received amount higher than the total. Tell me the correct total or payment."); return; }
+        if (next.paid > latest.paid) {
+          setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: latest.id, amount: next.paid-latest.paid, date: day(), note: "Payment correction", createdAt: new Date().toISOString() }, ...items]);
+        }
+        setJobs(items => items.map(j => j.id===latest.id ? next : j));
+        say("assistant", "Updated " + selectedCustomer + " ✓");
+        return;
+      }
+
       setPendingJob(result.updated);
 
       if (result.isComplete) {
@@ -668,7 +735,7 @@ export default function Workspace() {
           ...blank(),
           ...result.updated,
           id: crypto.randomUUID(),
-          customer: result.updated.customer?.trim() || "",
+          customer: result.updated.customer?.trim() || selectedCustomer || "",
           work: result.updated.work?.trim() || "",
           status: result.updated.confirmed ? "Confirmed" : "Waiting",
         };
@@ -678,8 +745,7 @@ export default function Workspace() {
         setChatStep("customer");
 
         say("assistant", "Saved ✓");
-        say("assistant", replyText(item), item);
-        setMessage("");
+        say("assistant", `Here's what I can send to ${item.customer}:`, item);
       } else if (result.nextQuestion) {
         say("assistant", result.nextQuestion);
       }
@@ -727,6 +793,11 @@ export default function Workspace() {
       customer: draft.customer.trim(),
       work: draft.work.trim(),
     };
+    const previous = jobs.find(j => j.id === item.id);
+    const previousPaid = previous?.paid || 0;
+    if (item.paid > previousPaid) {
+      setPayments(items => [{ id: crypto.randomUUID(), customer: item.customer, jobId: item.id, amount: item.paid - previousPaid, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    }
     setJobs((p) => [item, ...p.filter((j) => j.id !== item.id)]);
     setDraft(null);
 
@@ -806,6 +877,8 @@ export default function Workspace() {
   function restore(s: Snapshot) {
     setJobs(s.jobs);
     setReminders(s.reminders || []);
+    setPayments(s.payments || []);
+    setNotes(s.notes || []);
     setOwner(s.owner);
     setBusiness(s.business);
     setChatTurns([]);
@@ -830,27 +903,39 @@ export default function Workspace() {
     <button className="job" key={j.id} onClick={() => setDraft(j)}>
       <span className="avatar">{j.customer[0]}</span>
       <span className="job-main">
-        <strong>{j.customer}</strong>
-        <span>{j.work}</span>
-        <small>
-          {j.date
-            ? new Date(j.date + "T12:00:00").toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-              })
-            : "Date to be agreed"}
-          {j.time ? " · " + j.time : ""}
-        </small>
+        <strong>{j.work}</strong>
+        <span>{j.customer}</span>
+        <small>{j.date ? new Date(j.date + "T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"}) : "Date to be agreed"}{j.time ? " · " + j.time : ""}</small>
       </span>
-      <span className="job-end">
-        <strong>{money(j.total - j.paid)}</strong>
-        <span className={j.status === "Confirmed" ? "tag green" : "tag"}>
-          {j.status}
-        </span>
-      </span>
-      <Icon name="arrow" size={16} />
+      <span className="job-end"><strong>{money(j.total-j.paid)} baki</strong><span className={j.status==="Confirmed"?"tag green":"tag"}>{j.status}</span></span>
+      <Icon name="arrow" size={16}/>
     </button>
   );
+  const customerNames = Array.from(new Set([...jobs.map(j=>j.customer), ...payments.map(p=>p.customer), ...notes.map(n=>n.customer), ...reminders.map(r=>r.customer || "")])).filter(Boolean);
+  const customerJobs = selectedCustomer ? jobs.filter(j=>j.customer===selectedCustomer) : [];
+  const customerReminders = selectedCustomer ? reminders.filter(r=>r.customer===selectedCustomer && !r.done) : [];
+  const selectedBaki = customerJobs.reduce((sum,j)=>sum+j.total-j.paid,0);
+  const customerPayments = selectedCustomer ? payments.filter(p=>p.customer===selectedCustomer) : [];
+  const customerNotes = selectedCustomer ? notes.filter(n=>n.customer===selectedCustomer) : [];
+  function completeReminder(id:string) {
+    setReminders(items=>items.map(r=>{
+      if(r.id!==id)return r;
+      if(!r.repeat || r.repeat==="none") return {...r,done:true};
+      const next=new Date(r.date+"T12:00:00");
+      if(r.repeat==="daily")next.setDate(next.getDate()+1);
+      if(r.repeat==="weekly")next.setDate(next.getDate()+7);
+      if(r.repeat==="monthly")next.setMonth(next.getMonth()+1);
+      const date=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
+      return {...r,date,done:false};
+    }));
+  }
+  function snoozeReminder(id:string) {
+    setReminders(items=>items.map(r=>{
+      if(r.id!==id)return r;
+      const next=new Date(r.date+"T12:00:00"); next.setDate(next.getDate()+1);
+      return {...r,date:`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`};
+    }));
+  }
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1126,18 +1211,10 @@ export default function Workspace() {
                                 : ""}
                             </small>
                           </div>
-                          <button
-                            className="outline mini"
-                            onClick={() =>
-                              setReminders((items) =>
-                                items.map((x) =>
-                                  x.id === r.id ? { ...x, done: true } : x
-                                )
-                              )
-                            }
-                          >
-                            Done ✓
-                          </button>
+                          <div className="reminder-actions">
+                            <button className="outline mini" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
+                            <button className="outline mini" onClick={()=>completeReminder(r.id)}>Done ✓</button>
+                          </div>
                         </div>
                       ))}
                   </div>
@@ -1300,7 +1377,7 @@ export default function Workspace() {
                         for you.
                       </p>
                     </div>
-                    {chatTurns.map((turn) => (
+                    {chatTurns.filter(turn => selectedCustomer ? turn.customer === selectedCustomer : !turn.customer).map((turn) => (
                       <div
                         key={turn.id}
                         className={`chat-turn ${
@@ -1377,35 +1454,7 @@ export default function Workspace() {
                           </div>
                         )}
                         {turn.replyFor && (
-                          <div className="saved-detail-card">
-                            <strong>{turn.replyFor.customer}</strong>
-                            <span>{turn.replyFor.work}</span>
-                            <dl>
-                              <div>
-                                <dt>Total</dt>
-                                <dd>{money(turn.replyFor.total)}</dd>
-                              </div>
-                              <div>
-                                <dt>Received</dt>
-                                <dd>{money(turn.replyFor.paid)}</dd>
-                              </div>
-                              <div>
-                                <dt>Baki</dt>
-                                <dd>{money(turn.replyFor.total - turn.replyFor.paid)}</dd>
-                              </div>
-                              <div>
-                                <dt>Due</dt>
-                                <dd>
-                                  {turn.replyFor.date || "Date not set"}
-                                  {turn.replyFor.time ? " · " + turn.replyFor.time : ""}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Status</dt>
-                                <dd>{turn.replyFor.status}</dd>
-                              </div>
-                            </dl>
-                          </div>
+                          <div className="saved-detail-card"><strong>{turn.replyFor.customer}</strong><span>{turn.replyFor.work}</span><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Date not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div><div><dt>Status</dt><dd>{turn.replyFor.status}</dd></div></dl></div>
                         )}
                         {turn.replyFor && (
                           <div className="chat-turn-actions">
@@ -1557,53 +1606,64 @@ export default function Workspace() {
           )}
           {tab === "Customers" && (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">THE PEOPLE BEHIND YOUR BUSINESS</div>
-                  <h1>Your customers</h1>
-                  <p>Every conversation, a little easier to remember.</p>
-                </div>
-              </div>
-              <label className="search">
-                <Icon name="search" />
-                <input
-                  aria-label="Search customers"
-                  placeholder="Find a customer…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
-              <div className="customer-grid">
-                {Array.from(new Set(jobs.map((j) => j.customer)))
-                  .filter((c) => c.toLowerCase().includes(query.toLowerCase()))
-                  .map((c) => {
-                    const cj = jobs.filter((j) => j.customer === c);
-                    return (
-                      <button
-                        className="customer-card"
-                        key={c}
-                        onClick={() => {
-                          go("Hisaab");
-                          setQuery(c);
-                        }}
-                      >
-                        <span className="avatar large">{c[0]}</span>
-                        <h3>{c}</h3>
-                        <p>{cj.length} commitments</p>
-                        <strong>
-                          {money(cj.reduce((a, j) => a + j.total - j.paid, 0))}{" "}
-                          to collect
-                        </strong>
-                        <span>View history →</span>
-                      </button>
-                    );
-                  })}
-              </div>
-              {!jobs.length && (
-                <div className="empty">
-                  <h3>Your customers will appear here</h3>
-                  <p>Create a commitment to add your first customer.</p>
-                </div>
+              {!selectedCustomer ? (
+                <>
+                  <div className="page-heading customer-heading">
+                    <div>
+                      <div className="eyebrow">YOUR CUSTOMER BOOK</div>
+                      <h1>Customers</h1>
+                      <p>Open a customer to see their orders, payments, baki and reminders together.</p>
+                    </div>
+                    <button className="primary mobile-add-customer" onClick={() => { go("My assistant"); setMessage("New customer: "); }}>+ Add new</button>
+                  </div>
+                  <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
+                  <div className="customer-list-mobile">
+                    {customerNames.filter(name=>name.toLowerCase().includes(query.toLowerCase())).map(name=>{
+                      const entries=jobs.filter(j=>j.customer===name);
+                      const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
+                      const latest=entries[0];
+                      return <button className="customer-row-card" key={name} onClick={()=>setSelectedCustomer(name)}>
+                        <span className="avatar large">{name[0]}</span>
+                        <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Customer"} · {entries.length} {entries.length===1?"entry":"entries"}</small></span>
+                        <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
+                        <Icon name="arrow" size={17}/>
+                      </button>;
+                    })}
+                  </div>
+                  {!customerNames.length && <div className="empty"><h3>No customers yet</h3><p>Tap Add new and tell Pakki Baat the customer name and what happened.</p><button className="primary" onClick={()=>{go("My assistant");setMessage("New customer: ");}}>+ Add first customer</button></div>}
+                </>
+              ) : (
+                <section className="customer-detail">
+                  <button className="text-button customer-back" onClick={()=>setSelectedCustomer(null)}>← All customers</button>
+                  <div className="customer-profile-head">
+                    <span className="avatar large">{selectedCustomer[0]}</span>
+                    <div><h1>{selectedCustomer}</h1><p>{customerJobs.length} {customerJobs.length===1?"entry":"entries"} in this customer book</p></div>
+                  </div>
+                  <div className="customer-summary-strip">
+                    <div><small>Total business</small><strong>{money(customerJobs.reduce((s,j)=>s+j.total,0))}</strong></div>
+                    <div><small>Received</small><strong>{money(customerJobs.reduce((s,j)=>s+j.paid,0))}</strong></div>
+                    <div className="baki"><small>Baki</small><strong>{money(selectedBaki)}</strong></div>
+                  </div>
+                  <div className="customer-quick-actions">
+                    <button className="primary" onClick={()=>openCustomerAssistant()}>+ Add update</button>
+                    <button className="outline" onClick={()=>openCustomerAssistant("Received ₹")} >₹ Add payment</button>
+                    <button className="outline" onClick={()=>openCustomerAssistant("Remind me ")}><Icon name="bell" size={17}/> Add reminder</button>
+                    <button className="outline" onClick={()=>openCustomerAssistant("Note: ")}>Add note</button>
+                  </div>
+                  <div className="customer-book-section">
+                    <div className="section-title-row"><div><span className="eyebrow">HISAAB & WORK</span><h2>History</h2></div></div>
+                    <div className="customer-timeline">
+                      {customerJobs.map(j=><button className="customer-timeline-entry" key={j.id} onClick={()=>setDraft(j)}>
+                        <span className="timeline-dot"/>
+                        <span className="timeline-content"><strong>{j.work}</strong><small>{j.date || "No date"}{j.time?" · "+j.time:""}</small><span>Total {money(j.total)} · Received {money(j.paid)}</span></span>
+                        <span className="timeline-baki"><strong>{money(j.total-j.paid)}</strong><small>baki</small></span>
+                      </button>)}
+                    </div>
+                  </div>
+                  {customerPayments.length>0 && <div className="customer-book-section"><span className="eyebrow">PAYMENTS</span><div className="customer-timeline">{customerPayments.map(p=><div className="customer-history-row" key={p.id}><span><strong>Payment received</strong><small>{p.date}{p.note?" · "+p.note:""}</small></span><strong>+{money(p.amount)}</strong></div>)}</div></div>}
+                  {customerNotes.length>0 && <div className="customer-book-section"><span className="eyebrow">NOTES</span><div className="customer-timeline">{customerNotes.map(n=><div className="customer-history-row" key={n.id}><span><strong>{n.text}</strong><small>{new Date(n.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</small></span></div>)}</div></div>}
+                  {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
+                </section>
               )}
             </>
           )}
@@ -1648,7 +1708,7 @@ export default function Workspace() {
                   onClick={() =>
                     download(
                       JSON.stringify(
-                        { jobs, owner, business, reminders },
+                        { jobs, owner, business, reminders, payments, notes },
                         null,
                         2
                       ),
@@ -1671,7 +1731,7 @@ export default function Workspace() {
                   />
                 </label>
                 <CloudSettings
-                  snapshot={{ jobs, owner, business, reminders }}
+                  snapshot={{ jobs, owner, business, reminders, payments, notes }}
                   onRestore={restore}
                   dark={dark}
                   onToggleTheme={toggleTheme}

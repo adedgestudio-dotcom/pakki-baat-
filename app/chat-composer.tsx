@@ -319,7 +319,7 @@ export default function ChatComposer({
       </div>
 
       <div className="ai-note">
-        Voice notes and attachments need AI setup; manual text capture works now.
+        Type or send a voice note. Pakki Baat will organise it for you.
       </div>
     </div>
   );

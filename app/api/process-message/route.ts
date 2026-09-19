@@ -2,16 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_KEY || "";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
-const DEPRECATED_GROQ_MODELS = new Set([
-  "llama-3.1-8b-instant",
-  "llama-3.3-70b-versatile",
-]);
-function groqModel() {
-  const configured = process.env.GROQ_EXTRACTION_MODEL?.trim();
-  return configured && !DEPRECATED_GROQ_MODELS.has(configured)
-    ? configured
-    : DEFAULT_GROQ_MODEL;
-}
+const DEPRECATED_GROQ_MODELS = new Set(["llama-3.1-8b-instant","llama-3.3-70b-versatile"]);
+function groqModel(){const configured=process.env.GROQ_EXTRACTION_MODEL?.trim();return configured&&!DEPRECATED_GROQ_MODELS.has(configured)?configured:DEFAULT_GROQ_MODEL;}
 const MODEL = groqModel();
 
 type PendingCommitment = {
@@ -34,7 +26,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, pending, today } = await request.json();
+    const { message, pending, today, customerContext } = await request.json();
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -71,7 +63,21 @@ export async function POST(request: NextRequest) {
 
     const systemPrompt = `You are Pakki Baat's friendly small-business assistant. Today is ${
       today || new Date().toISOString().slice(0, 10)
-    }. Help users who may be more comfortable with WhatsApp and a handwritten hisaab book.\n\nFirst detect whether the message is mainly a REMINDER request (for example: remind me tomorrow to call Sakina; every Friday remind me to check baki) or a COMMITMENT/payment/order message.\n\nFor a reminder, return ONLY JSON: {"intent":"reminder","reminder":{"text":"what to remember","date":"YYYY-MM-DD","time":"HH:MM or empty","customer":"optional name","repeat":"none|daily|weekly|monthly"},"nextQuestion":"only if date is missing, otherwise null"}. Resolve relative dates using today. If user says morning use 09:00, afternoon 15:00, evening 19:00.\n\nFor a commitment, set intent to commitment and follow these rules.\n\nExtract commitment details from natural conversation.
+    }. Help users who may be more comfortable with WhatsApp and a handwritten hisaab book.\n\nIf customerContext is provided, the user is already inside that customer's book. Use that customer automatically and never ask their name again.
+
+First detect whether the message is mainly:
+- a REMINDER request (for example: remind me tomorrow to call Sakina; every Friday remind me to check baki) - a PAYMENT UPDATE (for example: "paid 500", "gave another 1000", "received 300")
+- a CUSTOMER NOTE (for example: "note that she wants less sugar")
+- or a new COMMITMENT/order/work message.
+
+For a PAYMENT UPDATE when customerContext is present, return ONLY JSON:
+{"intent":"payment","payment":{"amount":500,"date":"YYYY-MM-DD","note":"optional short note"},"nextQuestion":null}
+If the amount is missing, nextQuestion should ask only for the amount.
+
+For a CUSTOMER NOTE when customerContext is present, return ONLY JSON:
+{"intent":"note","note":{"text":"the note"},"nextQuestion":null}
+
+For a reminder, return ONLY JSON: {"intent":"reminder","reminder":{"text":"what to remember","date":"YYYY-MM-DD","time":"HH:MM or empty","customer":"optional name","repeat":"none|daily|weekly|monthly"},"nextQuestion":"only if date is missing, otherwise null"}. Resolve relative dates using today. If user says morning use 09:00, afternoon 15:00, evening 19:00.\n\nFor a commitment, set intent to commitment and follow these rules.\n\nExtract commitment details from natural conversation.
 
 Extract information from the user's message and update the commitment. Return ONLY a JSON object.
 
@@ -112,7 +118,7 @@ The nextQuestion should ask for the MOST IMPORTANT missing field:
 - If everything is known but not confirmed: ask for confirmation
 - If confirmed: return null (we're done)`;
 
-    const userPrompt = `User message: "${message}"${contextText}
+    const userPrompt = `Customer context: ${customerContext || "none"}\nUser message: "${message}"${contextText}
 
 Extract information and determine the next question.`;
 
@@ -161,6 +167,22 @@ Extract information and determine the next question.`;
         reminder: parsed.reminder || null,
         nextQuestion: parsed.nextQuestion || null,
         isComplete: Boolean(parsed.reminder?.date && !parsed.nextQuestion),
+      });
+    }
+
+    if (parsed.intent === "payment") {
+      return NextResponse.json({
+        intent: "payment",
+        payment: parsed.payment || null,
+        nextQuestion: parsed.nextQuestion || null,
+      });
+    }
+
+    if (parsed.intent === "note") {
+      return NextResponse.json({
+        intent: "note",
+        note: parsed.note || null,
+        nextQuestion: parsed.nextQuestion || null,
       });
     }
 
