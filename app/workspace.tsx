@@ -189,7 +189,7 @@ export default function Workspace() {
     [loggedIn, setLoggedIn] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
-    [dark, setDark] = useState(false);
+    [dark, setDark] = useState(false),\n    [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -824,27 +824,18 @@ export default function Workspace() {
     <button className="job" key={j.id} onClick={() => setDraft(j)}>
       <span className="avatar">{j.customer[0]}</span>
       <span className="job-main">
-        <strong>{j.customer}</strong>
-        <span>{j.work}</span>
-        <small>
-          {j.date
-            ? new Date(j.date + "T12:00:00").toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-              })
-            : "Date to be agreed"}
-          {j.time ? " · " + j.time : ""}
-        </small>
+        <strong>{j.work}</strong>
+        <span>{j.customer}</span>
+        <small>{j.date ? new Date(j.date + "T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"}) : "Date to be agreed"}{j.time ? " · " + j.time : ""}</small>
       </span>
-      <span className="job-end">
-        <strong>{money(j.total - j.paid)}</strong>
-        <span className={j.status === "Confirmed" ? "tag green" : "tag"}>
-          {j.status}
-        </span>
-      </span>
-      <Icon name="arrow" size={16} />
+      <span className="job-end"><strong>{money(j.total-j.paid)} baki</strong><span className={j.status==="Confirmed"?"tag green":"tag"}>{j.status}</span></span>
+      <Icon name="arrow" size={16}/>
     </button>
   );
+  const customerNames = Array.from(new Set(jobs.map(j=>j.customer))).filter(Boolean);
+  const customerJobs = selectedCustomer ? jobs.filter(j=>j.customer===selectedCustomer) : [];
+  const customerReminders = selectedCustomer ? reminders.filter(r=>r.customer===selectedCustomer && !r.done) : [];
+  const selectedBaki = customerJobs.reduce((sum,j)=>sum+j.total-j.paid,0);
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1520,53 +1511,60 @@ export default function Workspace() {
           )}
           {tab === "Customers" && (
             <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">THE PEOPLE BEHIND YOUR BUSINESS</div>
-                  <h1>Your customers</h1>
-                  <p>Every conversation, a little easier to remember.</p>
-                </div>
-              </div>
-              <label className="search">
-                <Icon name="search" />
-                <input
-                  aria-label="Search customers"
-                  placeholder="Find a customer…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
-              <div className="customer-grid">
-                {Array.from(new Set(jobs.map((j) => j.customer)))
-                  .filter((c) => c.toLowerCase().includes(query.toLowerCase()))
-                  .map((c) => {
-                    const cj = jobs.filter((j) => j.customer === c);
-                    return (
-                      <button
-                        className="customer-card"
-                        key={c}
-                        onClick={() => {
-                          go("Hisaab");
-                          setQuery(c);
-                        }}
-                      >
-                        <span className="avatar large">{c[0]}</span>
-                        <h3>{c}</h3>
-                        <p>{cj.length} commitments</p>
-                        <strong>
-                          {money(cj.reduce((a, j) => a + j.total - j.paid, 0))}{" "}
-                          to collect
-                        </strong>
-                        <span>View history →</span>
-                      </button>
-                    );
-                  })}
-              </div>
-              {!jobs.length && (
-                <div className="empty">
-                  <h3>Your customers will appear here</h3>
-                  <p>Create a commitment to add your first customer.</p>
-                </div>
+              {!selectedCustomer ? (
+                <>
+                  <div className="page-heading customer-heading">
+                    <div>
+                      <div className="eyebrow">YOUR CUSTOMER BOOK</div>
+                      <h1>Customers</h1>
+                      <p>Open a customer to see their orders, payments, baki and reminders together.</p>
+                    </div>
+                    <button className="primary mobile-add-customer" onClick={() => { go("My assistant"); setMessage("New customer: "); }}>+ Add new</button>
+                  </div>
+                  <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
+                  <div className="customer-list-mobile">
+                    {customerNames.filter(name=>name.toLowerCase().includes(query.toLowerCase())).map(name=>{
+                      const entries=jobs.filter(j=>j.customer===name);
+                      const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
+                      const latest=entries[0];
+                      return <button className="customer-row-card" key={name} onClick={()=>setSelectedCustomer(name)}>
+                        <span className="avatar large">{name[0]}</span>
+                        <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Customer"} · {entries.length} {entries.length===1?"entry":"entries"}</small></span>
+                        <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
+                        <Icon name="arrow" size={17}/>
+                      </button>;
+                    })}
+                  </div>
+                  {!customerNames.length && <div className="empty"><h3>No customers yet</h3><p>Tap Add new and tell Pakki Baat the customer name and what happened.</p><button className="primary" onClick={()=>{go("My assistant");setMessage("New customer: ");}}>+ Add first customer</button></div>}
+                </>
+              ) : (
+                <section className="customer-detail">
+                  <button className="text-button customer-back" onClick={()=>setSelectedCustomer(null)}>← All customers</button>
+                  <div className="customer-profile-head">
+                    <span className="avatar large">{selectedCustomer[0]}</span>
+                    <div><h1>{selectedCustomer}</h1><p>{customerJobs.length} {customerJobs.length===1?"entry":"entries"} in this customer book</p></div>
+                  </div>
+                  <div className="customer-summary-strip">
+                    <div><small>Total business</small><strong>{money(customerJobs.reduce((s,j)=>s+j.total,0))}</strong></div>
+                    <div><small>Received</small><strong>{money(customerJobs.reduce((s,j)=>s+j.paid,0))}</strong></div>
+                    <div className="baki"><small>Baki</small><strong>{money(selectedBaki)}</strong></div>
+                  </div>
+                  <div className="customer-quick-actions">
+                    <button className="primary" onClick={()=>{go("My assistant");setMessage(selectedCustomer+" ");}}>+ Add update</button>
+                    <button className="outline" onClick={()=>{go("My assistant");setMessage("Remind me about "+selectedCustomer+" ");}}><Icon name="bell" size={17}/> Reminder</button>
+                  </div>
+                  <div className="customer-book-section">
+                    <div className="section-title-row"><div><span className="eyebrow">HISAAB & WORK</span><h2>History</h2></div></div>
+                    <div className="customer-timeline">
+                      {customerJobs.map(j=><button className="customer-timeline-entry" key={j.id} onClick={()=>setDraft(j)}>
+                        <span className="timeline-dot"/>
+                        <span className="timeline-content"><strong>{j.work}</strong><small>{j.date || "No date"}{j.time?" · "+j.time:""}</small><span>Total {money(j.total)} · Received {money(j.paid)}</span></span>
+                        <span className="timeline-baki"><strong>{money(j.total-j.paid)}</strong><small>baki</small></span>
+                      </button>)}
+                    </div>
+                  </div>
+                  {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small></div>)}</div>}
+                </section>
               )}
             </>
           )}
