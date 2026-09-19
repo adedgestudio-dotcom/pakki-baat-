@@ -3,6 +3,18 @@ import { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
+const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
+const DEPRECATED_GROQ_MODELS = new Set([
+  "llama-3.1-8b-instant",
+  "llama-3.3-70b-versatile",
+]);
+function groqModel() {
+  const configured = process.env.GROQ_EXTRACTION_MODEL?.trim();
+  return configured && !DEPRECATED_GROQ_MODELS.has(configured)
+    ? configured
+    : DEFAULT_GROQ_MODEL;
+}
+
 function isTimeoutError(error: unknown) {
   return (
     error instanceof Error &&
@@ -240,7 +252,7 @@ Rules:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: process.env.GROQ_EXTRACTION_MODEL || "openai/gpt-oss-20b",
+          model: groqModel(),
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
