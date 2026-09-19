@@ -555,6 +555,8 @@ export default function Workspace() {
       setUserName(null);
       setUserEmail(null);
       setReminders([]);
+      setPayments([]);
+      setNotes([]);
       setJobs([]);
       setChatTurns([]);
       setPendingJob(null);
@@ -872,6 +874,8 @@ export default function Workspace() {
   function restore(s: Snapshot) {
     setJobs(s.jobs);
     setReminders(s.reminders || []);
+    setPayments(s.payments || []);
+    setNotes(s.notes || []);
     setOwner(s.owner);
     setBusiness(s.business);
     setChatTurns([]);
@@ -1696,7 +1700,7 @@ export default function Workspace() {
                   onClick={() =>
                     download(
                       JSON.stringify(
-                        { jobs, owner, business, reminders },
+                        { jobs, owner, business, reminders, payments, notes },
                         null,
                         2
                       ),
@@ -1719,7 +1723,7 @@ export default function Workspace() {
                   />
                 </label>
                 <CloudSettings
-                  snapshot={{ jobs, owner, business, reminders }}
+                  snapshot={{ jobs, owner, business, reminders, payments, notes }}
                   onRestore={restore}
                   dark={dark}
                   onToggleTheme={toggleTheme}
