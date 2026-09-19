@@ -1642,7 +1642,9 @@ export default function Workspace() {
                   </div>
                   <div className="customer-quick-actions">
                     <button className="primary" onClick={()=>openCustomerAssistant()}>+ Add update</button>
+                    <button className="outline" onClick={()=>openCustomerAssistant("Received ₹")} >₹ Add payment</button>
                     <button className="outline" onClick={()=>openCustomerAssistant("Remind me ")}><Icon name="bell" size={17}/> Add reminder</button>
+                    <button className="outline" onClick={()=>openCustomerAssistant("Note: ")}>Add note</button>
                   </div>
                   <div className="customer-book-section">
                     <div className="section-title-row"><div><span className="eyebrow">HISAAB & WORK</span><h2>History</h2></div></div>
