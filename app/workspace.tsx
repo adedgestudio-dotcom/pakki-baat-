@@ -654,6 +654,7 @@ export default function Workspace() {
             customer: result.reminder.customer
               ? String(result.reminder.customer)
               : selectedCustomer || undefined,
+            jobId: pendingJob?.id,
             repeat: ["daily", "weekly", "monthly"].includes(
               result.reminder.repeat
             )
@@ -1607,7 +1608,7 @@ export default function Workspace() {
                         {chatTurns.filter(turn=>turn.customer===selectedCustomer).map(turn=><div key={turn.id} className={`chat-turn ${turn.role==="me"?"from-me":"from-assistant"}`}>
                           <span className="chat-speaker">{turn.role==="me"?"You":"Pakki Baat"}</span>
                           <div className="chat-turn-text">{turn.text}</div>
-                          {turn.replyFor && <div className="saved-detail-card"><strong>{turn.replyFor.work}</strong><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div></dl><div className="chat-turn-actions">{!jobs.some(j=>j.id===turn.replyFor!.id) && <button type="button" className="primary" onClick={()=>savePendingEntry(turn.replyFor!)}>Save entry</button>}<button type="button" onClick={()=>copy(replyText(turn.replyFor!))}>Copy</button><button type="button" disabled title="Coming soon">Send on WhatsApp</button><button type="button" onClick={()=>setDraft(turn.replyFor!)}>Edit details</button></div></div>}
+                          {turn.replyFor && <div className="saved-detail-card"><strong>{turn.replyFor.work}</strong><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div></dl><div className="chat-turn-actions">{!jobs.some(j=>j.id===turn.replyFor!.id) && <button type="button" className="primary" onClick={()=>savePendingEntry(turn.replyFor!)}>Save entry</button>}<button type="button" onClick={()=>copy(replyText(turn.replyFor!))}>Copy</button><button type="button" disabled title="Coming soon">Send on WhatsApp</button><button type="button" onClick={()=>setDraft(turn.replyFor!)}>Edit details</button><button type="button" onClick={()=>{setPendingJob(turn.replyFor!);setPendingReminderText("");setMessage("Remind me ");setToast("Tell me when you want this reminder.");}}>Set reminder</button></div></div>}
                         </div>)}
                       </div>
                       <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
