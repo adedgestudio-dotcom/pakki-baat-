@@ -245,6 +245,8 @@ export default function Workspace() {
         } else {
           setJobs([]);
           setReminders([]);
+          setPayments([]);
+          setNotes([]);
           setOwner("");
           setBusiness("My small business");
           setChatTurns([]);
