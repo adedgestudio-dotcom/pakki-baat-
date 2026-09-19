@@ -112,7 +112,8 @@ function accountNameFromEmail(session: Session | null) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
-const LOCAL_WORKSPACE_ID = "local";\nconst localWorkspaceKey = (userId: string) =>
+const LOCAL_WORKSPACE_ID = "local";
+const localWorkspaceKey = (userId: string) =>
   "pakki-baat-workspace:" + userId;
 function readLocalWorkspace(userId: string) {
   try {
