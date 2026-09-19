@@ -3034,3 +3034,10 @@ select:focus-visible {
 .new-customer-modal form{display:grid;gap:14px}.new-customer-modal label{display:grid;gap:8px;font-size:12px;font-weight:700}.new-customer-modal input{width:100%;min-height:52px;border:1px solid var(--line,#d9d6cd);border-radius:14px;padding:0 15px;background:transparent;color:inherit;font:inherit;outline:none}.new-customer-modal input:focus{border-color:#2c755f;box-shadow:0 0 0 3px rgba(44,117,95,.12)}.new-customer-modal form .primary{min-height:50px;justify-content:center;margin-top:4px}
 [data-theme="dark"] .new-customer-modal{background:#17271f;border-color:#31483d}[data-theme="dark"] .new-customer-icon{background:#203b30;color:#cfe3d6}[data-theme="dark"] .new-customer-modal>p{color:#a7b9af}[data-theme="dark"] .new-customer-modal input{border-color:#40584c}
 @media(max-width:560px){.new-customer-modal{padding:26px 20px 20px;border-radius:20px}.new-customer-modal h2{font-size:24px}}
+
+.customer-chat-closed{display:flex;justify-content:flex-end;margin:0 0 18px}
+.saved-entry-grid{display:grid;gap:12px}
+.customer-saved-card{padding:16px;border-radius:16px}
+.customer-saved-card .chat-turn-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.customer-saved-card .chat-turn-actions button{min-height:38px}
+@media(max-width:560px){.customer-saved-card .chat-turn-actions button{flex:1 1 calc(50% - 5px)}}
