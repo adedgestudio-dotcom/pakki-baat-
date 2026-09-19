@@ -3062,3 +3062,280 @@ select:focus-visible {
 [data-theme="dark"] .entry-choice{background:#17271f;border-color:#31483d}[data-theme="dark"] .entry-choice p{color:#a7b9af}[data-theme="dark"] .entry-mode-tabs button.active{background:#20372c}[data-theme="dark"] .inline-entry-form input,[data-theme="dark"] .inline-entry-form textarea{border-color:#40584c}
 @media(max-width:640px){.entry-choice{align-items:stretch;flex-direction:column;padding:17px}.entry-choice-actions{display:grid;grid-template-columns:1fr 1fr}.entry-choice-actions button{justify-content:center}.entry-mode-tabs{display:grid;grid-template-columns:1fr 1fr;width:100%}.inline-form-grid{grid-template-columns:1fr}.inline-entry-form .smart-save{position:sticky;bottom:74px;z-index:2}}
 @media(max-width:380px){.entry-choice-actions{grid-template-columns:1fr}}
+
+
+/* Entry polish — clearer mode switch, cleaner quick input, no native number spinners */
+.inline-entry-form input[type="number"]::-webkit-outer-spin-button,
+.inline-entry-form input[type="number"]::-webkit-inner-spin-button,
+.modal input[type="number"]::-webkit-outer-spin-button,
+.modal input[type="number"]::-webkit-inner-spin-button{
+  -webkit-appearance:none;
+  margin:0;
+}
+.inline-entry-form input[type="number"],
+.modal input[type="number"]{
+  -moz-appearance:textfield;
+  appearance:textfield;
+}
+
+.entry-mode-tabs{
+  display:inline-grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+  min-width:260px;
+  padding:5px;
+  margin:0 0 18px;
+  border:1px solid rgba(74,110,94,.18);
+  border-radius:15px;
+  background:rgba(82,111,96,.08);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+}
+.entry-mode-tabs button{
+  min-height:42px;
+  border:1px solid transparent;
+  border-radius:11px;
+  padding:9px 15px;
+  background:transparent;
+  color:#6f7f76;
+  font-weight:750;
+  cursor:pointer;
+  transition:background .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.entry-mode-tabs button:hover{
+  color:#244b3e;
+  background:rgba(45,118,103,.08);
+  border-color:rgba(45,118,103,.12);
+}
+.entry-mode-tabs button:active{transform:translateY(1px)}
+.entry-mode-tabs button.active{
+  background:#2d7667;
+  color:#fff;
+  border-color:#2d7667;
+  box-shadow:0 7px 18px rgba(24,76,61,.20);
+}
+[data-theme="dark"] .entry-mode-tabs{
+  background:#102119;
+  border-color:#2e493d;
+}
+[data-theme="dark"] .entry-mode-tabs button{
+  color:#a9bbb1;
+}
+[data-theme="dark"] .entry-mode-tabs button:hover{
+  color:#f3f7f4;
+  background:#18352a;
+  border-color:#2e5948;
+}
+[data-theme="dark"] .entry-mode-tabs button.active{
+  color:#fff;
+  background:#2f806d;
+  border-color:#41937e;
+  box-shadow:0 7px 20px rgba(0,0,0,.24);
+}
+
+/* Entry chooser should never look disabled */
+.entry-choice-actions .outline{
+  background:transparent;
+  color:inherit;
+  border:1px solid rgba(74,110,94,.32);
+}
+.entry-choice-actions .outline:hover{
+  background:rgba(45,118,103,.08);
+  border-color:#2d7667;
+  color:#245746;
+  transform:translateY(-1px);
+}
+.entry-choice-actions .primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 8px 20px rgba(24,76,61,.18);
+}
+[data-theme="dark"] .entry-choice-actions .outline{
+  background:#14261e;
+  color:#d9e5dd;
+  border-color:#39574a;
+}
+[data-theme="dark"] .entry-choice-actions .outline:hover{
+  background:#1d382d;
+  color:#fff;
+  border-color:#4e806c;
+}
+
+/* Smart quick-entry field */
+.smart-entry-panel .composer{
+  padding:0;
+  margin-top:2px;
+  background:transparent !important;
+}
+.smart-input-shell{
+  padding:14px;
+  border:1px solid #c9d7cf;
+  border-radius:20px;
+  background:linear-gradient(180deg,#fbfdfb 0%,#f6faf7 100%);
+  box-shadow:0 8px 24px rgba(28,65,51,.055);
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.smart-input-shell:focus-within{
+  border-color:#2d7667;
+  box-shadow:0 0 0 3px rgba(45,118,103,.10),0 12px 28px rgba(28,65,51,.08);
+}
+.smart-input-topline{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:0 2px 10px;
+  color:#87968e;
+  font-size:10px;
+  font-weight:650;
+  letter-spacing:.02em;
+}
+.smart-input-status{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  color:#527165;
+}
+.smart-input-status i{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#2d8b72;
+  box-shadow:0 0 0 4px rgba(45,139,114,.10);
+}
+.smart-input-shell .chat-compose-row{
+  display:grid;
+  grid-template-columns:46px minmax(0,1fr);
+  gap:10px;
+  align-items:stretch;
+  padding:0;
+  background:transparent !important;
+}
+.smart-input-shell .desktop-input-actions{
+  display:flex;
+  align-items:flex-end;
+}
+.smart-input-shell .chat-attach-button{
+  width:46px;
+  height:46px;
+  border:1px solid #d4ded8;
+  border-radius:14px;
+  background:#fff;
+  color:#6f8278;
+}
+.smart-input-shell .chat-attach-button:hover{
+  background:#eef6f1;
+  border-color:#9fc1b3;
+  color:#2d7667;
+  transform:translateY(-1px);
+}
+.smart-input-shell .input-with-mic{
+  min-width:0;
+}
+.smart-input-shell .input-with-mic textarea{
+  min-height:92px;
+  max-height:180px;
+  width:100%;
+  resize:vertical;
+  border:1px solid #d4ded8;
+  border-radius:16px;
+  background:#fff;
+  color:#18372d;
+  padding:15px 64px 15px 16px;
+  font-size:14px;
+  line-height:1.5;
+  box-shadow:none;
+}
+.smart-input-shell .input-with-mic textarea::placeholder{
+  color:#90a198;
+}
+.smart-input-shell .input-with-mic textarea:focus{
+  border-color:#4b8b76;
+  box-shadow:0 0 0 3px rgba(45,118,103,.08);
+}
+.smart-input-shell .input-mic-button{
+  right:10px;
+}
+.smart-input-shell .whatsapp-mic-button,
+.smart-input-shell .send-icon-button{
+  width:46px;
+  height:46px;
+  border-radius:14px;
+  box-shadow:0 6px 16px rgba(33,106,86,.18);
+}
+.smart-input-shell .whatsapp-mic-button:hover,
+.smart-input-shell .send-icon-button:hover:not(:disabled){
+  transform:translateY(-1px);
+  box-shadow:0 9px 20px rgba(33,106,86,.23);
+}
+.smart-input-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 2px 0;
+  color:#819087;
+  font-size:10px;
+}
+.smart-input-footer span:last-child{
+  flex:0 0 auto;
+  font-variant-numeric:tabular-nums;
+}
+
+[data-theme="dark"] .smart-input-shell{
+  background:linear-gradient(180deg,#13261e 0%,#102019 100%);
+  border-color:#2e493d;
+  box-shadow:0 10px 26px rgba(0,0,0,.18);
+}
+[data-theme="dark"] .smart-input-shell:focus-within{
+  border-color:#4a917a;
+  box-shadow:0 0 0 3px rgba(64,143,117,.13),0 12px 28px rgba(0,0,0,.20);
+}
+[data-theme="dark"] .smart-input-topline,
+[data-theme="dark"] .smart-input-footer{
+  color:#8fa399;
+}
+[data-theme="dark"] .smart-input-status{
+  color:#b8c9c0;
+}
+[data-theme="dark"] .smart-input-shell .chat-attach-button{
+  background:#0e1b16;
+  border-color:#2d463a;
+  color:#9db0a6;
+}
+[data-theme="dark"] .smart-input-shell .chat-attach-button:hover{
+  background:#193329;
+  border-color:#4b806d;
+  color:#dcebe4;
+}
+[data-theme="dark"] .smart-input-shell .input-with-mic textarea{
+  background:#0b1813;
+  border-color:#2d463a;
+  color:#f1f5f2;
+}
+[data-theme="dark"] .smart-input-shell .input-with-mic textarea::placeholder{
+  color:#71867b;
+}
+[data-theme="dark"] .smart-input-shell .input-with-mic textarea:focus{
+  border-color:#4a917a;
+}
+
+@media(max-width:640px){
+  .entry-mode-tabs{width:100%;min-width:0}
+  .entry-mode-tabs button{min-height:44px;padding:9px 10px}
+  .smart-input-shell{padding:10px;border-radius:17px}
+  .smart-input-topline{padding-bottom:8px}
+  .smart-input-shell .chat-compose-row{grid-template-columns:1fr}
+  .smart-input-shell .desktop-input-actions{display:none}
+  .smart-input-shell .input-with-mic textarea{
+    min-height:104px;
+    border-radius:15px;
+    padding:14px 58px 14px 14px;
+    font-size:15px;
+  }
+  .smart-input-shell .whatsapp-mic-button,
+  .smart-input-shell .send-icon-button{
+    width:42px;
+    height:42px;
+    border-radius:13px;
+  }
+  .smart-input-footer span:first-child{max-width:75%}
+}
