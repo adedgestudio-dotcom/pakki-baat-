@@ -1373,6 +1373,27 @@ export default function Workspace() {
                   <Icon name="arrow" size={18} />
                 </button>
               </section>
+              {(due.length > 0 || reminders.some(r=>!r.done && r.date<=day())) && (
+                <section className="today-focus">
+                  <div className="section-heading">
+                    <div><span className="eyebrow">TODAY'S FOCUS</span><h2>What needs your attention</h2></div>
+                  </div>
+                  <div className="today-focus-list">
+                    {due.slice(0,3).map(j=><button type="button" key={j.id} className="today-focus-item" onClick={()=>{setSelectedCustomer(j.customer);setCustomerChatOpen(false);setTab("Hisaab");}}>
+                      <span className="today-focus-icon"><Icon name="clock" size={17}/></span>
+                      <span><strong>{j.customer}</strong><small>{j.work}</small></span>
+                      <b>{j.total>j.paid ? money(j.total-j.paid)+" baki" : "Due"}</b>
+                      <Icon name="arrow" size={16}/>
+                    </button>)}
+                    {reminders.filter(r=>!r.done && r.date<=day()).slice(0,3).map(r=><button type="button" key={r.id} className="today-focus-item" onClick={()=>{if(r.customer){setSelectedCustomer(r.customer);setCustomerChatOpen(false);setTab("Hisaab");}}}>
+                      <span className="today-focus-icon"><Icon name="bell" size={17}/></span>
+                      <span><strong>{r.customer || "Reminder"}</strong><small>{r.text}</small></span>
+                      <b>{r.time || "Today"}</b>
+                      <Icon name="arrow" size={16}/>
+                    </button>)}
+                  </div>
+                </section>
+              )}
               <section className="today-reminders">
                 <div className="section-heading">
                   <div>
