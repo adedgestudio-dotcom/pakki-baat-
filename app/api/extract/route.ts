@@ -40,24 +40,6 @@ export async function POST(req: NextRequest) {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publicKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const missingConfig = [
-    !apiKey && "GROQ_API_KEY",
-    !base && "NEXT_PUBLIC_SUPABASE_URL",
-    !publicKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    !service && "SUPABASE_SERVICE_ROLE_KEY",
-  ].filter(Boolean);
-
-  if (missingConfig.length) {
-    return Response.json(
-      {
-        error:
-          "AI is not configured. Missing server setup: " +
-          missingConfig.join(", ") +
-          ". Add these in Vercel Environment Variables, then redeploy.",
-      },
-      { status: 503 }
-    );
-  }
 
   if (Number(req.headers.get("content-length") || 0) > 3_000_000) {
     return Response.json(
@@ -66,38 +48,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) {
-    return Response.json(
-      { error: "Continue with Google in Settings to use AI." },
-      { status: 401 }
-    );
-  }
-
   try {
-    // Verify user
-    const userResponse = await fetch(`${base}/auth/v1/user`, {
-      headers: { apikey: publicKey as string, Authorization: auth },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!userResponse.ok) {
-      return Response.json(
-        { error: "Your sign-in expired. Please sign in again." },
-        { status: 401 }
-      );
-    }
-
-    const user = await userResponse.json();
     const form = await req.formData();
     const file = form.get("file");
     const text = String(form.get("text") || "").slice(0, 6000);
     const date = String(form.get("today") || "");
     const mode = String(form.get("mode") || "extract");
 
-    console.log("📝 Mode:", mode);
-    console.log("📄 Has file:", !!file);
-    console.log("💬 Has text:", !!text);
+    if (!apiKey) {
+      return Response.json(
+        { error: "Voice AI is not configured yet." },
+        { status: 503 }
+      );
+    }
 
     if (mode !== "extract" && mode !== "transcribe") {
       return Response.json({ error: "Invalid capture mode." }, { status: 400 });
@@ -145,32 +108,74 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Add a message first." }, { status: 400 });
     }
 
-    // Check AI credit
-    const credit = await fetch(`${base}/rest/v1/rpc/consume_ai_credit`, {
-      method: "POST",
-      headers: {
-        apikey: service as string,
-        Authorization: `Bearer ${service}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ user_id: user.id }),
-      signal: AbortSignal.timeout(10000),
-    });
+    // Quick-entry voice transcription should behave like typed Quick Entry.
+    // It is intentionally usable before sign-in; cloud-backed extraction still requires auth.
+    if (mode !== "transcribe") {
+      const missingConfig = [
+        !base && "NEXT_PUBLIC_SUPABASE_URL",
+        !publicKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        !service && "SUPABASE_SERVICE_ROLE_KEY",
+      ].filter(Boolean);
 
-    if (!credit.ok) {
-      throw new Error(
-        "Usage limits are not configured. Ask the creator to run the database setup."
-      );
-    }
+      if (missingConfig.length) {
+        return Response.json(
+          {
+            error:
+              "AI is not configured. Missing server setup: " +
+              missingConfig.join(", ") +
+              ". Add these in Vercel Environment Variables, then redeploy.",
+          },
+          { status: 503 }
+        );
+      }
 
-    if (!(await credit.json())) {
-      return Response.json(
-        {
-          error:
-            "You have used today's 30 AI captures. Manual entry still works.",
+      const auth = req.headers.get("authorization");
+      if (!auth?.startsWith("Bearer ")) {
+        return Response.json(
+          { error: "Continue with Google in Settings to use this AI capture." },
+          { status: 401 }
+        );
+      }
+
+      const userResponse = await fetch(`${base}/auth/v1/user`, {
+        headers: { apikey: publicKey as string, Authorization: auth },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!userResponse.ok) {
+        return Response.json(
+          { error: "Your sign-in expired. Please sign in again." },
+          { status: 401 }
+        );
+      }
+
+      const user = await userResponse.json();
+      const credit = await fetch(`${base}/rest/v1/rpc/consume_ai_credit`, {
+        method: "POST",
+        headers: {
+          apikey: service as string,
+          Authorization: `Bearer ${service}`,
+          "Content-Type": "application/json",
         },
-        { status: 429 }
-      );
+        body: JSON.stringify({ user_id: user.id }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!credit.ok) {
+        throw new Error(
+          "Usage limits are not configured. Ask the creator to run the database setup."
+        );
+      }
+
+      if (!(await credit.json())) {
+        return Response.json(
+          {
+            error:
+              "You have used today's 30 AI captures. Manual entry still works.",
+          },
+          { status: 429 }
+        );
+      }
     }
 
     let transcript = text;
