@@ -4390,3 +4390,379 @@ select:focus-visible {
     min-height:50px;
   }
 }
+
+
+/* Usability upgrades: customer actions, statuses, payments, saved phone, Today focus */
+.customer-phone-link{
+  display:inline-flex;
+  align-items:center;
+  margin-top:5px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#4d7869;
+  font-size:10px;
+  font-weight:650;
+  text-align:left;
+}
+.customer-phone-link:hover{color:#245f4d;text-decoration:underline}
+.customer-action-strip{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:-5px 0 18px;
+}
+.customer-action-strip button{
+  min-height:42px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:9px 13px;
+  border-radius:11px;
+  font-size:11px;
+  font-weight:700;
+}
+.entry-status-chips{
+  display:flex !important;
+  grid-template-columns:none !important;
+  gap:6px !important;
+  margin-top:4px;
+}
+.entry-status-chips button{
+  min-height:32px;
+  padding:6px 10px;
+  border:1px solid #d4e0d9;
+  border-radius:999px;
+  background:rgba(255,255,255,.55);
+  color:#698078;
+  font-size:10px;
+  font-weight:750;
+}
+.entry-status-chips button.active{
+  background:#2d7667;
+  border-color:#2d7667;
+  color:#fff;
+}
+.entry-status-chips button:hover:not(.active){
+  border-color:#90b4a5;
+  background:#fff;
+}
+.customer-saved-card .payment-action{
+  background:#fff7e8;
+  border-color:#ead3a6;
+  color:#8b6423;
+}
+.customer-saved-card .payment-action:hover{
+  background:#fff1d4;
+  border-color:#d7b66d;
+}
+[data-theme="dark"] .customer-phone-link{color:#8fc2ae}
+[data-theme="dark"] .entry-status-chips button{
+  background:#12231c;
+  border-color:#345145;
+  color:#9eb4a9;
+}
+[data-theme="dark"] .entry-status-chips button.active{
+  background:#4a927b;
+  border-color:#4a927b;
+  color:#fff;
+}
+[data-theme="dark"] .customer-saved-card .payment-action{
+  background:#332b1b;
+  border-color:#5f5131;
+  color:#e4c47f;
+}
+
+/* Quick payment + customer phone modal */
+.quick-payment-modal,
+.phone-editor-modal{
+  position:relative;
+  width:min(420px,calc(100vw - 28px));
+  padding:27px 24px 22px;
+  border:1px solid #d8e3dc;
+  border-radius:22px;
+  background:#fffdf8;
+  box-shadow:0 24px 70px rgba(21,48,38,.20);
+}
+.quick-payment-close,
+.phone-editor-close{
+  position:absolute;
+  top:13px;
+  right:13px;
+}
+.quick-payment-modal h2,
+.phone-editor-modal h2{
+  margin:5px 0 6px;
+  font-family:Georgia,serif;
+  font-size:26px;
+  font-weight:400;
+  color:#20352d;
+}
+.quick-payment-modal>p,
+.phone-editor-modal>p{
+  margin:0 0 16px;
+  font-size:12px;
+  color:#718079;
+}
+.quick-payment-baki{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 13px;
+  margin-bottom:15px;
+  border-radius:13px;
+  background:#f3f7ef;
+  border:1px solid #dce7d9;
+}
+.quick-payment-baki strong{font-size:18px;color:#a45d42}
+.quick-payment-modal form,
+.phone-editor-modal form{
+  display:grid;
+  gap:13px;
+}
+.quick-payment-modal label,
+.phone-editor-modal label{
+  display:grid;
+  gap:7px;
+  font-size:12px;
+  font-weight:700;
+}
+.quick-payment-modal input,
+.phone-editor-modal input{
+  min-height:48px;
+  border-radius:13px;
+  font-size:15px;
+}
+.quick-payment-modal form .primary,
+.phone-editor-modal form .primary{
+  min-height:47px;
+  justify-content:center;
+}
+[data-theme="dark"] .quick-payment-modal,
+[data-theme="dark"] .phone-editor-modal{
+  background:#17271f;
+  border-color:#31483d;
+}
+[data-theme="dark"] .quick-payment-modal h2,
+[data-theme="dark"] .phone-editor-modal h2{color:#edf4ef}
+[data-theme="dark"] .quick-payment-modal>p,
+[data-theme="dark"] .phone-editor-modal>p{color:#a8b9b0}
+[data-theme="dark"] .quick-payment-baki{
+  background:#13241c;
+  border-color:#334e41;
+}
+
+/* WhatsApp free-writing controls */
+.whatsapp-send-modal textarea{
+  min-height:122px;
+  max-height:240px;
+  resize:vertical;
+  border-radius:13px;
+  font-size:14px;
+  line-height:1.5;
+}
+.whatsapp-save-number{
+  display:flex !important;
+  grid-template-columns:none !important;
+  align-items:center;
+  gap:9px !important;
+  font-weight:600 !important;
+  color:#566d63;
+}
+.whatsapp-save-number input{
+  width:17px !important;
+  height:17px !important;
+  min-height:0 !important;
+  margin:0;
+  accent-color:#2f8a5b;
+}
+.whatsapp-reset-message{
+  justify-self:start;
+  padding:4px 0;
+  border:0;
+  background:transparent;
+  color:#2d7667;
+  font-size:11px;
+  font-weight:700;
+}
+.whatsapp-reset-message:hover{text-decoration:underline}
+[data-theme="dark"] .whatsapp-save-number{color:#abc0b5}
+[data-theme="dark"] .whatsapp-reset-message{color:#8fc8b3}
+
+/* Recent customers in New Customer */
+.recent-customers{
+  margin:15px 0 4px;
+  padding:12px;
+  border:1px solid #e0e7df;
+  border-radius:14px;
+  background:#f8faf7;
+}
+.recent-customers>small{
+  margin-bottom:8px;
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.recent-customers>div{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+}
+.recent-customers button{
+  min-height:34px;
+  padding:6px 10px;
+  border:1px solid #d3e0d8;
+  border-radius:999px;
+  background:#fff;
+  color:#355f50;
+  font-size:10px;
+  font-weight:700;
+}
+.recent-customers button:hover{
+  border-color:#8fb7a7;
+  background:#edf6f1;
+}
+[data-theme="dark"] .recent-customers{
+  background:#12231c;
+  border-color:#30483d;
+}
+[data-theme="dark"] .recent-customers button{
+  background:#1b3228;
+  border-color:#3a5a4b;
+  color:#d2e4db;
+}
+
+/* Actionable Today list */
+.today-focus{
+  margin:18px 0 20px;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:var(--card,#fff);
+  overflow:hidden;
+}
+.today-focus .section-heading{
+  padding:17px 18px 12px;
+  border-bottom:1px solid var(--line);
+}
+.today-focus-list{
+  display:grid;
+}
+.today-focus-item{
+  width:100%;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:11px;
+  padding:13px 16px;
+  border-bottom:1px solid var(--line);
+  background:transparent;
+  color:inherit;
+  text-align:left;
+}
+.today-focus-item:last-child{border-bottom:0}
+.today-focus-item:hover{background:#f8faf7}
+.today-focus-icon{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border-radius:11px;
+  background:#edf4ef;
+  color:#2d7667;
+}
+.today-focus-item>span:nth-child(2){
+  min-width:0;
+}
+.today-focus-item>span:nth-child(2) strong{
+  display:block;
+  font-size:12px;
+}
+.today-focus-item>span:nth-child(2) small{
+  margin-top:3px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.today-focus-item>b{
+  font-size:11px;
+  color:#6f7f76;
+  white-space:nowrap;
+}
+[data-theme="dark"] .today-focus{
+  background:#17271f;
+  border-color:#31483d;
+}
+[data-theme="dark"] .today-focus .section-heading,
+[data-theme="dark"] .today-focus-item{border-color:#31483d}
+[data-theme="dark"] .today-focus-item:hover{background:#1b3027}
+[data-theme="dark"] .today-focus-icon{background:#20382e;color:#8fc8b3}
+[data-theme="dark"] .today-focus-item>b{color:#abc0b5}
+
+/* Toast undo */
+.toast{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.toast button{
+  flex:0 0 auto;
+  padding:5px 9px;
+  border-radius:8px;
+  background:rgba(255,255,255,.15);
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  text-decoration:underline;
+}
+
+/* Retire old disabled WhatsApp styling now that the action is live */
+.customer-saved-card .whatsapp-soon{display:none !important}
+
+@media(max-width:560px){
+  .customer-action-strip{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px;
+    margin:-3px 0 16px;
+  }
+  .customer-action-strip button{
+    width:100%;
+    min-height:43px;
+    padding:9px 7px;
+    font-size:10px;
+  }
+  .entry-status-chips{
+    overflow-x:auto;
+    padding-bottom:1px;
+  }
+  .entry-status-chips button{
+    flex:0 0 auto;
+  }
+  .quick-payment-modal,
+  .phone-editor-modal{
+    padding:25px 18px 19px;
+    border-radius:20px;
+  }
+  .today-focus{
+    border-radius:17px;
+  }
+  .today-focus-item{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    padding:12px;
+    gap:9px;
+  }
+  .today-focus-item>b{
+    grid-column:2;
+    justify-self:start;
+    margin-top:-2px;
+  }
+  .today-focus-item>svg{
+    grid-column:3;
+    grid-row:1 / span 2;
+  }
+  .recent-customers{
+    padding:10px;
+  }
+}
