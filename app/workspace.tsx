@@ -1778,9 +1778,6 @@ export default function Workspace() {
             <>
               <div className="page-heading reminders-heading">
                 <div className="reminders-heading-copy">
-                  <button type="button" className="reminder-page-back mobile-only" onClick={()=>go("Today")} aria-label="Go back">
-                    <span aria-hidden="true">←</span> Back
-                  </button>
                   <div className="eyebrow">NOTHING TO KEEP IN YOUR HEAD</div>
                   <h1>Reminders</h1>
                   <p>See what needs a follow-up, snooze it, or mark it done.</p>
@@ -2112,7 +2109,7 @@ export default function Workspace() {
           )}
         </div>
       </main>
-      <nav className="mobile-nav">
+      <nav className="mobile-nav" aria-label="Main navigation">
         {nav.map(([t, i]) => (
           <button
             aria-label={t}
@@ -2121,15 +2118,19 @@ export default function Workspace() {
             onClick={() => go(t)}
           >
             <span className="mobile-nav-icon-wrap">
-              <Icon name={i} size={21} />
+              <Icon name={i} size={23} />
               {t==="Reminders" && activeReminders.length>0 && <b className="mobile-reminder-badge">{Math.min(99,activeReminders.length)}</b>}
             </span>
-            <span>{t}</span>
+            <span className="mobile-nav-label">{t}</span>
           </button>
         ))}
-        <button onClick={() => go("Settings")}>
-          <Icon name="settings" size={21} />
-          <span>Settings</span>
+        <button
+          aria-label="Settings"
+          className={tab === "Settings" ? "active mobile-nav-item" : "mobile-nav-item"}
+          onClick={() => go("Settings")}
+        >
+          <span className="mobile-nav-icon-wrap"><Icon name="settings" size={23} /></span>
+          <span className="mobile-nav-label">Settings</span>
         </button>
       </nav>
       {(reminderJob || directReminderOpen) && (
