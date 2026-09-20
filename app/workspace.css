@@ -5024,3 +5024,40 @@ select:focus-visible {
   border-color:#7a4b40;
   color:#f0b9ac;
 }
+
+
+/* Persistent sidebar learning entry */
+.learn-pakki-button{
+  border:1px solid #d7e4dc;
+  background:#f5faf7;
+  color:#315f50;
+}
+.learn-pakki-button:hover{
+  background:#edf6f1;
+  border-color:#a8cbbb;
+}
+.learn-pakki-icon{
+  width:22px;
+  height:22px;
+  display:grid;
+  place-items:center;
+  flex:0 0 22px;
+  border-radius:7px;
+  background:#e1f0e8;
+  color:#2d7667;
+  font-size:11px;
+  font-weight:800;
+}
+[data-theme="dark"] .learn-pakki-button{
+  background:#182b23;
+  border-color:#334d41;
+  color:#dce9e2;
+}
+[data-theme="dark"] .learn-pakki-button:hover{
+  background:#20372d;
+  border-color:#4a6d5d;
+}
+[data-theme="dark"] .learn-pakki-icon{
+  background:#254438;
+  color:#a6d2c1;
+}
