@@ -199,6 +199,8 @@ export default function Workspace() {
     [notes, setNotes] = useState<CustomerNote[]>([]),
     [newCustomerOpen, setNewCustomerOpen] = useState(false),
     [saveLoginPromptOpen, setSaveLoginPromptOpen] = useState(false),
+    [whatsappJob, setWhatsappJob] = useState<Job | null>(null),
+    [whatsappNumber, setWhatsappNumber] = useState(""),
     [newCustomerName, setNewCustomerName] = useState(""),
     [customerChatOpen, setCustomerChatOpen] = useState(false),
     [reminderJob, setReminderJob] = useState<Job | null>(null),
@@ -869,6 +871,27 @@ export default function Workspace() {
     }Total: ${money(j.total)}. Received: ${money(j.paid)}. Balance: ${money(
       j.total - j.paid
     )}. Please reply to confirm these details. Thank you!`;
+  function openWhatsApp(job: Job) {
+    setWhatsappJob(job);
+    setWhatsappNumber("");
+  }
+  function sendWhatsApp() {
+    if (!whatsappJob) return;
+    let digits = whatsappNumber.replace(/\D/g, "");
+    if (digits.length === 10) digits = "91" + digits;
+    if (digits.length < 8 || digits.length > 15) {
+      setToast("Enter a valid WhatsApp number with country code.");
+      return;
+    }
+    const url =
+      "https://wa.me/" +
+      digits +
+      "?text=" +
+      encodeURIComponent(replyText(whatsappJob));
+    window.open(url, "_blank", "noopener,noreferrer");
+    setWhatsappJob(null);
+    setWhatsappNumber("");
+  }
   async function shareFeedback() {
     try {
       if (navigator.share) {
@@ -1700,7 +1723,7 @@ export default function Workspace() {
                     </div>
                   )}
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
-                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="chat-turn-actions saved-card-actions"><button type="button" className="card-action" onClick={()=>copy(replyText(j))}><Icon name="copy" size={15}/> Copy</button><button type="button" className="card-action whatsapp-soon" disabled title="Coming soon"><Icon name="chat" size={15}/> WhatsApp <span>Soon</span></button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit details</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button></div></article>)}</div>
+                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="chat-turn-actions saved-card-actions"><button type="button" className="card-action" onClick={()=>copy(replyText(j))}><Icon name="copy" size={15}/> Copy</button><button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit details</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button></div></article>)}</div>
                   </div>
                   {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
@@ -1931,6 +1954,39 @@ export default function Workspace() {
             <div className="reminder-block"><strong>Time</strong><div className="reminder-chips"><button type="button" onClick={()=>setReminderTime("09:00")}>Morning</button><button type="button" onClick={()=>setReminderTime("15:00")}>Afternoon</button><button type="button" onClick={()=>setReminderTime("19:00")}>Evening</button><label className="date-chip"><Icon name="clock" size={16}/><input aria-label="Pick reminder time" type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)}/></label></div></div>
             <div className="reminder-block"><strong>Repeat?</strong><div className="reminder-chips">{([["none","Once"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]] as const).map(([value,label])=><button type="button" key={value} className={reminderRepeat===value?"selected":""} onClick={()=>setReminderRepeat(value)}>{label}</button>)}</div></div>
             <div className="reminder-sheet-actions"><button type="button" onClick={()=>setReminderJob(null)}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={saveReminder}>Save reminder</button></div>
+          </section>
+        </div>
+      )}
+      {whatsappJob && (
+        <div className="modal-backdrop" onClick={() => setWhatsappJob(null)}>
+          <section className="whatsapp-send-modal" role="dialog" aria-modal="true" aria-labelledby="whatsapp-send-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button whatsapp-send-close" aria-label="Close" onClick={()=>setWhatsappJob(null)}><Icon name="close"/></button>
+            <span className="whatsapp-send-icon"><Icon name="chat" size={23}/></span>
+            <span className="eyebrow">SEND ON WHATSAPP</span>
+            <h2 id="whatsapp-send-title">Customer number</h2>
+            <p>We’ll open WhatsApp with the entry details already filled in. You only need to tap Send.</p>
+            <form onSubmit={e=>{e.preventDefault();sendWhatsApp();}}>
+              <label>WhatsApp number
+                <input
+                  autoFocus
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="e.g. 9876543210"
+                  value={whatsappNumber}
+                  onChange={e=>setWhatsappNumber(e.target.value)}
+                  maxLength={20}
+                />
+              </label>
+              <small>For Indian 10-digit numbers, +91 is added automatically. Otherwise include the country code.</small>
+              <div className="whatsapp-preview">
+                <strong>{whatsappJob.customer}</strong>
+                <span>{whatsappJob.work}</span>
+              </div>
+              <button className="whatsapp-open-button" type="submit" disabled={!whatsappNumber.trim()}>
+                <Icon name="chat" size={18}/> Open WhatsApp
+              </button>
+            </form>
           </section>
         </div>
       )}
