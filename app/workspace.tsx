@@ -191,7 +191,6 @@ export default function Workspace() {
     [filter, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
     [feedback, setFeedback] = useState(""),
-    [authReady, setAuthReady] = useState(!cloudConfigured),
     [loggedIn, setLoggedIn] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
@@ -288,10 +287,9 @@ export default function Workspace() {
     void currentSession()
       .then(applySession)
       .catch(() => setToast("Could not check Google sign-in."))
-      .finally(() => setAuthReady(true));
+      .finally(() => {});
 
     const stopWatching = watchSession((session) => {
-      setAuthReady(true);
       void applySession(session);
     });
 
@@ -452,7 +450,12 @@ export default function Workspace() {
 
     if (transcript) {
       setMessage("");
-      await processAssistantMessage(transcript, "voice");
+      setVoiceBusy(true);
+      try {
+        await processAssistantMessage(transcript, "voice");
+      } finally {
+        setVoiceBusy(false);
+      }
     } else {
       await transcribeSentVoice(file, id);
     }
@@ -472,7 +475,6 @@ export default function Workspace() {
           "This recording is over the 2 MB AI limit. Record a shorter note."
         );
 
-      const token = await cloudToken();
       const form = new FormData();
       form.set("file", file);
       form.set("mode", "transcribe");
@@ -480,7 +482,6 @@ export default function Workspace() {
 
       const response = await fetch("/api/extract", {
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
         body: form,
       });
 
@@ -610,13 +611,10 @@ export default function Workspace() {
     try {
       console.log(`📨 Processing ${source} message:`, message);
 
-      const token = await cloudToken();
-
       const response = await fetch("/api/process-message", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           message: pendingReminderText
@@ -1084,7 +1082,7 @@ export default function Workspace() {
             <strong>{tab}</strong>
           </div>
           <div className="top-actions">
-            {authReady && !loggedIn && (
+            {!loggedIn && (
               <button
                 type="button"
                 className="google-sign-in top-login"
@@ -1649,7 +1647,8 @@ export default function Workspace() {
                   <div className="customer-profile-head">
                     <span className="avatar large customer-profile-avatar">{selectedCustomer?.[0] || "?"}</span>
                     <div className="customer-profile-copy"><span className="eyebrow">CUSTOMER HISAAB</span><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
-                   </div>
+                    {!customerChatOpen && <button type="button" className="customer-add-entry" onClick={()=>startEntry("quick")}><Icon name="plus" size={16}/><span>Add entry</span></button>}
+                  </div>
                   {customerChatOpen ? (
                     <section className="smart-entry-panel">
                       <div className="smart-entry-head">
