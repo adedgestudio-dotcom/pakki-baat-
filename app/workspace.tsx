@@ -1090,6 +1090,8 @@ export default function Workspace() {
   const selectedBaki = customerJobs.reduce((sum,j)=>sum+j.total-j.paid,0);
   const customerPayments = selectedCustomer ? payments.filter(p=>p.customer===selectedCustomer) : [];
   const customerNotes = selectedCustomer ? notes.filter(n=>n.customer===selectedCustomer) : [];
+  const customerOpenJob = customerJobs.find(j=>j.paid<j.total && j.status!=="Completed") || customerJobs.find(j=>j.paid<j.total) || customerJobs[0];
+  const recentCustomers = customerNames.slice(0,4);
   function openReminder(job: Job) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1769,16 +1771,31 @@ export default function Workspace() {
                       </button>;
                     })}
                   </div>
-                  {!customerNames.length && <div className="empty"><h3>Your hisaab book is empty</h3><p>Tap New entry, add a customer name, then type or speak naturally.</p></div>}
+                  {!customerNames.length && <div className="empty"><h3>Your hisaab book is empty</h3><p>Tap New customer, add a name, then type or speak naturally.</p></div>}
                 </>
               ) : (
                 <section className="customer-detail">
                   <button className="customer-back" onClick={()=>{setSelectedCustomer(null);setMessage("");}}><span aria-hidden="true">←</span> Hisaab</button>
                   <div className="customer-profile-head">
                     <span className="avatar large customer-profile-avatar">{selectedCustomer?.[0] || "?"}</span>
-                    <div className="customer-profile-copy"><span className="eyebrow">CUSTOMER HISAAB</span><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
+                    <div className="customer-profile-copy">
+                      <span className="eyebrow">CUSTOMER HISAAB</span>
+                      <h1>{selectedCustomer}</h1>
+                      <p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p>
+                      <button type="button" className="customer-phone-link" onClick={()=>openPhoneEditor(selectedCustomer!)}>
+                        {customerPhones[selectedCustomer!] ? "WhatsApp +" + customerPhones[selectedCustomer!] : "+ Add WhatsApp number"}
+                      </button>
+                    </div>
                     {!customerChatOpen && <button type="button" className="customer-add-entry" onClick={()=>startEntry("quick")}><Icon name="plus" size={16}/><span>Add entry</span></button>}
                   </div>
+                  {!customerChatOpen && (
+                    <div className="customer-action-strip">
+                      <button type="button" className="primary" onClick={()=>startEntry("quick")}><Icon name="plus" size={15}/> Add entry</button>
+                      <button type="button" className="outline" disabled={!customerOpenJob || customerOpenJob.total<=customerOpenJob.paid} onClick={()=>customerOpenJob && openPayment(customerOpenJob)}>₹ Payment</button>
+                      <button type="button" className="outline" disabled={!customerOpenJob} onClick={()=>customerOpenJob && openWhatsApp(customerOpenJob)}><Icon name="chat" size={15}/> WhatsApp</button>
+                      <button type="button" className="outline" disabled={!customerOpenJob} onClick={()=>customerOpenJob && openReminder(customerOpenJob)}><Icon name="bell" size={15}/> Reminder</button>
+                    </div>
+                  )}
                   {customerChatOpen ? (
                     <section className="smart-entry-panel">
                       <div className="smart-entry-head">
@@ -1822,7 +1839,7 @@ export default function Workspace() {
                     </div>
                   )}
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
-                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="chat-turn-actions saved-card-actions"><button type="button" className="card-action" onClick={()=>copy(replyText(j))}><Icon name="copy" size={15}/> Copy</button><button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit details</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button></div></article>)}</div>
+                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="entry-status-chips" aria-label="Entry status"><button type="button" className={j.status==="Waiting"?"active":""} onClick={()=>updateJobStatus(j,"Waiting")}>Pending</button><button type="button" className={j.status==="Confirmed"?"active":""} onClick={()=>updateJobStatus(j,"Confirmed")}>In progress</button><button type="button" className={j.status==="Completed"?"active":""} onClick={()=>updateJobStatus(j,"Completed")}>Done</button></div><div className="chat-turn-actions saved-card-actions">{j.paid<j.total && <button type="button" className="card-action payment-action" onClick={()=>openPayment(j)}>₹ Payment</button>}<button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button></div></article>)}</div>
                   </div>
                   {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
