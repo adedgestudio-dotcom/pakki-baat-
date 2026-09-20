@@ -3475,3 +3475,92 @@ select:focus-visible {
     animation:none;
   }
 }
+
+
+/* Saved entry action buttons */
+.customer-saved-card .saved-card-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+.customer-saved-card .card-action{
+  min-height:40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  padding:9px 13px;
+  border:1px solid #cbd9d1;
+  border-radius:12px;
+  background:rgba(255,255,255,.5);
+  color:#245746;
+  font-size:12px;
+  font-weight:750;
+  cursor:pointer;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease;
+}
+.customer-saved-card .card-action:hover:not(:disabled){
+  background:#fff;
+  border-color:#7eaa99;
+  transform:translateY(-1px);
+  box-shadow:0 6px 16px rgba(33,80,63,.08);
+}
+.customer-saved-card .reminder-action{
+  background:#e8f3ee;
+  border-color:#bcd5ca;
+}
+.customer-saved-card .reminder-action:hover{
+  background:#dff0e8;
+}
+.customer-saved-card .whatsapp-soon{
+  cursor:not-allowed;
+  opacity:1;
+  color:#86a399;
+  background:rgba(255,255,255,.28);
+  border-style:dashed;
+}
+.customer-saved-card .whatsapp-soon span{
+  padding:2px 6px;
+  border-radius:999px;
+  background:#dfeae5;
+  color:#6e8d81;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+}
+[data-theme="dark"] .customer-saved-card .card-action{
+  background:#13271f;
+  border-color:#355246;
+  color:#d9e8e0;
+}
+[data-theme="dark"] .customer-saved-card .card-action:hover:not(:disabled){
+  background:#1d392e;
+  border-color:#4c7f6c;
+}
+[data-theme="dark"] .customer-saved-card .reminder-action{
+  background:#183429;
+}
+[data-theme="dark"] .customer-saved-card .whatsapp-soon{
+  color:#789388;
+  background:#102019;
+  border-color:#30483d;
+}
+[data-theme="dark"] .customer-saved-card .whatsapp-soon span{
+  background:#22372e;
+  color:#8fa99e;
+}
+@media(max-width:560px){
+  .customer-saved-card .saved-card-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .customer-saved-card .card-action{
+    width:100%;
+    min-height:44px;
+  }
+}
+@media(max-width:360px){
+  .customer-saved-card .saved-card-actions{grid-template-columns:1fr}
+}
