@@ -3999,3 +3999,219 @@ select:focus-visible {
     padding:0;
   }
 }
+
+
+/* Hisaab customer page — final alignment and sign-in prompt */
+.customer-back{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:40px;
+  margin:0 0 14px;
+  padding:8px 12px;
+  border:1px solid #d7e1db;
+  border-radius:11px;
+  background:rgba(255,255,255,.62);
+  color:#2d7667;
+  font-size:12px;
+  font-weight:750;
+  cursor:pointer;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.customer-back span{
+  font-size:18px;
+  line-height:1;
+}
+.customer-back:hover{
+  background:#fff;
+  border-color:#9fc3b4;
+  transform:translateX(-1px);
+}
+.customer-profile-head{
+  width:100%;
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  padding:14px 16px;
+  margin:0 0 18px;
+}
+.customer-profile-head .avatar.large,
+.customer-profile-head .customer-profile-avatar{
+  width:58px;
+  height:58px;
+  margin:0;
+  border-radius:16px;
+}
+.customer-profile-copy{
+  min-width:0;
+  text-align:left;
+}
+.customer-profile-copy h1{
+  margin:2px 0 0;
+  text-align:left;
+}
+.customer-profile-copy p{
+  margin:5px 0 0;
+  text-align:left;
+}
+.customer-profile-copy .eyebrow{
+  text-align:left;
+}
+.customer-add-entry{
+  align-self:center;
+}
+[data-theme="dark"] .customer-back{
+  background:#15261f;
+  border-color:#344f43;
+  color:#b7d8ca;
+}
+[data-theme="dark"] .customer-back:hover{
+  background:#1c342a;
+  border-color:#4c7a68;
+}
+
+/* Save-entry sign-in prompt */
+.save-login-modal{
+  position:relative;
+  width:min(440px,calc(100vw - 28px));
+  padding:30px 28px 24px;
+  border:1px solid #d8e3dc;
+  border-radius:24px;
+  background:#fffdf8;
+  box-shadow:0 24px 70px rgba(21,48,38,.20);
+  text-align:center;
+}
+.save-login-close{
+  position:absolute;
+  top:14px;
+  right:14px;
+}
+.save-login-icon{
+  width:58px;
+  height:58px;
+  display:grid;
+  place-items:center;
+  margin:0 auto 16px;
+  border-radius:18px;
+  background:#eaf4ef;
+  color:#2d7667;
+  border:1px solid #cfe1d8;
+}
+.save-login-modal .eyebrow{
+  display:block;
+  margin-bottom:8px;
+}
+.save-login-modal h2{
+  margin:0;
+  font-family:Georgia,serif;
+  font-size:28px;
+  font-weight:400;
+  line-height:1.15;
+  color:#20352d;
+}
+.save-login-modal p{
+  max-width:350px;
+  margin:12px auto 20px;
+  color:#6f7e76;
+  font-size:13px;
+  line-height:1.6;
+}
+.save-login-google{
+  width:100%;
+  min-height:48px;
+  justify-content:center;
+  border-radius:13px;
+  font-size:12px;
+}
+.save-login-later{
+  margin-top:10px;
+  padding:8px 12px;
+  border:0;
+  background:transparent;
+  color:#7d8983;
+  font-size:11px;
+  cursor:pointer;
+}
+.save-login-later:hover{
+  color:#2d7667;
+}
+[data-theme="dark"] .save-login-modal{
+  background:#17271f;
+  border-color:#31483d;
+}
+[data-theme="dark"] .save-login-modal h2{
+  color:#f0f6f2;
+}
+[data-theme="dark"] .save-login-modal p,
+[data-theme="dark"] .save-login-later{
+  color:#a8b9b0;
+}
+[data-theme="dark"] .save-login-icon{
+  background:#20382e;
+  border-color:#385c4c;
+  color:#8fc3af;
+}
+
+@media(max-width:800px){
+  .page-heading.customer-heading{
+    align-items:flex-start;
+  }
+  .page-heading.customer-heading > .mobile-primary-action{
+    min-width:auto;
+    padding:10px 13px;
+    font-size:10px;
+  }
+}
+
+@media(max-width:560px){
+  .page-heading.customer-heading{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:start;
+    gap:12px;
+  }
+  .page-heading.customer-heading > .mobile-primary-action{
+    align-self:start;
+    min-height:40px;
+    padding:9px 11px;
+    border-radius:11px;
+  }
+  .customer-back{
+    min-height:42px;
+    padding:9px 12px;
+    margin-bottom:12px;
+    font-size:11px;
+  }
+  .customer-profile-head{
+    grid-template-columns:48px minmax(0,1fr) auto;
+    gap:10px;
+    padding:12px;
+    border-radius:16px;
+  }
+  .customer-profile-head .avatar.large,
+  .customer-profile-head .customer-profile-avatar{
+    width:48px;
+    height:48px;
+    border-radius:14px;
+    font-size:18px;
+  }
+  .customer-profile-copy h1{
+    font-size:20px;
+  }
+  .customer-profile-copy p{
+    font-size:10px;
+  }
+  .customer-add-entry{
+    min-height:40px;
+    padding:8px 10px;
+    font-size:10px;
+  }
+  .save-login-modal{
+    padding:28px 20px 20px;
+    border-radius:20px;
+  }
+  .save-login-modal h2{
+    font-size:24px;
+  }
+}
