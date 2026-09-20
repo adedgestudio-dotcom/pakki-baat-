@@ -1392,7 +1392,7 @@ export default function Workspace() {
                     aria-label="Assistant conversation"
                     aria-live="polite"
                   >
-                    {authReady && !loggedIn && (
+                    {!loggedIn && (
                       <div className="assistant-login-card">
                         <div>
                           <strong>
