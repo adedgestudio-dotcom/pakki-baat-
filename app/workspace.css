@@ -5706,3 +5706,217 @@ select:focus-visible {
     display:inline-flex;
   }
 }
+
+
+/* Home hero — compact phone card with a clearly visible CTA */
+@media(max-width:560px){
+  .hero{
+    min-height:0 !important;
+    height:auto;
+    display:block;
+    overflow:hidden;
+    border-radius:20px;
+    margin-bottom:16px;
+    box-shadow:0 8px 24px rgba(35,62,52,.08);
+  }
+
+  .hero-copy{
+    width:100% !important;
+    max-width:none !important;
+    min-height:232px;
+    padding:19px 112px 18px 18px !important;
+    display:block;
+    position:relative;
+    z-index:4;
+  }
+
+  .hero .pill{
+    padding:5px 7px;
+    border-radius:7px;
+    font-size:6.5px;
+    letter-spacing:1px;
+  }
+
+  .hero h2{
+    max-width:205px;
+    margin:11px 0 8px;
+    font-size:27px !important;
+    line-height:1.08;
+    letter-spacing:-.7px;
+  }
+
+  .hero p{
+    max-width:188px !important;
+    margin:0 0 13px;
+    font-size:9.5px !important;
+    line-height:1.45;
+  }
+
+  .hero .hero-cta{
+    display:inline-flex !important;
+    visibility:visible !important;
+    opacity:1 !important;
+    position:relative;
+    z-index:8;
+    min-height:41px;
+    padding:9px 12px;
+    margin:0;
+    border:1px solid rgba(111,51,35,.12);
+    border-radius:11px;
+    background:#c96f54 !important;
+    color:#fff !important;
+    box-shadow:0 7px 16px rgba(151,73,51,.24) !important;
+    font-size:9.5px !important;
+    font-weight:750;
+    white-space:nowrap;
+  }
+
+  .hero .hero-cta svg{
+    width:15px;
+    height:15px;
+  }
+
+  .hero-art{
+    pointer-events:none;
+    position:absolute !important;
+    z-index:2;
+    top:0 !important;
+    right:-10px !important;
+    bottom:auto !important;
+    width:122px !important;
+    height:100% !important;
+    min-height:0 !important;
+    margin:0 !important;
+    transform:none !important;
+  }
+
+  .hero-art .art-circle{
+    width:132px;
+    height:132px;
+    top:34px !important;
+    right:-35px !important;
+    opacity:.65;
+  }
+
+  .hero-art .note.back{
+    display:none;
+  }
+
+  .hero-art .note.front{
+    width:118px;
+    height:102px;
+    top:76px !important;
+    right:-8px !important;
+    padding:12px;
+    border-radius:12px;
+    transform:rotate(5deg) !important;
+    box-shadow:0 10px 22px rgba(52,70,61,.11);
+  }
+
+  .hero-art .note-icon{
+    width:23px;
+    height:23px;
+    margin-bottom:6px;
+  }
+
+  .hero-art .note-icon svg{
+    width:15px;
+    height:15px;
+  }
+
+  .hero-art .note strong{
+    font-size:9.5px;
+  }
+
+  .hero-art .note.front span{
+    margin-top:4px;
+    font-size:7px;
+  }
+
+  .hero-art .note-line{
+    height:3px;
+    margin-top:8px;
+  }
+
+  .hero-art .spark.one{
+    top:20px;
+    right:19px;
+    font-size:17px;
+  }
+
+  .hero-art .spark.two{
+    display:none;
+  }
+
+  [data-theme="dark"] .hero{
+    background:linear-gradient(145deg,#20352c 0%,#182820 100%) !important;
+    border-color:#3b5b4c !important;
+    box-shadow:0 9px 26px rgba(0,0,0,.22);
+  }
+
+  [data-theme="dark"] .hero .pill{
+    background:#2d4a3d;
+    color:#d7e8df;
+  }
+
+  [data-theme="dark"] .hero h2{
+    color:#f4f0e7 !important;
+  }
+
+  [data-theme="dark"] .hero p{
+    color:#bdcec5 !important;
+  }
+
+  [data-theme="dark"] .hero .hero-cta{
+    background:#d67859 !important;
+    border-color:#e19176 !important;
+    color:#fff !important;
+    box-shadow:0 7px 18px rgba(214,120,89,.28) !important;
+  }
+
+  [data-theme="dark"] .hero-art .art-circle{
+    background:#2d493c;
+  }
+
+  [data-theme="dark"] .hero-art .note.front{
+    background:#f5f0e5;
+    border-color:#ded5c4;
+    color:#24352f;
+  }
+
+  [data-theme="dark"] .hero-art .note.front span{
+    color:#758078;
+  }
+
+  [data-theme="dark"] .hero-art .note-line{
+    background:#dfe3d8;
+  }
+}
+
+@media(max-width:390px){
+  .hero-copy{
+    min-height:224px;
+    padding:17px 100px 16px 16px !important;
+  }
+
+  .hero h2{
+    max-width:188px;
+    font-size:25px !important;
+  }
+
+  .hero p{
+    max-width:166px !important;
+    font-size:9px !important;
+  }
+
+  .hero-art{
+    right:-17px !important;
+    width:112px !important;
+  }
+
+  .hero-art .note.front{
+    width:108px;
+    height:96px;
+    top:73px !important;
+  }
+}
