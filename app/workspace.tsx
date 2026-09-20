@@ -2073,14 +2073,47 @@ export default function Workspace() {
           </section>
         </div>
       )}
+      {paymentJob && (
+        <div className="modal-backdrop" onClick={()=>setPaymentJob(null)}>
+          <section className="quick-payment-modal" role="dialog" aria-modal="true" aria-labelledby="quick-payment-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button quick-payment-close" aria-label="Close" onClick={()=>setPaymentJob(null)}><Icon name="close"/></button>
+            <span className="eyebrow">PAYMENT RECEIVED</span>
+            <h2 id="quick-payment-title">{paymentJob.customer}</h2>
+            <p>{paymentJob.work}</p>
+            <div className="quick-payment-baki"><small>Current baki</small><strong>{money(Math.max(0,paymentJob.total-paymentJob.paid))}</strong></div>
+            <form onSubmit={e=>{e.preventDefault();saveQuickPayment();}}>
+              <label>Amount received (₹)
+                <input autoFocus inputMode="decimal" type="number" min="0" step="0.01" max={Math.max(0,paymentJob.total-paymentJob.paid)} placeholder="e.g. 500" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/>
+              </label>
+              <button type="submit" className="primary" disabled={!paymentAmount || Number(paymentAmount)<=0}>Save payment</button>
+            </form>
+          </section>
+        </div>
+      )}
+      {phoneEditorCustomer && (
+        <div className="modal-backdrop" onClick={()=>setPhoneEditorCustomer(null)}>
+          <section className="phone-editor-modal" role="dialog" aria-modal="true" aria-labelledby="phone-editor-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button phone-editor-close" aria-label="Close" onClick={()=>setPhoneEditorCustomer(null)}><Icon name="close"/></button>
+            <span className="eyebrow">CUSTOMER WHATSAPP</span>
+            <h2 id="phone-editor-title">{phoneEditorCustomer}</h2>
+            <p>Save the number once so WhatsApp is one tap next time.</p>
+            <form onSubmit={e=>{e.preventDefault();saveCustomerPhone();}}>
+              <label>WhatsApp number
+                <input autoFocus type="tel" inputMode="tel" autoComplete="tel" placeholder="e.g. 9876543210" value={phoneEditorValue} onChange={e=>setPhoneEditorValue(e.target.value)} maxLength={20}/>
+              </label>
+              <button type="submit" className="primary">{phoneEditorValue.trim() ? "Save number" : "Remove number"}</button>
+            </form>
+          </section>
+        </div>
+      )}
       {whatsappJob && (
         <div className="modal-backdrop" onClick={() => setWhatsappJob(null)}>
           <section className="whatsapp-send-modal" role="dialog" aria-modal="true" aria-labelledby="whatsapp-send-title" onClick={e=>e.stopPropagation()}>
             <button className="icon-button whatsapp-send-close" aria-label="Close" onClick={()=>setWhatsappJob(null)}><Icon name="close"/></button>
             <span className="whatsapp-send-icon"><Icon name="chat" size={23}/></span>
             <span className="eyebrow">SEND ON WHATSAPP</span>
-            <h2 id="whatsapp-send-title">Customer number</h2>
-            <p>We’ll open WhatsApp with the entry details already filled in. You only need to tap Send.</p>
+            <h2 id="whatsapp-send-title">Message {whatsappJob.customer}</h2>
+            <p>Edit the message any way you like. We’ll open WhatsApp with it already filled in.</p>
             <form onSubmit={e=>{e.preventDefault();sendWhatsApp();}}>
               <label>WhatsApp number
                 <input
@@ -2094,12 +2127,21 @@ export default function Workspace() {
                   maxLength={20}
                 />
               </label>
-              <small>For Indian 10-digit numbers, +91 is added automatically. Otherwise include the country code.</small>
-              <div className="whatsapp-preview">
-                <strong>{whatsappJob.customer}</strong>
-                <span>{whatsappJob.work}</span>
-              </div>
-              <button className="whatsapp-open-button" type="submit" disabled={!whatsappNumber.trim()}>
+              <label className="whatsapp-save-number">
+                <input type="checkbox" checked={saveWhatsappNumber} onChange={e=>setSaveWhatsappNumber(e.target.checked)}/>
+                <span>Save this number for {whatsappJob.customer}</span>
+              </label>
+              <label>Message
+                <textarea
+                  value={whatsappMessage}
+                  onChange={e=>setWhatsappMessage(e.target.value)}
+                  maxLength={4000}
+                  placeholder="Write anything you want to send…"
+                />
+              </label>
+              <button type="button" className="whatsapp-reset-message" onClick={()=>setWhatsappMessage(replyText(whatsappJob))}>Use saved entry details</button>
+              <small>Indian 10-digit numbers automatically get +91. For other countries, include the country code.</small>
+              <button className="whatsapp-open-button" type="submit" disabled={!whatsappNumber.trim() || !whatsappMessage.trim()}>
                 <Icon name="chat" size={18}/> Open WhatsApp
               </button>
             </form>
@@ -2129,6 +2171,12 @@ export default function Workspace() {
             <span className="eyebrow">NEW HISAAB</span>
             <h2 id="new-customer-title">Who is this for?</h2>
             <p>Add the customer name. You can tell Pakki Baat the rest naturally.</p>
+            {recentCustomers.length>0 && (
+              <div className="recent-customers">
+                <small>Recent customers</small>
+                <div>{recentCustomers.map(name=><button type="button" key={name} onClick={()=>{setSelectedCustomer(name);setMessage("");setCustomerChatOpen(false);setNewCustomerOpen(false);}}>{name}</button>)}</div>
+              </div>
+            )}
             <form onSubmit={e=>{
               e.preventDefault();
               const customer=newCustomerName.trim();
@@ -2300,7 +2348,8 @@ export default function Workspace() {
       )}
       {toast && (
         <div className="toast" role="status">
-          {toast}
+          <span>{toast}</span>
+          {lastUndo?.message===toast && <button type="button" onClick={undoLastAction}>Undo</button>}
         </div>
       )}
     </div>
