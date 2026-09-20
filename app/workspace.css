@@ -4215,3 +4215,12 @@ select:focus-visible {
     font-size:24px;
   }
 }
+
+
+/* Dark mobile brand — keep Pakki Baat visible and on-brand */
+@media(max-width:560px){
+  [data-theme="dark"] .topbar:before{
+    color:#72c9ad;
+    text-shadow:0 1px 0 rgba(0,0,0,.18);
+  }
+}
