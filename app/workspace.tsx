@@ -1464,74 +1464,6 @@ export default function Workspace() {
                   </div>
                 </section>
               )}
-              <section className="today-reminders" id="today-reminders">
-                <div className="section-heading">
-                  <div>
-                    <span className="eyebrow">
-                      DON’T KEEP IT ALL IN YOUR HEAD
-                    </span>
-                    <h2>
-                      Reminders{" "}
-                      <span className="count">
-                        {reminders.filter((r) => !r.done).length}
-                      </span>
-                    </h2>
-                  </div>
-                  <button
-                    className="text-button"
-                    onClick={() => go("Hisaab")}
-                  >
-                    + Tell me a reminder
-                  </button>
-                </div>
-                {reminders.filter((r) => !r.done).length ? (
-                  <div className="reminder-list">
-                    {reminders
-                      .filter((r) => !r.done)
-                      .sort((a, b) =>
-                        (a.date + a.time).localeCompare(b.date + b.time)
-                      )
-                      .slice(0, 5)
-                      .map((r) => (
-                        <div className="reminder-row" key={r.id}>
-                          <span className="reminder-bell">
-                            <Icon name="bell" size={18} />
-                          </span>
-                          <div>
-                            <strong>{r.text}</strong>
-                            <small>
-                              {r.date}
-                              {r.time ? " · " + r.time : ""}
-                              {r.repeat && r.repeat !== "none"
-                                ? " · " + r.repeat
-                                : ""}
-                            </small>
-                          </div>
-                          <div className="reminder-actions">
-                            <button className="outline mini" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
-                            <button className="outline mini" onClick={()=>completeReminder(r.id)}>Done ✓</button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <button
-                    className="reminder-empty"
-                    onClick={() => {
-                      go("Hisaab");
-                      setToast("Open a customer entry and tap Set reminder.");
-                    }}
-                  >
-                    <Icon name="bell" size={20} />
-                    <span>
-                      <strong>No reminders yet</strong>
-                      <small>
-                        Open a customer entry and tap Set reminder.
-                      </small>
-                    </span>
-                  </button>
-                )}
-              </section>
               <div className="lower-grid">
                 <section className="panel">
                   <div className="section-heading">
@@ -1823,7 +1755,7 @@ export default function Workspace() {
                     [
                       "3",
                       "Done and remembered",
-                      "Orders go to Hisaab and reminders appear on Today.",
+                      "Orders go to Hisaab and reminders stay together on the Reminders page.",
                     ],
                   ].map(([n, t, d]) => (
                     <div key={n}>
@@ -1840,6 +1772,68 @@ export default function Workspace() {
                   </p>
                 </aside>
               </section>
+            </>
+          )}
+          {tab === "Reminders" && (
+            <>
+              <div className="page-heading reminders-heading">
+                <div>
+                  <div className="eyebrow">NOTHING TO KEEP IN YOUR HEAD</div>
+                  <h1>Reminders</h1>
+                  <p>See what needs a follow-up, snooze it, or mark it done.</p>
+                </div>
+                <button type="button" className="primary mobile-primary-action reminder-add-primary" onClick={openNewReminder}>
+                  <Icon name="plus" size={17}/><span>Add reminder</span>
+                </button>
+              </div>
+              <section className="reminder-page-summary">
+                <div><span className="reminder-summary-icon"><Icon name="bell" size={17}/></span><small>Today / overdue</small><strong>{remindersToday}</strong></div>
+                <div><span className="reminder-summary-icon"><Icon name="calendar" size={17}/></span><small>Active reminders</small><strong>{activeReminders.length}</strong></div>
+                <div><span className="reminder-summary-icon"><Icon name="check" size={17}/></span><small>Completed</small><strong>{completedReminders.length}</strong></div>
+              </section>
+              <section className="reminders-page-card">
+                <div className="section-heading reminders-page-title">
+                  <div><span className="eyebrow">UP NEXT</span><h2>Active reminders <span className="count">{activeReminders.length}</span></h2></div>
+                </div>
+                {activeReminders.length ? (
+                  <div className="reminders-page-list">
+                    {activeReminders.map(r=>(
+                      <article className={r.date<=day() ? "reminder-page-row is-due" : "reminder-page-row"} key={r.id}>
+                        <span className="reminder-page-bell"><Icon name="bell" size={18}/></span>
+                        <div className="reminder-page-copy">
+                          {r.customer ? <button type="button" className="reminder-customer-link" onClick={()=>{setSelectedCustomer(r.customer!);setCustomerChatOpen(false);setTab("Hisaab");}}>{r.customer}</button> : <span className="reminder-generic-label">General reminder</span>}
+                          <strong>{r.text}</strong>
+                          <small>{r.date}{r.time ? " · "+r.time : ""}{r.repeat && r.repeat!=="none" ? " · "+r.repeat : ""}</small>
+                        </div>
+                        <div className="reminder-page-actions">
+                          <button type="button" className="outline mini" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
+                          <button type="button" className="primary mini" onClick={()=>completeReminder(r.id)}>Done ✓</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="reminders-page-empty">
+                    <span><Icon name="bell" size={25}/></span>
+                    <h3>No active reminders</h3>
+                    <p>Add one for a payment, delivery, customer follow-up, or anything you don’t want to remember yourself.</p>
+                    <button type="button" className="primary" onClick={openNewReminder}><Icon name="plus" size={16}/> Add reminder</button>
+                  </div>
+                )}
+              </section>
+              {completedReminders.length>0 && (
+                <section className="reminders-completed">
+                  <div className="section-heading"><div><span className="eyebrow">DONE</span><h2>Recently completed</h2></div></div>
+                  <div className="completed-reminder-list">
+                    {completedReminders.slice(0,8).map(r=>(
+                      <div className="completed-reminder-row" key={r.id}>
+                        <span className="completed-check"><Icon name="check" size={15}/></span>
+                        <span><strong>{r.text}</strong><small>{r.customer ? r.customer+" · " : ""}{r.date}</small></span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </>
           )}
           {tab === "Hisaab" && (
@@ -2119,10 +2113,13 @@ export default function Workspace() {
           <button
             aria-label={t}
             key={t}
-            className={tab === t ? "active" : ""}
+            className={tab === t ? "active mobile-nav-item" : "mobile-nav-item"}
             onClick={() => go(t)}
           >
-            <Icon name={i} size={21} />
+            <span className="mobile-nav-icon-wrap">
+              <Icon name={i} size={21} />
+              {t==="Reminders" && activeReminders.length>0 && <b className="mobile-reminder-badge">{Math.min(99,activeReminders.length)}</b>}
+            </span>
             <span>{t}</span>
           </button>
         ))}
