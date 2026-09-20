@@ -1126,6 +1126,8 @@ export default function Workspace() {
     setToast("Reminder saved.");
   }
   function completeReminder(id:string) {
+    const message = "Reminder updated ✓";
+    rememberUndo(message);
     setReminders(items=>items.map(r=>{
       if(r.id!==id)return r;
       if(!r.repeat || r.repeat==="none") return {...r,done:true};
@@ -1136,13 +1138,17 @@ export default function Workspace() {
       const date=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
       return {...r,date,done:false};
     }));
+    setToast(message);
   }
   function snoozeReminder(id:string) {
+    const message = "Reminder moved to tomorrow ✓";
+    rememberUndo(message);
     setReminders(items=>items.map(r=>{
       if(r.id!==id)return r;
       const next=new Date(r.date+"T12:00:00"); next.setDate(next.getDate()+1);
       return {...r,date:`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`};
     }));
+    setToast(message);
   }
   return (
     <div className="shell">
