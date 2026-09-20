@@ -198,6 +198,7 @@ export default function Workspace() {
     [payments, setPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
     [newCustomerOpen, setNewCustomerOpen] = useState(false),
+    [saveLoginPromptOpen, setSaveLoginPromptOpen] = useState(false),
     [newCustomerName, setNewCustomerName] = useState(""),
     [customerChatOpen, setCustomerChatOpen] = useState(false),
     [reminderJob, setReminderJob] = useState<Job | null>(null),
@@ -764,8 +765,14 @@ export default function Workspace() {
     setToast("Saved in " + selectedCustomer + "'s hisaab.");
   }
 
+  function requireLoginForSaving() {
+    if (loggedIn) return true;
+    setSaveLoginPromptOpen(true);
+    return false;
+  }
+
   function startEntry(mode: "quick" | "form") {
-    if (!selectedCustomer) return;
+    if (!selectedCustomer || !requireLoginForSaving()) return;
     setEntryMode(mode);
     setMessage("");
     setPendingJob(mode === "form" ? { ...blank(), id: crypto.randomUUID(), customer: selectedCustomer, status: "Confirmed" } : null);
@@ -791,6 +798,7 @@ export default function Workspace() {
 
   function finishCustomerChat() {
     if (!selectedCustomer || voiceBusy) return;
+    if (!requireLoginForSaving()) return;
     if (!pendingJob || !pendingJob.work?.trim()) {
       setToast("Add the entry details first, then tap Save.");
       return;
@@ -819,6 +827,7 @@ export default function Workspace() {
   }
   function save() {
     if (!draft || !draft.customer.trim() || !draft.work.trim()) return;
+    if (!requireLoginForSaving()) return;
     if (
       !Number.isFinite(draft.total) ||
       !Number.isFinite(draft.paid) ||
@@ -1622,7 +1631,7 @@ export default function Workspace() {
                       <h1>Hisaab</h1>
                       <p>One customer, one place. Open a name and continue where you left off.</p>
                     </div>
-                    <button className="primary mobile-primary-action" onClick={() => { setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /><span>New entry</span></button>
+                    <button className="primary mobile-primary-action" onClick={() => { if (!requireLoginForSaving()) return; setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /><span>New customer</span></button>
                   </div>
                   <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
                   <div className="customer-list-mobile">
@@ -1642,7 +1651,7 @@ export default function Workspace() {
                 </>
               ) : (
                 <section className="customer-detail">
-                  <button className="text-button customer-back" onClick={()=>{setSelectedCustomer(null);setMessage("");}}>← Hisaab</button>
+                  <button className="customer-back" onClick={()=>{setSelectedCustomer(null);setMessage("");}}><span aria-hidden="true">←</span> Hisaab</button>
                   <div className="customer-profile-head">
                     <span className="avatar large customer-profile-avatar">{selectedCustomer?.[0] || "?"}</span>
                     <div className="customer-profile-copy"><span className="eyebrow">CUSTOMER HISAAB</span><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
@@ -1922,6 +1931,21 @@ export default function Workspace() {
             <div className="reminder-block"><strong>Time</strong><div className="reminder-chips"><button type="button" onClick={()=>setReminderTime("09:00")}>Morning</button><button type="button" onClick={()=>setReminderTime("15:00")}>Afternoon</button><button type="button" onClick={()=>setReminderTime("19:00")}>Evening</button><label className="date-chip"><Icon name="clock" size={16}/><input aria-label="Pick reminder time" type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)}/></label></div></div>
             <div className="reminder-block"><strong>Repeat?</strong><div className="reminder-chips">{([["none","Once"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]] as const).map(([value,label])=><button type="button" key={value} className={reminderRepeat===value?"selected":""} onClick={()=>setReminderRepeat(value)}>{label}</button>)}</div></div>
             <div className="reminder-sheet-actions"><button type="button" onClick={()=>setReminderJob(null)}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={saveReminder}>Save reminder</button></div>
+          </section>
+        </div>
+      )}
+      {saveLoginPromptOpen && (
+        <div className="modal-backdrop" onClick={() => setSaveLoginPromptOpen(false)}>
+          <section className="save-login-modal" role="dialog" aria-modal="true" aria-labelledby="save-login-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button save-login-close" aria-label="Close" onClick={()=>setSaveLoginPromptOpen(false)}><Icon name="close"/></button>
+            <span className="save-login-icon"><Icon name="check" size={24}/></span>
+            <span className="eyebrow">KEEP YOUR HISAAB SAFE</span>
+            <h2 id="save-login-title">Sign in to save your entries</h2>
+            <p>Your customers, payments and reminders will stay connected to your account and can be restored on another device.</p>
+            <button type="button" className="google-sign-in save-login-google" onClick={()=>{setSaveLoginPromptOpen(false);void startGoogleSignIn();}}>
+              Continue with Google
+            </button>
+            <button type="button" className="save-login-later" onClick={()=>setSaveLoginPromptOpen(false)}>Not now</button>
           </section>
         </div>
       )}
