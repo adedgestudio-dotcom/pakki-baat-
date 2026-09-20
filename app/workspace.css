@@ -3710,3 +3710,166 @@ select:focus-visible {
     gap:8px;
   }
 }
+
+
+/* Mobile customer page + add-entry polish */
+.customer-profile-head .avatar.large{
+  margin:0;
+  flex:0 0 auto;
+}
+.customer-profile-copy{
+  min-width:0;
+}
+.customer-profile-copy .eyebrow{
+  display:block;
+  margin-bottom:3px;
+}
+.customer-profile-copy h1{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.customer-profile-head{
+  padding:14px 16px;
+  border:1px solid var(--line,#e7e1d6);
+  border-radius:18px;
+  background:var(--card,#fff);
+}
+.customer-add-entry{
+  margin-left:auto;
+  min-height:40px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  padding:9px 12px;
+  border-radius:11px;
+  background:#edf5f0;
+  color:#245746;
+  border:1px solid #c9ddd3;
+  font-size:11px;
+  font-weight:750;
+}
+.customer-add-entry:hover{
+  background:#e3f0e9;
+  border-color:#8fbaa9;
+}
+[data-theme="dark"] .customer-profile-head{
+  background:#17271f;
+  border-color:#31483d;
+}
+[data-theme="dark"] .customer-add-entry{
+  background:#1d392e;
+  border-color:#3d6655;
+  color:#dce9e2;
+}
+
+/* Keep mobile add buttons useful instead of turning them into anonymous square icons */
+@media(max-width:800px){
+  .page-heading > .mobile-primary-action{
+    min-width:auto;
+    min-height:42px;
+    padding:10px 13px;
+    border-radius:12px;
+    font-size:11px;
+    white-space:nowrap;
+  }
+  .page-heading > .mobile-primary-action span{
+    display:inline;
+  }
+  .page-heading > .mobile-primary-action svg{
+    width:17px;
+    height:17px;
+  }
+}
+@media(max-width:560px){
+  .content{
+    padding-left:16px;
+    padding-right:16px;
+  }
+  .page-heading{
+    gap:12px;
+  }
+  .page-heading > .mobile-primary-action{
+    padding:10px 11px;
+    font-size:10px;
+  }
+  .customer-detail{
+    padding-bottom:88px;
+  }
+  .customer-back{
+    margin-bottom:10px;
+  }
+  .customer-profile-head{
+    display:grid;
+    grid-template-columns:48px minmax(0,1fr);
+    gap:11px;
+    align-items:center;
+    padding:13px;
+    margin:6px 0 14px;
+  }
+  .customer-profile-head .avatar.large,
+  .customer-profile-head .customer-profile-avatar{
+    width:48px;
+    height:48px;
+    font-size:18px;
+    border-radius:14px;
+  }
+  .customer-profile-copy h1{
+    font-size:21px;
+    line-height:1.15;
+  }
+  .customer-profile-copy p{
+    font-size:10px;
+    margin-top:4px;
+  }
+  .customer-profile-copy .eyebrow{
+    font-size:7px;
+    letter-spacing:1.1px;
+  }
+  .customer-add-entry{
+    grid-column:1 / -1;
+    width:100%;
+    min-height:42px;
+  }
+  .entry-choice{
+    margin-bottom:16px;
+    padding:15px;
+    border-radius:16px;
+    gap:14px;
+  }
+  .entry-choice h3{
+    font-size:16px;
+  }
+  .entry-choice p{
+    font-size:11px;
+  }
+  .entry-choice-actions{
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .entry-choice-actions button{
+    min-height:44px;
+    padding:10px 8px;
+    border-radius:12px;
+    font-size:11px;
+  }
+  .smart-entry-panel{
+    padding:16px 14px;
+    border-radius:18px;
+    margin-bottom:18px;
+  }
+  .smart-entry-head{
+    margin-bottom:12px;
+  }
+  .smart-entry-head h2{
+    font-size:20px;
+    line-height:1.2;
+  }
+  .smart-entry-head p{
+    font-size:11px;
+  }
+  .smart-example{
+    display:none;
+  }
+}
