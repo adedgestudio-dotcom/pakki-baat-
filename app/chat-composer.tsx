@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SimpleVoiceButton from "./simple-voice-button";
 import AudioPlayer from "./audio-player";
 import type { Job } from "@/lib/data";
@@ -27,11 +27,29 @@ export default function ChatComposer({
   voiceBusy,
 }: Props) {
   const [showInputOptions, setShowInputOptions] = useState(false);
+  const [processingMessageIndex, setProcessingMessageIndex] = useState(0);
   const [voiceDraft, setVoiceDraft] = useState<{
     file: File;
     url: string;
     duration: number;
   } | null>(null);
+
+  const processingMessages = [
+    "Listening closely…",
+    "Writing down the useful bits…",
+    "Making your hisaab neat ✨",
+  ];
+
+  useEffect(() => {
+    if (!voiceBusy) {
+      setProcessingMessageIndex(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setProcessingMessageIndex((current) => (current + 1) % processingMessages.length);
+    }, 1300);
+    return () => window.clearInterval(timer);
+  }, [voiceBusy]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -242,43 +260,66 @@ export default function ChatComposer({
         </div>
       )}
 
-      <div className="smart-input-shell">
-        <div className="smart-input-topline">
-          <span className="smart-input-status"><i /> Quick add</span>
-          <span>Type or voice</span>
-        </div>
-
-        <div className="chat-compose-row">
-          <div className="desktop-input-actions">{uploadControl}</div>
-
-          <div className="input-with-mic">
-            <textarea
-              id="paste-input"
-              aria-label="Customer message"
-              placeholder={voiceDraft ? "Add a note before sending voice..." : "Tell me what happened… e.g. 2 kg cake, ₹2,000 total, ₹1,000 received"}
-              value={message}
-              onChange={(e) => onMessageChange(e.target.value)}
-              maxLength={6000}
-              disabled={voiceBusy}
-            />
-
-            <div className="input-mic-button">
-              {message.trim() || voiceDraft ? (
-                sendControl
-              ) : (
-                <SimpleVoiceButton
-                  onRecordingComplete={handleVoiceRecordingComplete}
-                  onError={handleVoiceError}
-                />
-              )}
+      <div className={`smart-input-shell${voiceBusy ? " is-processing" : ""}`}>
+        {voiceBusy ? (
+          <div className="voice-processing-card" role="status" aria-live="polite">
+            <div className="voice-processing-visual" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="voice-processing-copy">
+              <span className="voice-processing-kicker">PAKKI BAAT IS ON IT</span>
+              <strong key={processingMessageIndex}>{processingMessages[processingMessageIndex]}</strong>
+              <small>Your voice is being turned into clean entry details.</small>
+            </div>
+            <div className="voice-processing-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
             </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="smart-input-topline">
+              <span className="smart-input-status"><i /> Quick add</span>
+              <span>Type or voice</span>
+            </div>
 
-        <div className="smart-input-footer">
-          <span>Pakki Baat will organise the details for you.</span>
-          <span>{message.length}/6000</span>
-        </div>
+            <div className="chat-compose-row">
+              <div className="desktop-input-actions">{uploadControl}</div>
+
+              <div className="input-with-mic">
+                <textarea
+                  id="paste-input"
+                  aria-label="Customer message"
+                  placeholder={voiceDraft ? "Add a note before sending voice..." : "Tell me what happened… e.g. 2 kg cake, ₹2,000 total, ₹1,000 received"}
+                  value={message}
+                  onChange={(e) => onMessageChange(e.target.value)}
+                  maxLength={6000}
+                />
+
+                <div className="input-mic-button">
+                  {message.trim() || voiceDraft ? (
+                    sendControl
+                  ) : (
+                    <SimpleVoiceButton
+                      onRecordingComplete={handleVoiceRecordingComplete}
+                      onError={handleVoiceError}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="smart-input-footer">
+              <span>Pakki Baat will organise the details for you.</span>
+              <span>{message.length}/6000</span>
+            </div>
+          </>
+        )}
       </div>
 
       {voiceDraft && (
