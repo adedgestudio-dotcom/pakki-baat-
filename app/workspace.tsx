@@ -209,6 +209,7 @@ export default function Workspace() {
     [phoneEditorCustomer, setPhoneEditorCustomer] = useState<string | null>(null),
     [phoneEditorValue, setPhoneEditorValue] = useState(""),
     [lastUndo, setLastUndo] = useState<{message:string;snapshot:Snapshot}|null>(null),
+    [guideOpen, setGuideOpen] = useState(false),
     [newCustomerName, setNewCustomerName] = useState(""),
     [customerChatOpen, setCustomerChatOpen] = useState(false),
     [reminderJob, setReminderJob] = useState<Job | null>(null),
@@ -232,6 +233,7 @@ export default function Workspace() {
     const savedTheme = localStorage.getItem("pakki-baat-theme");
     const isDark = savedTheme === "dark";
     document.documentElement.dataset.theme = isDark ? "dark" : "light";
+    if (!localStorage.getItem("pakki-baat-guide-v1")) setGuideOpen(true);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDark(isDark);
   }, []);
@@ -417,6 +419,27 @@ export default function Workspace() {
     setTab(t);
     setQuery("");
     setFilter("All");
+  }
+  function openReminders() {
+    setSelectedCustomer(null);
+    setTab("Today");
+    setQuery("");
+    setFilter("All");
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("today-reminders")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+  }
+  function closeGuide(nextTab?: Tab) {
+    try {
+      localStorage.setItem("pakki-baat-guide-v1", "seen");
+    } catch {}
+    setGuideOpen(false);
+    if (nextTab) go(nextTab);
   }
   function openCustomerAssistant(seed = "") {
     setTab("Hisaab");
@@ -1253,11 +1276,12 @@ export default function Workspace() {
               <span className="theme-toggle-thumb" />
             </button>
             <button
-              className="icon-button"
+              className="icon-button top-reminder-button"
               aria-label="View reminders"
-              onClick={() => go("Today")}
+              onClick={openReminders}
             >
               <Icon name="bell" />
+              {reminders.filter(r=>!r.done).length>0 && <span className="top-reminder-badge">{Math.min(99,reminders.filter(r=>!r.done).length)}</span>}
             </button>
             <span className="avatar small">
               {displayName.charAt(0).toUpperCase()}
@@ -1394,7 +1418,7 @@ export default function Workspace() {
                   </div>
                 </section>
               )}
-              <section className="today-reminders">
+              <section className="today-reminders" id="today-reminders">
                 <div className="section-heading">
                   <div>
                     <span className="eyebrow">
@@ -1964,6 +1988,11 @@ export default function Workspace() {
                     onChange={(e) => setBusiness(e.target.value)}
                   />
                 </label>
+                <button type="button" className="how-it-works-card" onClick={()=>setGuideOpen(true)}>
+                  <span className="how-it-works-icon">?</span>
+                  <span><strong>How Pakki Baat works</strong><small>A 30-second guide to entries, payments, reminders and WhatsApp.</small></span>
+                  <Icon name="arrow" size={17}/>
+                </button>
                 <div className="notice">
                   <strong>Local trial mode</strong>
                   <p>
@@ -1977,7 +2006,7 @@ export default function Workspace() {
                   onClick={() =>
                     download(
                       JSON.stringify(
-                        { jobs, owner, business, reminders, payments, notes },
+                        { jobs, owner, business, reminders, payments, notes, customerPhones },
                         null,
                         2
                       ),
@@ -2000,44 +2029,12 @@ export default function Workspace() {
                   />
                 </label>
                 <CloudSettings
-                  snapshot={{ jobs, owner, business, reminders, payments, notes }}
+                  snapshot={{ jobs, owner, business, reminders, payments, notes, customerPhones }}
                   onRestore={restore}
                   dark={dark}
                   onToggleTheme={toggleTheme}
                 />
-                <section
-                  className="future-card"
-                  aria-labelledby="future-whatsapp-title"
-                >
-                  <div className="future-card-heading">
-                    <span className="future-icon">
-                      <Icon name="chat" size={20} />
-                    </span>
-                    <div>
-                      <span className="future-badge">COMING SOON</span>
-                      <h2 id="future-whatsapp-title">
-                        Send directly to WhatsApp
-                      </h2>
-                    </div>
-                  </div>
-                  <p>
-                    Send confirmations and friendly reminders to customers
-                    without leaving Pakki Baat.
-                  </p>
-                  <ul>
-                    <li>Send a commitment summary to the customer</li>
-                    <li>Share payment and due-date reminders</li>
-                    <li>Review every message before it is sent</li>
-                  </ul>
-                  <button
-                    type="button"
-                    className="future-whatsapp-button"
-                    disabled
-                  >
-                    <Icon name="chat" size={17} /> WhatsApp direct send · Coming
-                    soon
-                  </button>
-                </section>
+
                 <label>
                   Tell us what could be better
                   <textarea
@@ -2100,6 +2097,26 @@ export default function Workspace() {
           </section>
         </div>
       )}
+      {guideOpen && (
+        <div className="modal-backdrop guide-backdrop" onClick={()=>closeGuide()}>
+          <section className="app-guide-modal" role="dialog" aria-modal="true" aria-labelledby="app-guide-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button app-guide-close" aria-label="Close guide" onClick={()=>closeGuide()}><Icon name="close"/></button>
+            <span className="eyebrow">PAKKI BAAT IN 30 SECONDS</span>
+            <h2 id="app-guide-title">Your hisaab, without the notebook confusion.</h2>
+            <p className="app-guide-intro">Start with a customer. Pakki Baat keeps the work, money, reminders and follow-up together.</p>
+            <div className="app-guide-steps">
+              <div className="app-guide-step"><b>1</b><span><strong>Add a customer</strong><small>Each customer gets one simple hisaab folder.</small></span></div>
+              <div className="app-guide-step"><b>2</b><span><strong>Add what happened</strong><small>Speak, type naturally, or fill the form. We turn it into a clean entry.</small></span></div>
+              <div className="app-guide-step"><b>3</b><span><strong>Payment = record money received</strong><small>Tap Payment when a customer has already paid you. It only updates Received and Baki — it never takes money.</small></span></div>
+              <div className="app-guide-step"><b>4</b><span><strong>Follow up without remembering everything</strong><small>Set a reminder or open WhatsApp with an editable message already prepared.</small></span></div>
+            </div>
+            <div className="app-guide-actions">
+              <button type="button" className="outline" onClick={()=>closeGuide()}>Got it</button>
+              <button type="button" className="primary" onClick={()=>closeGuide("Hisaab")}>Open Hisaab <Icon name="arrow" size={16}/></button>
+            </div>
+          </section>
+        </div>
+      )}
       {paymentJob && (
         <div className="modal-backdrop" onClick={()=>setPaymentJob(null)}>
           <section className="quick-payment-modal" role="dialog" aria-modal="true" aria-labelledby="quick-payment-title" onClick={e=>e.stopPropagation()}>
@@ -2107,6 +2124,7 @@ export default function Workspace() {
             <span className="eyebrow">PAYMENT RECEIVED</span>
             <h2 id="quick-payment-title">{paymentJob.customer}</h2>
             <p>{paymentJob.work}</p>
+            <div className="payment-explainer"><strong>What this does</strong><span>Records money you already received and reduces the baki. Pakki Baat does not collect or transfer money.</span></div>
             <div className="quick-payment-baki"><small>Current baki</small><strong>{money(Math.max(0,paymentJob.total-paymentJob.paid))}</strong></div>
             <form onSubmit={e=>{e.preventDefault();saveQuickPayment();}}>
               <label>Amount received (₹)
