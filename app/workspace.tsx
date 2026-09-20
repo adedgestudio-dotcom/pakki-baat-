@@ -1039,7 +1039,11 @@ export default function Workspace() {
     setToast(message);
   }
   function deleteEntry(job: Job) {
-    if (!confirm(`Delete "${job.work}" from ${job.customer}'s hisaab?`)) return;
+    setDeleteJob(job);
+  }
+  function confirmDeleteEntry() {
+    if (!deleteJob) return;
+    const job = deleteJob;
     const message = "Entry deleted";
     rememberUndo(message);
     setJobs(items => items.filter(item => item.id !== job.id));
@@ -1047,6 +1051,7 @@ export default function Workspace() {
     setReminders(items => items.filter(item => item.jobId !== job.id));
     setChatTurns(items => items.filter(item => item.replyFor?.id !== job.id));
     if (draft?.id === job.id) setDraft(null);
+    setDeleteJob(null);
     setToast(message);
   }
   async function shareFeedback() {
@@ -1168,20 +1173,21 @@ export default function Workspace() {
     setReminderDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`);
   }
   function saveReminder() {
-    if (!reminderJob || !reminderDate || !reminderText.trim()) return;
+    if ((!reminderJob && !directReminderOpen) || !reminderDate || !reminderText.trim()) return;
+    const customer = reminderJob?.customer || reminderCustomer.trim() || undefined;
     const reminder: Reminder = {
       id: crypto.randomUUID(),
       text: reminderText.trim(),
       date: reminderDate,
       time: reminderTime,
-      customer: reminderJob.customer,
-      jobId: reminderJob.id,
+      customer,
+      jobId: reminderJob?.id || undefined,
       repeat: reminderRepeat,
       done: false,
       createdAt: new Date().toISOString(),
     };
     setReminders(items => [reminder, ...items]);
-    setReminderJob(null);
+    closeReminderEditor();
     setToast("Reminder saved.");
   }
   function completeReminder(id:string) {
