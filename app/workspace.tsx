@@ -197,10 +197,18 @@ export default function Workspace() {
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
     [payments, setPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
+    [customerPhones, setCustomerPhones] = useState<Record<string,string>>({}),
     [newCustomerOpen, setNewCustomerOpen] = useState(false),
     [saveLoginPromptOpen, setSaveLoginPromptOpen] = useState(false),
     [whatsappJob, setWhatsappJob] = useState<Job | null>(null),
     [whatsappNumber, setWhatsappNumber] = useState(""),
+    [whatsappMessage, setWhatsappMessage] = useState(""),
+    [saveWhatsappNumber, setSaveWhatsappNumber] = useState(true),
+    [paymentJob, setPaymentJob] = useState<Job | null>(null),
+    [paymentAmount, setPaymentAmount] = useState(""),
+    [phoneEditorCustomer, setPhoneEditorCustomer] = useState<string | null>(null),
+    [phoneEditorValue, setPhoneEditorValue] = useState(""),
+    [lastUndo, setLastUndo] = useState<{message:string;snapshot:Snapshot}|null>(null),
     [newCustomerName, setNewCustomerName] = useState(""),
     [customerChatOpen, setCustomerChatOpen] = useState(false),
     [reminderJob, setReminderJob] = useState<Job | null>(null),
@@ -263,6 +271,7 @@ export default function Workspace() {
           setReminders([]);
           setPayments([]);
           setNotes([]);
+          setCustomerPhones({});
           setOwner("");
           setBusiness("My small business");
           setChatTurns([]);
@@ -302,7 +311,7 @@ export default function Workspace() {
   }, []);
   useEffect(() => {
     if (!ready) return;
-    const snapshot = { jobs, owner, business, reminders, payments, notes };
+    const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     writeLocalWorkspace(storageUserId, snapshot);
     if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
@@ -312,7 +321,7 @@ export default function Workspace() {
       );
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [jobs, owner, business, reminders, payments, notes, ready, loggedIn]);
+  }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -561,6 +570,7 @@ export default function Workspace() {
       setReminders([]);
       setPayments([]);
       setNotes([]);
+      setCustomerPhones({});
       setJobs([]);
       setChatTurns([]);
       setPendingJob(null);
@@ -953,6 +963,7 @@ export default function Workspace() {
     setReminders(s.reminders || []);
     setPayments(s.payments || []);
     setNotes(s.notes || []);
+    setCustomerPhones(s.customerPhones || {});
     setOwner(s.owner);
     setBusiness(s.business);
     setChatTurns([]);
