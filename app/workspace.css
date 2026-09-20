@@ -5061,3 +5061,470 @@ select:focus-visible {
   background:#254438;
   color:#a6d2c1;
 }
+
+
+/* Dedicated Reminders page */
+.reminders-heading{
+  align-items:flex-end;
+}
+.reminder-add-primary{
+  min-width:128px;
+  justify-content:center;
+  gap:7px;
+}
+.reminder-page-summary{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  margin:0 0 18px;
+}
+.reminder-page-summary>div{
+  position:relative;
+  display:grid;
+  gap:5px;
+  min-height:96px;
+  padding:15px;
+  border:1px solid var(--line,#e7e1d6);
+  border-radius:16px;
+  background:var(--card,#fff);
+}
+.reminder-page-summary small{
+  padding-right:35px;
+  font-size:10px;
+}
+.reminder-page-summary strong{
+  font-size:23px;
+  color:#28483c;
+}
+.reminder-summary-icon{
+  position:absolute;
+  top:13px;
+  right:13px;
+  width:31px;
+  height:31px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:#edf4ef;
+  color:#2d7667;
+}
+.reminders-page-card,
+.reminders-completed{
+  overflow:hidden;
+  border:1px solid var(--line,#e7e1d6);
+  border-radius:19px;
+  background:var(--card,#fff);
+}
+.reminders-completed{
+  margin-top:18px;
+}
+.reminders-page-title,
+.reminders-completed .section-heading{
+  border-bottom:1px solid var(--line,#e7e1d6);
+}
+.reminders-page-list{
+  display:grid;
+}
+.reminder-page-row{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:14px 16px;
+  border-bottom:1px solid var(--line,#e7e1d6);
+}
+.reminder-page-row:last-child{
+  border-bottom:0;
+}
+.reminder-page-row.is-due{
+  background:#fffaf2;
+}
+.reminder-page-bell{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border-radius:12px;
+  background:#edf4ef;
+  color:#2d7667;
+}
+.reminder-page-row.is-due .reminder-page-bell{
+  background:#fff0df;
+  color:#a25f34;
+}
+.reminder-page-copy{
+  min-width:0;
+}
+.reminder-page-copy>strong{
+  display:block;
+  margin-top:3px;
+  font-size:12px;
+  line-height:1.45;
+}
+.reminder-page-copy>small{
+  margin-top:4px;
+  font-size:10px;
+}
+.reminder-customer-link,
+.reminder-generic-label{
+  display:inline-flex;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:#2d7667;
+  font-size:10px;
+  font-weight:800;
+}
+.reminder-customer-link:hover{
+  text-decoration:underline;
+}
+.reminder-page-actions{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.reminder-page-actions .mini{
+  min-height:35px;
+  padding:7px 10px;
+  border-radius:10px;
+  font-size:10px;
+}
+.reminders-page-empty{
+  display:grid;
+  justify-items:center;
+  padding:34px 22px;
+  text-align:center;
+}
+.reminders-page-empty>span{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  margin-bottom:10px;
+  border-radius:15px;
+  background:#edf4ef;
+  color:#2d7667;
+}
+.reminders-page-empty h3{
+  margin:0 0 5px;
+}
+.reminders-page-empty p{
+  max-width:430px;
+  margin-bottom:15px;
+  font-size:12px;
+}
+.reminders-page-empty .primary{
+  min-height:43px;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:9px 14px;
+  border-radius:11px;
+}
+.completed-reminder-list{
+  display:grid;
+}
+.completed-reminder-row{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  gap:10px;
+  align-items:center;
+  padding:12px 16px;
+  border-bottom:1px solid var(--line,#e7e1d6);
+}
+.completed-reminder-row:last-child{
+  border-bottom:0;
+}
+.completed-check{
+  width:29px;
+  height:29px;
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  background:#edf4ef;
+  color:#2d7667;
+}
+.completed-reminder-row strong{
+  display:block;
+  font-size:11px;
+}
+.completed-reminder-row small{
+  margin-top:3px;
+  font-size:9px;
+}
+
+/* Standalone reminder editor */
+.reminder-sheet-head p{
+  max-width:390px;
+  margin-top:5px;
+  font-size:11px;
+  line-height:1.5;
+}
+.reminder-customer-select{
+  display:grid;
+  gap:6px;
+  margin-bottom:14px;
+  font-size:11px;
+  font-weight:700;
+}
+.reminder-customer-select>span{
+  margin-left:4px;
+  color:#85928b;
+  font-size:9px;
+  font-weight:500;
+}
+.reminder-customer-select select{
+  min-height:45px;
+  border-radius:11px;
+}
+
+/* Mobile reminder nav badge */
+.mobile-nav-icon-wrap{
+  position:relative;
+  display:grid;
+  place-items:center;
+}
+.mobile-reminder-badge{
+  position:absolute;
+  top:-7px;
+  right:-10px;
+  min-width:16px;
+  height:16px;
+  display:grid;
+  place-items:center;
+  padding:0 4px;
+  border:2px solid #fff;
+  border-radius:999px;
+  background:#ff7556;
+  color:#fff;
+  font-size:7px;
+  font-weight:800;
+  line-height:1;
+}
+[data-theme="dark"] .mobile-reminder-badge{
+  border-color:#14221d;
+}
+
+/* Better delete confirmation */
+.delete-confirm-modal{
+  position:relative;
+  width:min(440px,calc(100vw - 28px));
+  padding:29px 25px 22px;
+  border:1px solid #ead4ce;
+  border-radius:22px;
+  background:#fffdf9;
+  box-shadow:0 26px 80px rgba(65,33,27,.22);
+}
+.delete-confirm-close{
+  position:absolute;
+  top:13px;
+  right:13px;
+}
+.delete-confirm-icon{
+  width:52px;
+  height:52px;
+  display:grid;
+  place-items:center;
+  margin-bottom:14px;
+  border-radius:16px;
+  background:#fff0ec;
+  border:1px solid #f0d1c9;
+  color:#b25443;
+}
+.delete-confirm-modal h2{
+  max-width:360px;
+  margin:5px 0 12px;
+  font-family:Georgia,serif;
+  font-size:26px;
+  line-height:1.2;
+  font-weight:400;
+  color:#3e302c;
+}
+.delete-entry-preview{
+  display:grid;
+  gap:4px;
+  padding:12px 13px;
+  margin-bottom:12px;
+  border:1px solid #eadfd9;
+  border-radius:13px;
+  background:#fff8f5;
+}
+.delete-entry-preview strong{
+  font-size:12px;
+  color:#4a352f;
+}
+.delete-entry-preview span{
+  font-size:10px;
+  color:#8b7770;
+}
+.delete-confirm-modal>p{
+  margin:0;
+  font-size:11px;
+  line-height:1.55;
+  color:#7b6d68;
+}
+.delete-confirm-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  margin-top:18px;
+}
+.delete-confirm-actions button{
+  min-height:45px;
+  border-radius:11px;
+  font-size:11px;
+  font-weight:750;
+}
+.delete-confirm-button{
+  background:#b65342;
+  color:#fff;
+}
+.delete-confirm-button:hover{
+  background:#9f4637;
+}
+
+/* Dark reminders/delete */
+[data-theme="dark"] .reminder-page-summary>div,
+[data-theme="dark"] .reminders-page-card,
+[data-theme="dark"] .reminders-completed{
+  background:#17271f;
+  border-color:#31483d;
+}
+[data-theme="dark"] .reminder-page-summary strong{
+  color:#edf4ef;
+}
+[data-theme="dark"] .reminder-summary-icon,
+[data-theme="dark"] .reminder-page-bell,
+[data-theme="dark"] .completed-check,
+[data-theme="dark"] .reminders-page-empty>span{
+  background:#20382e;
+  color:#8fc8b3;
+}
+[data-theme="dark"] .reminders-page-title,
+[data-theme="dark"] .reminders-completed .section-heading,
+[data-theme="dark"] .reminder-page-row,
+[data-theme="dark"] .completed-reminder-row{
+  border-color:#31483d;
+}
+[data-theme="dark"] .reminder-page-row.is-due{
+  background:#2a271c;
+}
+[data-theme="dark"] .reminder-page-row.is-due .reminder-page-bell{
+  background:#3a301f;
+  color:#dbb574;
+}
+[data-theme="dark"] .reminder-customer-link,
+[data-theme="dark"] .reminder-generic-label{
+  color:#8fc8b3;
+}
+[data-theme="dark"] .delete-confirm-modal{
+  background:#251b18;
+  border-color:#573a33;
+}
+[data-theme="dark"] .delete-confirm-icon{
+  background:#3a2420;
+  border-color:#664038;
+  color:#e5a092;
+}
+[data-theme="dark"] .delete-confirm-modal h2{
+  color:#f2e8e4;
+}
+[data-theme="dark"] .delete-entry-preview{
+  background:#2e211d;
+  border-color:#533a33;
+}
+[data-theme="dark"] .delete-entry-preview strong{
+  color:#f0dfda;
+}
+[data-theme="dark"] .delete-entry-preview span,
+[data-theme="dark"] .delete-confirm-modal>p{
+  color:#baa6a0;
+}
+
+@media(max-width:560px){
+  .reminders-heading{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:10px;
+    align-items:start;
+  }
+  .reminder-add-primary{
+    min-width:116px !important;
+    min-height:42px !important;
+    padding:9px 11px !important;
+    font-size:10px !important;
+    border-radius:12px !important;
+  }
+  .reminder-page-summary{
+    grid-template-columns:repeat(3,1fr);
+    gap:6px;
+  }
+  .reminder-page-summary>div{
+    min-height:87px;
+    padding:11px 9px;
+    border-radius:13px;
+  }
+  .reminder-page-summary small{
+    padding-right:0;
+    padding-top:29px;
+    font-size:8px;
+    line-height:1.25;
+  }
+  .reminder-page-summary strong{
+    font-size:18px;
+  }
+  .reminder-summary-icon{
+    top:9px;
+    left:9px;
+    right:auto;
+    width:26px;
+    height:26px;
+    border-radius:8px;
+  }
+  .reminder-page-row{
+    grid-template-columns:34px minmax(0,1fr);
+    gap:9px;
+    padding:12px;
+  }
+  .reminder-page-bell{
+    width:34px;
+    height:34px;
+    border-radius:10px;
+  }
+  .reminder-page-actions{
+    grid-column:2;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    width:100%;
+    margin-top:2px;
+  }
+  .reminder-page-actions .mini{
+    width:100%;
+    min-height:38px;
+  }
+  .reminders-page-card,
+  .reminders-completed{
+    border-radius:16px;
+  }
+  .reminders-page-empty{
+    padding:28px 16px;
+  }
+  .delete-confirm-modal{
+    width:calc(100vw - 20px);
+    padding:26px 17px 18px;
+    border-radius:20px;
+  }
+  .delete-confirm-modal h2{
+    padding-right:28px;
+    font-size:23px;
+  }
+  .delete-confirm-actions{
+    grid-template-columns:1fr;
+  }
+  .delete-confirm-actions .outline{
+    order:2;
+  }
+  .delete-confirm-button{
+    order:1;
+  }
+}
