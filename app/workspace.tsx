@@ -233,7 +233,6 @@ export default function Workspace() {
     const savedTheme = localStorage.getItem("pakki-baat-theme");
     const isDark = savedTheme === "dark";
     document.documentElement.dataset.theme = isDark ? "dark" : "light";
-    if (!localStorage.getItem("pakki-baat-guide-v1")) setGuideOpen(true);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDark(isDark);
   }, []);
@@ -248,6 +247,13 @@ export default function Workspace() {
       setUserEmail(session?.user.email || null);
       setUserName(accountNameFromEmail(session));
       activeUserIdRef.current = session?.user.id || null;
+
+      if (session) {
+        try {
+          const guideKey = "pakki-baat-guide-v1:" + session.user.id;
+          if (!localStorage.getItem(guideKey)) setGuideOpen(true);
+        } catch {}
+      }
 
       if (!session) {
         cloudHydratedRef.current = false;
@@ -436,7 +442,8 @@ export default function Workspace() {
   }
   function closeGuide(nextTab?: Tab) {
     try {
-      localStorage.setItem("pakki-baat-guide-v1", "seen");
+      const userId = activeUserIdRef.current;
+      if (userId) localStorage.setItem("pakki-baat-guide-v1:" + userId, "seen");
     } catch {}
     setGuideOpen(false);
     if (nextTab) go(nextTab);
@@ -1226,6 +1233,10 @@ export default function Workspace() {
               <br />A little more doing what you love.
             </p>
           </div>
+          <button className="settings-button learn-pakki-button" onClick={() => setGuideOpen(true)}>
+            <span className="learn-pakki-icon">?</span>
+            Learn Pakki Baat
+          </button>
           <button className="settings-button" onClick={() => go("Settings")}>
             <Icon name="settings" />
             Settings & feedback
