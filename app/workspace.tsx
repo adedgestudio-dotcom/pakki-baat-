@@ -881,9 +881,30 @@ export default function Workspace() {
     }Total: ${money(j.total)}. Received: ${money(j.paid)}. Balance: ${money(
       j.total - j.paid
     )}. Please reply to confirm these details. Thank you!`;
+  function currentSnapshot(): Snapshot {
+    return { jobs, owner, business, reminders, payments, notes, customerPhones };
+  }
+  function rememberUndo(message: string) {
+    setLastUndo({ message, snapshot: currentSnapshot() });
+  }
+  function undoLastAction() {
+    if (!lastUndo) return;
+    const s = lastUndo.snapshot;
+    setJobs(s.jobs);
+    setReminders(s.reminders || []);
+    setPayments(s.payments || []);
+    setNotes(s.notes || []);
+    setCustomerPhones(s.customerPhones || {});
+    setOwner(s.owner);
+    setBusiness(s.business);
+    setLastUndo(null);
+    setToast("Undone.");
+  }
   function openWhatsApp(job: Job) {
     setWhatsappJob(job);
-    setWhatsappNumber("");
+    setWhatsappNumber(customerPhones[job.customer] || "");
+    setWhatsappMessage(replyText(job));
+    setSaveWhatsappNumber(true);
   }
   function sendWhatsApp() {
     if (!whatsappJob) return;
@@ -893,14 +914,81 @@ export default function Workspace() {
       setToast("Enter a valid WhatsApp number with country code.");
       return;
     }
+    const text = whatsappMessage.trim() || replyText(whatsappJob);
+    if (saveWhatsappNumber) {
+      setCustomerPhones(items => ({ ...items, [whatsappJob.customer]: digits }));
+    }
     const url =
       "https://wa.me/" +
       digits +
       "?text=" +
-      encodeURIComponent(replyText(whatsappJob));
+      encodeURIComponent(text);
     window.open(url, "_blank", "noopener,noreferrer");
     setWhatsappJob(null);
     setWhatsappNumber("");
+    setWhatsappMessage("");
+  }
+  function openPhoneEditor(customer: string) {
+    setPhoneEditorCustomer(customer);
+    setPhoneEditorValue(customerPhones[customer] || "");
+  }
+  function saveCustomerPhone() {
+    if (!phoneEditorCustomer) return;
+    let digits = phoneEditorValue.replace(/\D/g, "");
+    if (digits.length === 10) digits = "91" + digits;
+    if (digits && (digits.length < 8 || digits.length > 15)) {
+      setToast("Enter a valid WhatsApp number with country code.");
+      return;
+    }
+    setCustomerPhones(items => {
+      const next = { ...items };
+      if (digits) next[phoneEditorCustomer] = digits;
+      else delete next[phoneEditorCustomer];
+      return next;
+    });
+    setPhoneEditorCustomer(null);
+    setPhoneEditorValue("");
+    setToast(digits ? "Customer WhatsApp number saved." : "Customer number removed.");
+  }
+  function openPayment(job: Job) {
+    if (!requireLoginForSaving()) return;
+    if (job.total <= job.paid) {
+      setToast("This entry is already fully paid.");
+      return;
+    }
+    setPaymentJob(job);
+    setPaymentAmount("");
+  }
+  function saveQuickPayment() {
+    if (!paymentJob) return;
+    const amount = Number(paymentAmount);
+    const baki = Math.max(0, paymentJob.total - paymentJob.paid);
+    if (!(amount > 0) || amount > baki) {
+      setToast("Enter an amount up to " + money(baki) + ".");
+      return;
+    }
+    const message = "Payment updated ✓";
+    rememberUndo(message);
+    setJobs(items => items.map(j => j.id === paymentJob.id ? { ...j, paid: j.paid + amount } : j));
+    setPayments(items => [{
+      id: crypto.randomUUID(),
+      customer: paymentJob.customer,
+      jobId: paymentJob.id,
+      amount,
+      date: day(),
+      note: "Quick payment",
+      createdAt: new Date().toISOString()
+    }, ...items]);
+    setPaymentJob(null);
+    setPaymentAmount("");
+    setToast(message);
+  }
+  function updateJobStatus(job: Job, status: "Waiting"|"Confirmed"|"Completed") {
+    if (job.status === status) return;
+    const message = status === "Completed" ? "Marked done ✓" : status === "Confirmed" ? "Marked in progress ✓" : "Marked pending ✓";
+    rememberUndo(message);
+    setJobs(items => items.map(item => item.id === job.id ? { ...item, status } : item));
+    setToast(message);
   }
   async function shareFeedback() {
     try {
