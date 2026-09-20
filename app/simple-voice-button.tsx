@@ -1,8 +1,30 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
+type SpeechRecognitionResultLike = {
+  0?: { transcript?: string };
+};
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
 interface SimpleVoiceButtonProps {
-  onRecordingComplete: (audioBlob: Blob, duration: number) => void;
+  onRecordingComplete: (audioBlob: Blob, duration: number, transcript?: string) => void;
   onError: (error: string) => void;
 }
 
@@ -17,11 +39,15 @@ export default function SimpleVoiceButton({
   const chunksRef = useRef<BlobPart[]>([]);
   const startedAtRef = useRef(0);
   const timerRef = useRef<number | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const liveTranscriptRef = useRef("");
 
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
       const recorder = recorderRef.current;
       if (recorder && recorder.state !== "inactive") {
         recorder.onstop = null;
@@ -45,6 +71,7 @@ export default function SimpleVoiceButton({
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
 
+    recognitionRef.current?.stop();
     recorder.stop();
   }
 
@@ -58,6 +85,40 @@ export default function SimpleVoiceButton({
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      liveTranscriptRef.current = "";
+      const speechWindow = window as typeof window & {
+        SpeechRecognition?: SpeechRecognitionConstructor;
+        webkitSpeechRecognition?: SpeechRecognitionConstructor;
+      };
+      const Recognition =
+        speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+      if (Recognition) {
+        try {
+          const recognition = new Recognition();
+          recognition.lang = navigator.language || "en-IN";
+          recognition.interimResults = true;
+          recognition.continuous = true;
+          recognition.onresult = (event) => {
+            let transcript = "";
+            for (let index = 0; index < event.results.length; index += 1) {
+              transcript += event.results[index]?.[0]?.transcript || "";
+            }
+            liveTranscriptRef.current = transcript.trim();
+          };
+          recognition.onerror = () => {
+            // Audio recording still continues; Groq transcription is the fallback.
+          };
+          recognition.onend = () => {
+            recognitionRef.current = null;
+          };
+          recognitionRef.current = recognition;
+          recognition.start();
+        } catch {
+          recognitionRef.current = null;
+        }
+      }
+
       const mimeType = pickMimeType();
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
@@ -92,7 +153,14 @@ export default function SimpleVoiceButton({
           return;
         }
 
-        onRecordingComplete(audioBlob, recordedSeconds);
+        // Give mobile speech recognition a brief moment to deliver its final words.
+        window.setTimeout(() => {
+          onRecordingComplete(
+            audioBlob,
+            recordedSeconds,
+            liveTranscriptRef.current.trim()
+          );
+        }, 220);
       };
 
       mediaRecorder.onerror = () => {
