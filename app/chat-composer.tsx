@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import SimpleVoiceButton from "./simple-voice-button";
-import AudioPlayer from "./audio-player";
 import type { Job } from "@/lib/data";
 
 const VOICE_PROCESSING_MESSAGES = [
@@ -76,10 +75,6 @@ export default function ChatComposer({
 
   const handleSend = () => {
     onCapture();
-  };
-
-  const formatDuration = (seconds: number) => {
-    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   };
 
   const handleVoiceError = (error: string) => {
