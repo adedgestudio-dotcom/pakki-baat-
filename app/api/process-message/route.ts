@@ -84,14 +84,16 @@ Extract information from the user's message and update the commitment. Return ON
 Rules:
 1. Extract whatever information is present in THIS message
 2. IMPORTANT: "advance" or "received" or "paid" means the PAID amount, not total
-3. IMPORTANT: "balance" means the remaining amount owed (total - paid)
+3. IMPORTANT: "balance", "baki", "pending", "remaining", "due amount" all mean the BALANCE still owed (total - paid)
 4. If user says "2000 rs advance" → paid: 2000
-5. If user says "2000 balance" → balance: 2000
+5. If user says "1000 pending" or "1000 rs baki" → balance: 1000
 6. If user says "total 5000" → total: 5000
-7. Work/item description should go in "work" field, NOT in amounts
-8. Extract dates in YYYY-MM-DD format when possible
-9. Extract time in HH:MM format when possible
-10. If user confirms (says "yes", "confirmed", "okay"), set confirmed: true
+7. If there are two money amounts and one is clearly marked pending/baki/balance, use that marked amount as balance and the other money amount as total unless the other is explicitly marked paid/received/advance
+8. Example: "2kg cake 1000 rs pending 2000" means work: "2kg cake", balance: 1000, total: 2000, paid: 1000
+9. Work/item description must contain ONLY the product/service/work. Do NOT copy payment words, totals, balance amounts, dates, or times into work
+10. Extract dates in YYYY-MM-DD format when possible
+11. Extract time in HH:MM format when possible
+12. If user confirms (says "yes", "confirmed", "okay"), set confirmed: true
 
 Return format:
 {
@@ -203,6 +205,40 @@ Extract information and determine the next question.`;
 
       if (parsed.extracted) {
         const ext = parsed.extracted;
+
+        // Recover common shorthand used in small-business hisaab messages.
+        // Example: "2kg cake 1000 rs pending 2000" => balance 1000, total 2000.
+        const compact = message.toLowerCase().replace(/,/g, "");
+        const pendingBefore = compact.match(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/);
+        const pendingAfter = compact.match(/(?:pending|baki|balance|remaining)\s*(?:₹\s*)?(\d+(?:\.\d+)?)/);
+        const balanceHint = Number((pendingBefore?.[1] || pendingAfter?.[1] || "").trim()) || undefined;
+        const moneyCandidates = Array.from(compact.matchAll(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?/g))
+          .map(match => ({ value: Number(match[1]), index: match.index || 0, raw: match[0] }))
+          .filter(item => Number.isFinite(item.value) && item.value >= 100)
+          .filter(item => {
+            const after = compact.slice(item.index + item.raw.length, item.index + item.raw.length + 8);
+            return !/^\s*(kg|g|gm|grams?|pcs?|pieces?)\b/.test(after);
+          });
+        const distinctMoney = Array.from(new Set(moneyCandidates.map(item => item.value)));
+        if (balanceHint !== undefined && (!Number.isFinite(Number(ext.balance)) || Number(ext.balance) <= 0)) {
+          ext.balance = balanceHint;
+        }
+        if (balanceHint !== undefined && (!Number.isFinite(Number(ext.total)) || Number(ext.total) <= 0)) {
+          const other = distinctMoney.filter(value => value !== balanceHint).sort((a,b)=>b-a)[0];
+          if (other !== undefined) ext.total = other;
+        }
+        if (Number(ext.total) > 0 && Number(ext.balance) >= 0 && (!Number.isFinite(Number(ext.paid)) || Number(ext.paid) <= 0)) {
+          ext.paid = Math.max(0, Number(ext.total) - Number(ext.balance));
+        }
+        if (typeof ext.work === "string" && ext.work.trim().toLowerCase() === message.trim().toLowerCase() && balanceHint !== undefined) {
+          let cleaned = message
+            .replace(/(?:₹\s*)?\d+(?:[.,]\d+)?\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/ig, " ")
+            .replace(/(?:pending|baki|balance|remaining)\s*(?:₹\s*)?\d+(?:[.,]\d+)?/ig, " ");
+          const totalHint = Number(ext.total) || 0;
+          if (totalHint > 0) cleaned = cleaned.replace(new RegExp(`(?:₹\\s*)?${totalHint}(?:\\.0+)?\\s*(?:rs\\.?|rupees?)?`, "ig"), " ");
+          cleaned = cleaned.replace(/\s+/g, " ").trim();
+          if (cleaned) ext.work = cleaned;
+        }
 
         if (ext.customer !== undefined) updated.customer = ext.customer;
         if (ext.work !== undefined) updated.work = ext.work;
