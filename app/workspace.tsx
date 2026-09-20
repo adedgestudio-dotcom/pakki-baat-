@@ -1370,24 +1370,28 @@ export default function Workspace() {
                     Tell me what’s new <Icon name="arrow" size={18} />
                   </button>
                 </div>
-                <div className="hero-art" aria-hidden="true">
-                  <div className="art-circle" />
-                  <div className="note back">
-                    <span>Made with love</span>
-                    <div className="cake">♨</div>
-                    <span>And a little less worry.</span>
-                  </div>
-                  <div className="note front">
-                    <div className="note-icon">
-                      <Icon name="check" />
+                <div className="hero-art hero-app-preview" aria-hidden="true">
+                  <div className="hero-preview-glow" />
+                  <div className="hero-preview-main">
+                    <div className="hero-preview-top">
+                      <span className="hero-preview-avatar">A</span>
+                      <span><strong>Asha</strong><small>Cake order</small></span>
+                      <Icon name="check" size={15} />
                     </div>
-                    <strong>It’s a pakki baat!</strong>
-                    <span>Details saved. Mind at ease.</span>
-                    <div className="note-line" />
-                    <div className="note-line short" />
+                    <div className="hero-preview-money">
+                      <small>Balance</small>
+                      <strong>₹2,000</strong>
+                      <span>baki</span>
+                    </div>
                   </div>
-                  <span className="spark one">✦</span>
-                  <span className="spark two">✧</span>
+                  <div className="hero-preview-chip reminder">
+                    <span className="hero-preview-chip-icon"><Icon name="bell" size={15} /></span>
+                    <span><small>Reminder</small><strong>Tomorrow · 9:00</strong></span>
+                  </div>
+                  <div className="hero-preview-chip whatsapp">
+                    <span className="hero-preview-chip-icon"><Icon name="chat" size={15} /></span>
+                    <span><small>WhatsApp</small><strong>Reply ready</strong></span>
+                  </div>
                 </div>
               </section>
               <section className="stats">
