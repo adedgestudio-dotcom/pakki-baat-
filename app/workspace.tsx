@@ -1013,6 +1013,17 @@ export default function Workspace() {
     setJobs(items => items.map(item => item.id === job.id ? { ...item, status } : item));
     setToast(message);
   }
+  function deleteEntry(job: Job) {
+    if (!confirm(`Delete "${job.work}" from ${job.customer}'s hisaab?`)) return;
+    const message = "Entry deleted";
+    rememberUndo(message);
+    setJobs(items => items.filter(item => item.id !== job.id));
+    setPayments(items => items.filter(item => item.jobId !== job.id));
+    setReminders(items => items.filter(item => item.jobId !== job.id));
+    setChatTurns(items => items.filter(item => item.replyFor?.id !== job.id));
+    if (draft?.id === job.id) setDraft(null);
+    setToast(message);
+  }
   async function shareFeedback() {
     try {
       if (navigator.share) {
@@ -1890,7 +1901,7 @@ export default function Workspace() {
                     </div>
                   )}
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
-                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="entry-status-chips" aria-label="Entry status"><button type="button" className={j.status==="Waiting"?"active":""} onClick={()=>updateJobStatus(j,"Waiting")}>Pending</button><button type="button" className={j.status==="Confirmed"?"active":""} onClick={()=>updateJobStatus(j,"Confirmed")}>In progress</button><button type="button" className={j.status==="Completed"?"active":""} onClick={()=>updateJobStatus(j,"Completed")}>Done</button></div><div className="chat-turn-actions saved-card-actions">{j.paid<j.total && <button type="button" className="card-action payment-action" onClick={()=>openPayment(j)}>₹ Payment</button>}<button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button></div></article>)}</div>
+                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="entry-status-chips" aria-label="Entry status"><button type="button" className={j.status==="Waiting"?"active":""} onClick={()=>updateJobStatus(j,"Waiting")}>Pending</button><button type="button" className={j.status==="Confirmed"?"active":""} onClick={()=>updateJobStatus(j,"Confirmed")}>In progress</button><button type="button" className={j.status==="Completed"?"active":""} onClick={()=>updateJobStatus(j,"Completed")}>Done</button></div><div className="chat-turn-actions saved-card-actions">{j.paid<j.total && <button type="button" className="card-action payment-action" onClick={()=>openPayment(j)}>₹ Payment</button>}<button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button><button type="button" className="card-action delete-action" onClick={()=>deleteEntry(j)}><Icon name="close" size={14}/> Delete</button></div></article>)}</div>
                   </div>
                   {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
