@@ -452,18 +452,15 @@ export default function Workspace() {
 
     if (transcript) {
       setMessage("");
-      // Process the transcribed voice message through unified flow
-      void processAssistantMessage(transcript, "voice");
+      await processAssistantMessage(transcript, "voice");
     } else {
-      void transcribeSentVoice(file, id);
+      await transcribeSentVoice(file, id);
     }
 
     try {
       await saveVoice(id, file);
     } catch {
-      setToast(
-        "Voice sent, but this browser could not store the audio for later playback."
-      );
+      // The entry can still be created even if local audio playback cannot be saved.
     }
   }
   async function transcribeSentVoice(file: File, id: string) {
@@ -512,17 +509,9 @@ export default function Workspace() {
       const reason =
         cause instanceof Error ? cause.message : "Transcription failed.";
       if (reason.includes("Continue with Google")) {
-        say(
-          "assistant",
-          "Please continue with Google to turn on AI voice transcription. After sign in, tap Retry transcription and I will listen to this voice note, write the text, and prepare the details slip."
-        );
+        setToast("Sign in once to use voice transcription, then tap the mic again.");
       } else {
-        say(
-          "assistant",
-          "Your voice note is in the chat, but I could not read it: " +
-            reason +
-            " Tap Retry transcription or type the details."
-        );
+        setToast("Could not read that voice note. " + reason);
       }
     } finally {
       setVoiceBusy(false);
@@ -1150,9 +1139,9 @@ export default function Workspace() {
                   </h1>
                   <p>Let’s make room for the work you love.</p>
                 </div>
-                <button className="primary" onClick={() => go("Hisaab")}>
+                <button className="primary mobile-primary-action" onClick={() => go("Hisaab")}>
                   <Icon name="plus" size={18} />
-                  Add customer message
+                  <span>Add entry</span>
                 </button>
               </div>
               <section className="hero">
@@ -1636,7 +1625,7 @@ export default function Workspace() {
                       <h1>Hisaab</h1>
                       <p>One customer, one place. Open a name and continue where you left off.</p>
                     </div>
-                    <button className="primary" onClick={() => { setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /> New entry</button>
+                    <button className="primary mobile-primary-action" onClick={() => { setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /><span>New entry</span></button>
                   </div>
                   <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
                   <div className="customer-list-mobile">
@@ -1658,8 +1647,9 @@ export default function Workspace() {
                 <section className="customer-detail">
                   <button className="text-button customer-back" onClick={()=>{setSelectedCustomer(null);setMessage("");}}>← Hisaab</button>
                   <div className="customer-profile-head">
-                    <span className="avatar large">{selectedCustomer?.[0] || "?"}</span>
-                    <div><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
+                    <span className="avatar large customer-profile-avatar">{selectedCustomer?.[0] || "?"}</span>
+                    <div className="customer-profile-copy"><span className="eyebrow">CUSTOMER HISAAB</span><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
+                    {!customerChatOpen && <button type="button" className="customer-add-entry" onClick={()=>startEntry("quick")}><Icon name="plus" size={17}/> Add entry</button>}
                   </div>
                   {customerChatOpen ? (
                     <section className="smart-entry-panel">
@@ -1699,7 +1689,7 @@ export default function Workspace() {
                     </section>
                   ) : (
                     <div className="entry-choice">
-                      <div><span className="eyebrow">ADD TO {selectedCustomer?.toUpperCase()}</span><h3>How would you like to add it?</h3><p>Both save to the same hisaab.</p></div>
+                      <div><span className="eyebrow">NEW ENTRY</span><h3>Add something to {selectedCustomer}</h3><p>Speak naturally or use the simple form.</p></div>
                       <div className="entry-choice-actions"><button className="primary" type="button" onClick={()=>startEntry("quick")}>✨ Type or speak</button><button className="outline" type="button" onClick={()=>startEntry("form")}>Fill a form</button></div>
                     </div>
                   )}
