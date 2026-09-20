@@ -50,6 +50,9 @@ export default function SimpleVoiceButton({
 
   async function startRecording() {
     try {
+      if (!window.isSecureContext) {
+        throw new Error("Voice needs a secure HTTPS page on phone. Open the Vercel app instead of the local 192.168… address.");
+      }
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
         throw new Error("Voice recording is not supported in this browser.");
       }
@@ -106,6 +109,10 @@ export default function SimpleVoiceButton({
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       setIsRecording(false);
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        onError("Microphone permission is blocked. Allow microphone access for Pakki Baat in your browser settings, then try again.");
+        return;
+      }
       onError(err instanceof Error ? err.message : "Failed to access microphone");
     }
   }
