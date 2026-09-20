@@ -25,7 +25,7 @@ import {
   type Snapshot,
 } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
-type Tab = "Today" | "My assistant" | "Hisaab" | "Customers" | "Settings";
+type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Customers" | "Settings";
 type ChatTurn = {
   id: string;
   role: "me" | "assistant";
@@ -210,6 +210,9 @@ export default function Workspace() {
     [phoneEditorValue, setPhoneEditorValue] = useState(""),
     [lastUndo, setLastUndo] = useState<{message:string;snapshot:Snapshot}|null>(null),
     [guideOpen, setGuideOpen] = useState(false),
+    [deleteJob, setDeleteJob] = useState<Job | null>(null),
+    [directReminderOpen, setDirectReminderOpen] = useState(false),
+    [reminderCustomer, setReminderCustomer] = useState(""),
     [newCustomerName, setNewCustomerName] = useState(""),
     [customerChatOpen, setCustomerChatOpen] = useState(false),
     [reminderJob, setReminderJob] = useState<Job | null>(null),
@@ -406,10 +409,18 @@ export default function Workspace() {
   const nav: [Tab, string][] = [
     ["Today", "home"],
     ["Hisaab", "list"],
+    ["Reminders", "bell"],
   ];
   const open = jobs.filter((j) => j.status !== "Completed"),
     due = open.filter((j) => j.date && j.date <= day()),
-    balance = jobs.reduce((a, j) => a + Math.max(0, j.total - j.paid), 0);
+    balance = jobs.reduce((a, j) => a + Math.max(0, j.total - j.paid), 0),
+    activeReminders = reminders
+      .filter((r) => !r.done)
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)),
+    completedReminders = reminders
+      .filter((r) => r.done)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    remindersToday = activeReminders.filter((r) => r.date <= day()).length;
   const visible = jobs.filter(
     (j) =>
       `${j.customer} ${j.work}`.toLowerCase().includes(query.toLowerCase()) &&
@@ -428,17 +439,24 @@ export default function Workspace() {
   }
   function openReminders() {
     setSelectedCustomer(null);
-    setTab("Today");
+    setTab("Reminders");
     setQuery("");
     setFilter("All");
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        document.getElementById("today-reminders")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
-    });
+  }
+  function openNewReminder() {
+    if (!requireLoginForSaving()) return;
+    setReminderJob(null);
+    setDirectReminderOpen(true);
+    setReminderCustomer(selectedCustomer || "");
+    setReminderText("");
+    setReminderDate(day());
+    setReminderTime("09:00");
+    setReminderRepeat("none");
+  }
+  function closeReminderEditor() {
+    setReminderJob(null);
+    setDirectReminderOpen(false);
+    setReminderCustomer("");
   }
   function closeGuide(nextTab?: Tab) {
     try {
@@ -1221,7 +1239,7 @@ export default function Workspace() {
             >
               <Icon name={i} />
               {t}
-              {t === "Today" && (due.length + reminders.filter(r=>!r.done && r.date<=day()).length) > 0 && <b>{due.length + reminders.filter(r=>!r.done && r.date<=day()).length}</b>}
+              {t === "Reminders" && activeReminders.length > 0 && <b>{activeReminders.length}</b>}
             </button>
           ))}
         </nav>
@@ -1303,7 +1321,7 @@ export default function Workspace() {
               onClick={openReminders}
             >
               <Icon name="bell" />
-              {reminders.filter(r=>!r.done).length>0 && <span className="top-reminder-badge">{Math.min(99,reminders.filter(r=>!r.done).length)}</span>}
+              {activeReminders.length>0 && <span className="top-reminder-badge">{Math.min(99,activeReminders.length)}</span>}
             </button>
             <span className="avatar small">
               {displayName.charAt(0).toUpperCase()}
