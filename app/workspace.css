@@ -3564,3 +3564,149 @@ select:focus-visible {
 @media(max-width:360px){
   .customer-saved-card .saved-card-actions{grid-template-columns:1fr}
 }
+
+
+/* Quick-entry input v2 — one aligned surface */
+.smart-input-shell{
+  padding:14px;
+}
+.smart-input-topline{
+  margin-bottom:10px;
+}
+.smart-compose-field{
+  position:relative;
+  display:block;
+}
+.smart-compose-field textarea{
+  width:100%;
+  min-height:118px;
+  max-height:220px;
+  resize:vertical;
+  border:1px solid #cfdcd5;
+  border-radius:18px;
+  background:#fff;
+  color:#18372d;
+  padding:17px 66px 54px 17px;
+  font:inherit;
+  font-size:14px;
+  line-height:1.55;
+  outline:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+  transition:border-color .18s ease,box-shadow .18s ease,background .18s ease;
+}
+.smart-compose-field textarea::placeholder{
+  color:#8da097;
+}
+.smart-compose-field textarea:focus{
+  border-color:#4b8b76;
+  box-shadow:0 0 0 3px rgba(45,118,103,.09);
+}
+.smart-compose-tool{
+  position:absolute;
+  bottom:10px;
+  z-index:2;
+}
+.smart-compose-tool.left{left:10px}
+.smart-compose-tool.right{right:10px}
+.smart-compose-field .chat-attach-button,
+.smart-compose-field .whatsapp-mic-button,
+.smart-compose-field .send-icon-button{
+  width:42px;
+  height:42px;
+  border-radius:13px;
+}
+.smart-compose-field .chat-attach-button{
+  border:1px solid #c8d8d0;
+  background:#f6faf7;
+  color:#3e7b68;
+  box-shadow:none;
+}
+.smart-compose-field .chat-attach-button:hover{
+  background:#eaf4ef;
+  border-color:#8fbaa9;
+  color:#245f4d;
+  transform:translateY(-1px);
+}
+.smart-compose-field .whatsapp-mic-button,
+.smart-compose-field .send-icon-button{
+  box-shadow:0 7px 18px rgba(33,106,86,.18);
+}
+.smart-input-footer{
+  padding:9px 2px 0;
+}
+[data-theme="dark"] .smart-compose-field textarea{
+  background:#0b1813;
+  color:#f1f5f2;
+  border-color:#2d463a;
+}
+[data-theme="dark"] .smart-compose-field textarea::placeholder{
+  color:#70867a;
+}
+[data-theme="dark"] .smart-compose-field textarea:focus{
+  border-color:#4a917a;
+}
+[data-theme="dark"] .smart-compose-field .chat-attach-button{
+  background:#102019;
+  border-color:#355246;
+  color:#a9c4b7;
+}
+[data-theme="dark"] .smart-compose-field .chat-attach-button:hover{
+  background:#1a352a;
+  border-color:#4c806c;
+  color:#e0eee7;
+}
+
+/* Stronger, clearer disabled WhatsApp action in light mode */
+.customer-saved-card .whatsapp-soon{
+  opacity:1 !important;
+  background:#f4faf7 !important;
+  border:1px dashed #9fc6b6 !important;
+  color:#4d7869 !important;
+  min-width:148px;
+}
+.customer-saved-card .whatsapp-soon svg{
+  color:#4d8b74;
+}
+.customer-saved-card .whatsapp-soon span{
+  background:#dfeee7;
+  color:#477565;
+  border:1px solid #c8dfd4;
+}
+[data-theme="dark"] .customer-saved-card .whatsapp-soon{
+  background:#102019 !important;
+  border-color:#3b5e50 !important;
+  color:#86a399 !important;
+}
+[data-theme="dark"] .customer-saved-card .whatsapp-soon svg{
+  color:#6fa58f;
+}
+[data-theme="dark"] .customer-saved-card .whatsapp-soon span{
+  background:#22372e;
+  color:#8fa99e;
+  border-color:#324c40;
+}
+
+@media(max-width:640px){
+  .smart-input-shell{padding:11px}
+  .smart-compose-field textarea{
+    min-height:126px;
+    max-height:210px;
+    border-radius:16px;
+    padding:15px 58px 52px 15px;
+    font-size:15px;
+  }
+  .smart-compose-tool{bottom:9px}
+  .smart-compose-tool.left{left:9px}
+  .smart-compose-tool.right{right:9px}
+  .smart-compose-field .chat-attach-button,
+  .smart-compose-field .whatsapp-mic-button,
+  .smart-compose-field .send-icon-button{
+    width:40px;
+    height:40px;
+    border-radius:12px;
+  }
+  .smart-input-footer{
+    align-items:flex-start;
+    gap:8px;
+  }
+}
