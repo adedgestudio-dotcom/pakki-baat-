@@ -1776,6 +1776,9 @@ export default function Workspace() {
           )}
           {tab === "Reminders" && (
             <>
+              <button type="button" className="reminder-page-back mobile-only" onClick={()=>go("Today")}>
+                <span aria-hidden="true">←</span> Back to Today
+              </button>
               <div className="page-heading reminders-heading">
                 <div>
                   <div className="eyebrow">NOTHING TO KEEP IN YOUR HEAD</div>
