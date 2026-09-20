@@ -1649,8 +1649,7 @@ export default function Workspace() {
                   <div className="customer-profile-head">
                     <span className="avatar large customer-profile-avatar">{selectedCustomer?.[0] || "?"}</span>
                     <div className="customer-profile-copy"><span className="eyebrow">CUSTOMER HISAAB</span><h1>{selectedCustomer}</h1><p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p></div>
-                    {!customerChatOpen && <button type="button" className="customer-add-entry" onClick={()=>startEntry("quick")}><Icon name="plus" size={17}/> Add entry</button>}
-                  </div>
+                   </div>
                   {customerChatOpen ? (
                     <section className="smart-entry-panel">
                       <div className="smart-entry-head">
