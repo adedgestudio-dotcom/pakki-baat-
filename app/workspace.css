@@ -5001,3 +5001,26 @@ select:focus-visible {
     scroll-margin-top:70px;
   }
 }
+
+
+/* Saved entry delete action */
+.customer-saved-card .delete-action{
+  background:#fff3f0;
+  border-color:#e8c4ba;
+  color:#a24f3d;
+}
+.customer-saved-card .delete-action:hover{
+  background:#ffe9e4;
+  border-color:#d99c8d;
+  color:#8f3f30;
+}
+[data-theme="dark"] .customer-saved-card .delete-action{
+  background:#321f1b;
+  border-color:#5e3a32;
+  color:#e2a697;
+}
+[data-theme="dark"] .customer-saved-card .delete-action:hover{
+  background:#3c2520;
+  border-color:#7a4b40;
+  color:#f0b9ac;
+}
