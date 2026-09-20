@@ -1364,7 +1364,7 @@ export default function Workspace() {
                     Let’s turn it into your next clear step.
                   </p>
                   <button
-                    className="dark-button"
+                    className="dark-button hero-cta"
                     onClick={() => go("Hisaab")}
                   >
                     Tell me what’s new <Icon name="arrow" size={18} />
@@ -2010,15 +2010,15 @@ export default function Workspace() {
                 </div>
               </div>
               <section className="settings-panel panel">
-                <label>
-                  Your name
+                <label className="profile-name-setting">
+                  Display name
                   <input
                     value={owner}
                     maxLength={60}
                     onChange={(e) => setOwner(e.target.value)}
                     placeholder={userName || "Your name"}
                   />
-                  <small>This is how Pakki Baat will address you.</small>
+                  <small>Change this anytime. Pakki Baat will use it in greetings and your workspace.</small>
                 </label>
                 <label>
                   Business name
@@ -2056,8 +2056,9 @@ export default function Workspace() {
                 >
                   Export my data
                 </button>
-                <label className="upload">
-                  Restore from a backup
+                <label className="upload restore-backup-button">
+                  <span className="restore-backup-main"><Icon name="arrow" size={17}/> Restore from backup</span>
+                  <small>Choose a Pakki Baat backup file from this device.</small>
                   <input
                     type="file"
                     accept=".json,application/json"
