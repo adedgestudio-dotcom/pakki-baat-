@@ -5920,3 +5920,52 @@ select:focus-visible {
     top:73px !important;
   }
 }
+
+
+/* Final mobile Reminders header alignment */
+.reminders-heading-copy{
+  min-width:0;
+}
+@media(max-width:800px){
+  .reminders-heading{
+    width:100%;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:start;
+    gap:10px;
+  }
+  .reminders-heading-copy{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    min-width:0;
+  }
+  .reminder-page-back.mobile-only{
+    display:inline-flex !important;
+    align-items:center;
+    justify-content:flex-start;
+    gap:6px;
+    min-height:34px;
+    margin:0 0 10px;
+    padding:6px 9px;
+    border-radius:9px;
+    font-size:9.5px;
+    line-height:1;
+  }
+  .reminder-page-back span{
+    font-size:16px;
+  }
+  .reminders-heading-copy .eyebrow,
+  .reminders-heading-copy h1,
+  .reminders-heading-copy p{
+    margin-left:0;
+    text-align:left;
+  }
+}
+@media(max-width:560px){
+  .reminders-heading{
+    margin-bottom:18px;
+  }
+  .reminders-heading-copy h1{
+    margin-top:0;
+  }
+}
