@@ -51,7 +51,7 @@ export default function ChatComposer({
     }
   };
 
-  const handleVoiceRecordingComplete = async (audioBlob: Blob, duration: number) => {
+  const handleVoiceRecordingComplete = async (audioBlob: Blob, duration: number, liveTranscript = "") => {
     if (voiceBusy) return;
     const extension = audioBlob.type.includes("mp4")
       ? "m4a"
@@ -64,7 +64,7 @@ export default function ChatComposer({
 
     onToast("Got it — turning your voice into entry details ✨");
     try {
-      await onSendVoice(file, duration, "");
+      await onSendVoice(file, duration, liveTranscript.trim());
       onMessageChange("");
     } catch (err) {
       onToast(
