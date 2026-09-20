@@ -4766,3 +4766,238 @@ select:focus-visible {
     padding:10px;
   }
 }
+
+
+/* In-app guide + functional reminders bell */
+.top-reminder-button{
+  position:relative;
+}
+.top-reminder-badge{
+  position:absolute;
+  top:-3px;
+  right:-3px;
+  min-width:16px;
+  height:16px;
+  display:grid;
+  place-items:center;
+  padding:0 4px;
+  border:2px solid #fff;
+  border-radius:999px;
+  background:#ff7556;
+  color:#fff;
+  font-size:8px;
+  font-weight:800;
+  line-height:1;
+}
+[data-theme="dark"] .top-reminder-badge{
+  border-color:#17231f;
+}
+
+.how-it-works-card{
+  width:100%;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:14px;
+  border:1px solid #d7e4dc;
+  border-radius:14px;
+  background:#f6faf7;
+  color:inherit;
+  text-align:left;
+}
+.how-it-works-card:hover{
+  background:#eef7f2;
+  border-color:#a9cabb;
+}
+.how-it-works-icon{
+  width:36px;
+  height:36px;
+  display:grid;
+  place-items:center;
+  border-radius:11px;
+  background:#e4f1ea;
+  color:#2d7667;
+  font-size:16px;
+  font-weight:800;
+}
+.how-it-works-card strong{
+  display:block;
+  font-size:12px;
+}
+.how-it-works-card small{
+  margin-top:3px;
+  line-height:1.45;
+}
+[data-theme="dark"] .how-it-works-card{
+  background:#182b23;
+  border-color:#334d41;
+}
+[data-theme="dark"] .how-it-works-card:hover{
+  background:#20372d;
+  border-color:#4a6d5d;
+}
+[data-theme="dark"] .how-it-works-icon{
+  background:#254438;
+  color:#a6d2c1;
+}
+
+.app-guide-modal{
+  position:relative;
+  width:min(620px,calc(100vw - 28px));
+  max-height:min(88vh,760px);
+  overflow:auto;
+  padding:30px 28px 24px;
+  border:1px solid #d8e3dc;
+  border-radius:24px;
+  background:#fffdf8;
+  box-shadow:0 28px 80px rgba(20,48,37,.22);
+}
+.app-guide-close{
+  position:absolute;
+  top:14px;
+  right:14px;
+}
+.app-guide-modal h2{
+  max-width:500px;
+  margin:6px 0 10px;
+  font-family:Georgia,serif;
+  font-size:31px;
+  line-height:1.14;
+  font-weight:400;
+  color:#20352d;
+}
+.app-guide-intro{
+  max-width:520px;
+  margin-bottom:20px;
+  font-size:13px;
+  line-height:1.6;
+}
+.app-guide-steps{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.app-guide-step{
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr);
+  gap:10px;
+  align-items:start;
+  padding:14px;
+  border:1px solid #dce6df;
+  border-radius:15px;
+  background:#f7faf7;
+}
+.app-guide-step>b{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:#e6f1eb;
+  color:#2d7667;
+  font-size:12px;
+}
+.app-guide-step strong{
+  display:block;
+  margin-bottom:4px;
+  color:#29453b;
+  font-size:12px;
+}
+.app-guide-step small{
+  font-size:11px;
+  line-height:1.5;
+}
+.app-guide-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:9px;
+  margin-top:20px;
+}
+.app-guide-actions button{
+  min-height:44px;
+  padding:10px 14px;
+  border-radius:11px;
+}
+[data-theme="dark"] .app-guide-modal{
+  background:#17271f;
+  border-color:#31483d;
+}
+[data-theme="dark"] .app-guide-modal h2{
+  color:#edf4ef;
+}
+[data-theme="dark"] .app-guide-step{
+  background:#13241c;
+  border-color:#334d41;
+}
+[data-theme="dark"] .app-guide-step>b{
+  background:#254438;
+  color:#a6d2c1;
+}
+[data-theme="dark"] .app-guide-step strong{
+  color:#e8f1ec;
+}
+
+.payment-explainer{
+  display:grid;
+  gap:3px;
+  margin:0 0 13px;
+  padding:11px 12px;
+  border:1px solid #dbe7df;
+  border-radius:12px;
+  background:#f6faf7;
+}
+.payment-explainer strong{
+  font-size:11px;
+  color:#2d6554;
+}
+.payment-explainer span{
+  font-size:10px;
+  line-height:1.5;
+  color:#718078;
+}
+[data-theme="dark"] .payment-explainer{
+  background:#13241c;
+  border-color:#334d41;
+}
+[data-theme="dark"] .payment-explainer strong{
+  color:#a8d3c2;
+}
+[data-theme="dark"] .payment-explainer span{
+  color:#a7b8af;
+}
+
+#today-reminders{
+  scroll-margin-top:78px;
+}
+
+@media(max-width:560px){
+  .app-guide-modal{
+    width:calc(100vw - 20px);
+    padding:26px 16px 18px;
+    border-radius:20px;
+  }
+  .app-guide-modal h2{
+    padding-right:28px;
+    font-size:25px;
+  }
+  .app-guide-intro{
+    font-size:12px;
+  }
+  .app-guide-steps{
+    grid-template-columns:1fr;
+  }
+  .app-guide-step{
+    padding:12px;
+  }
+  .app-guide-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .app-guide-actions button{
+    width:100%;
+  }
+  #today-reminders{
+    scroll-margin-top:70px;
+  }
+}
