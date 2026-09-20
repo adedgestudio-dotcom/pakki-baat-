@@ -2128,15 +2128,50 @@ export default function Workspace() {
           <span>Settings</span>
         </button>
       </nav>
-      {reminderJob && (
-        <div className="modal-backdrop" onClick={()=>setReminderJob(null)}>
+      {(reminderJob || directReminderOpen) && (
+        <div className="modal-backdrop" onClick={closeReminderEditor}>
           <section className="reminder-sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-title" onClick={e=>e.stopPropagation()}>
-            <div className="reminder-sheet-head"><div><span className="new-customer-icon"><Icon name="bell" size={22}/></span><span className="eyebrow">REMINDER</span><h2 id="reminder-title">Remind me about {reminderJob.customer}</h2></div><button className="icon-button" aria-label="Close reminder" onClick={()=>setReminderJob(null)}><Icon name="close"/></button></div>
-            <label className="reminder-text-label">Reminder<input value={reminderText} onChange={e=>setReminderText(e.target.value)} maxLength={500}/></label>
+            <div className="reminder-sheet-head">
+              <div>
+                <span className="new-customer-icon"><Icon name="bell" size={22}/></span>
+                <span className="eyebrow">REMINDER</span>
+                <h2 id="reminder-title">{reminderJob ? `Remind me about ${reminderJob.customer}` : "Add a reminder"}</h2>
+                <p>{reminderJob ? reminderJob.work : "Write it once. Pakki Baat will keep it here for you."}</p>
+              </div>
+              <button className="icon-button" aria-label="Close reminder" onClick={closeReminderEditor}><Icon name="close"/></button>
+            </div>
+            {directReminderOpen && (
+              <label className="reminder-customer-select">Customer <span>optional</span>
+                <select value={reminderCustomer} onChange={e=>setReminderCustomer(e.target.value)}>
+                  <option value="">General reminder</option>
+                  {customerNames.map(name=><option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+            )}
+            <label className="reminder-text-label">What should I remind you?<input autoFocus={directReminderOpen} value={reminderText} onChange={e=>setReminderText(e.target.value)} maxLength={500} placeholder="e.g. Call Asha about pending payment"/></label>
             <div className="reminder-block"><strong>When?</strong><div className="reminder-chips"><button type="button" onClick={()=>quickReminderDate("today")}>Today</button><button type="button" onClick={()=>quickReminderDate("tomorrow")}>Tomorrow</button><label className="date-chip"><Icon name="calendar" size={16}/><input aria-label="Pick reminder date" type="date" min={day()} value={reminderDate} onChange={e=>setReminderDate(e.target.value)}/></label></div></div>
             <div className="reminder-block"><strong>Time</strong><div className="reminder-chips"><button type="button" onClick={()=>setReminderTime("09:00")}>Morning</button><button type="button" onClick={()=>setReminderTime("15:00")}>Afternoon</button><button type="button" onClick={()=>setReminderTime("19:00")}>Evening</button><label className="date-chip"><Icon name="clock" size={16}/><input aria-label="Pick reminder time" type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)}/></label></div></div>
             <div className="reminder-block"><strong>Repeat?</strong><div className="reminder-chips">{([["none","Once"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]] as const).map(([value,label])=><button type="button" key={value} className={reminderRepeat===value?"selected":""} onClick={()=>setReminderRepeat(value)}>{label}</button>)}</div></div>
-            <div className="reminder-sheet-actions"><button type="button" onClick={()=>setReminderJob(null)}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={saveReminder}>Save reminder</button></div>
+            <div className="reminder-sheet-actions"><button type="button" onClick={closeReminderEditor}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={saveReminder}>Save reminder</button></div>
+          </section>
+        </div>
+      )}
+      {deleteJob && (
+        <div className="modal-backdrop delete-confirm-backdrop" onClick={()=>setDeleteJob(null)}>
+          <section className="delete-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-entry-title" aria-describedby="delete-entry-description" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button delete-confirm-close" aria-label="Close" onClick={()=>setDeleteJob(null)}><Icon name="close"/></button>
+            <span className="delete-confirm-icon"><Icon name="close" size={21}/></span>
+            <span className="eyebrow">DELETE ENTRY</span>
+            <h2 id="delete-entry-title">Remove this from {deleteJob.customer}’s hisaab?</h2>
+            <div className="delete-entry-preview">
+              <strong>{deleteJob.work}</strong>
+              <span>{money(deleteJob.total)} total · {money(deleteJob.paid)} received · {money(Math.max(0,deleteJob.total-deleteJob.paid))} baki</span>
+            </div>
+            <p id="delete-entry-description">Any payment history and reminders linked to this entry will also be removed. You can still undo immediately after deleting.</p>
+            <div className="delete-confirm-actions">
+              <button type="button" className="outline" onClick={()=>setDeleteJob(null)}>Keep entry</button>
+              <button type="button" className="delete-confirm-button" onClick={confirmDeleteEntry}>Delete entry</button>
+            </div>
           </section>
         </div>
       )}
