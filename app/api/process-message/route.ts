@@ -230,7 +230,7 @@ Extract information and determine the next question.`;
         if (Number(ext.total) > 0 && Number(ext.balance) >= 0 && (!Number.isFinite(Number(ext.paid)) || Number(ext.paid) <= 0)) {
           ext.paid = Math.max(0, Number(ext.total) - Number(ext.balance));
         }
-        if (typeof ext.work === "string" && ext.work.trim().toLowerCase() === message.trim().toLowerCase() && balanceHint !== undefined) {
+        if (typeof ext.work === "string" && balanceHint !== undefined && (ext.work.trim().toLowerCase() === message.trim().toLowerCase() || /\b(pending|baki|balance|remaining|rs\.?|rupees?)\b/i.test(ext.work))) {
           let cleaned = message
             .replace(/(?:₹\s*)?\d+(?:[.,]\d+)?\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/ig, " ")
             .replace(/(?:pending|baki|balance|remaining)\s*(?:₹\s*)?\d+(?:[.,]\d+)?/ig, " ");
