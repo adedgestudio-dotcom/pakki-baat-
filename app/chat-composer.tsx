@@ -33,13 +33,7 @@ export default function ChatComposer({
   voiceBusy,
 }: Props) {
   const [processingMessageIndex, setProcessingMessageIndex] = useState(0);
-  const [voiceDraft, setVoiceDraft] = useState<{
-    file: File;
-    url: string;
-    duration: number;
-  } | null>(null);
-
-   useEffect(() => {
+    useEffect(() => {
     if (!voiceBusy) {
       setProcessingMessageIndex(0);
       return;
@@ -58,51 +52,29 @@ export default function ChatComposer({
     }
   };
 
-  const handleVoiceRecordingComplete = (audioBlob: Blob, duration: number) => {
-    if (voiceDraft?.url) URL.revokeObjectURL(voiceDraft.url);
-
+  const handleVoiceRecordingComplete = async (audioBlob: Blob, duration: number) => {
+    if (voiceBusy) return;
     const extension = audioBlob.type.includes("mp4")
       ? "m4a"
       : audioBlob.type.includes("ogg")
         ? "ogg"
         : "webm";
     const file = new File([audioBlob], `pakki-baat-voice-note.${extension}`, {
-      type: audioBlob.type,
+      type: audioBlob.type || "audio/webm",
     });
 
-    setVoiceDraft({ file, url: URL.createObjectURL(file), duration });
-    onToast("Voice note ready. Tap send when you are ready.");
-  };
-
-  const sendVoiceDraft = () => {
-    if (!voiceDraft || voiceBusy) return;
-
-    const draft = voiceDraft;
-    onSendVoice(draft.file, draft.duration, message.trim())
-      .then(() => {
-        URL.revokeObjectURL(draft.url);
-        setVoiceDraft(null);
-        onMessageChange("");
-      })
-      .catch((err) => {
-        onToast(
-          err instanceof Error ? err.message : "Failed to process voice recording"
-        );
-      });
-  };
-
-  const discardVoiceDraft = () => {
-    if (!voiceDraft) return;
-    URL.revokeObjectURL(voiceDraft.url);
-    setVoiceDraft(null);
+    onToast("Got it — turning your voice into entry details ✨");
+    try {
+      await onSendVoice(file, duration, "");
+      onMessageChange("");
+    } catch (err) {
+      onToast(
+        err instanceof Error ? err.message : "Could not process the voice note."
+      );
+    }
   };
 
   const handleSend = () => {
-    if (voiceDraft) {
-      sendVoiceDraft();
-      return;
-    }
-
     onCapture();
   };
 
@@ -149,10 +121,10 @@ export default function ChatComposer({
     <button
       type="button"
       className="send-icon-button"
-      aria-label={voiceDraft ? "Send voice note" : "Organise details"}
-      title={voiceDraft ? "Send voice note" : "Organise details"}
+      aria-label="Organise details"
+      title="Organise details"
       onClick={handleSend}
-      disabled={voiceBusy || (!message.trim() && !voiceDraft)}
+      disabled={voiceBusy || !message.trim()}
     >
       <svg
         width="19"
@@ -203,7 +175,7 @@ export default function ChatComposer({
               <textarea
                 id="paste-input"
                 aria-label="Customer message"
-                placeholder={voiceDraft ? "Add a note before sending voice..." : "Tell me what happened… e.g. 2 kg cake, ₹2,000 total, ₹1,000 received"}
+                placeholder="Tell me what happened… e.g. 2 kg cake, ₹2,000 total, ₹1,000 received"
                 value={message}
                 onChange={(e) => onMessageChange(e.target.value)}
                 maxLength={6000}
@@ -211,7 +183,7 @@ export default function ChatComposer({
 
               <div className="smart-compose-tool left">{uploadControl}</div>
               <div className="smart-compose-tool right">
-                {message.trim() || voiceDraft ? (
+                {message.trim() ? (
                   sendControl
                 ) : (
                   <SimpleVoiceButton
@@ -229,28 +201,6 @@ export default function ChatComposer({
           </>
         )}
       </div>
-
-      {voiceDraft && (
-        <div className="voice-draft-card">
-          <div>
-            <strong>Voice note ready</strong>
-            <small>Recorded {formatDuration(voiceDraft.duration)}</small>
-          </div>
-          <AudioPlayer
-            audioBlob={voiceDraft.file}
-            audioUrl={voiceDraft.url}
-            duration={voiceDraft.duration}
-          />
-          <div className="voice-draft-actions">
-            <button type="button" className="outline" onClick={discardVoiceDraft} disabled={voiceBusy}>
-              Delete
-            </button>
-            <button type="button" className="primary" onClick={sendVoiceDraft} disabled={voiceBusy}>
-              {voiceBusy ? "Sending..." : "Send voice"}
-            </button>
-          </div>
-        </div>
-      )}
 
       
     </div>
