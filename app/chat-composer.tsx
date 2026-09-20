@@ -4,6 +4,12 @@ import SimpleVoiceButton from "./simple-voice-button";
 import AudioPlayer from "./audio-player";
 import type { Job } from "@/lib/data";
 
+const VOICE_PROCESSING_MESSAGES = [
+  "Listening closely…",
+  "Writing down the useful bits…",
+  "Making your hisaab neat ✨",
+];
+
 type Props = {
   message: string;
   onMessageChange: (message: string) => void;
@@ -34,19 +40,13 @@ export default function ChatComposer({
     duration: number;
   } | null>(null);
 
-  const processingMessages = [
-    "Listening closely…",
-    "Writing down the useful bits…",
-    "Making your hisaab neat ✨",
-  ];
-
-  useEffect(() => {
+   useEffect(() => {
     if (!voiceBusy) {
       setProcessingMessageIndex(0);
       return;
     }
     const timer = window.setInterval(() => {
-      setProcessingMessageIndex((current) => (current + 1) % processingMessages.length);
+      setProcessingMessageIndex((current) => (current + 1) % VOICE_PROCESSING_MESSAGES.length);
     }, 1300);
     return () => window.clearInterval(timer);
   }, [voiceBusy]);
@@ -272,7 +272,7 @@ export default function ChatComposer({
             </div>
             <div className="voice-processing-copy">
               <span className="voice-processing-kicker">PAKKI BAAT IS ON IT</span>
-              <strong key={processingMessageIndex}>{processingMessages[processingMessageIndex]}</strong>
+              <strong key={processingMessageIndex}>{VOICE_PROCESSING_MESSAGES[processingMessageIndex]}</strong>
               <small>Your voice is being turned into clean entry details.</small>
             </div>
             <div className="voice-processing-dots" aria-hidden="true">
