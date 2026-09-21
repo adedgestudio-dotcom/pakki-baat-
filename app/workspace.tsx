@@ -446,7 +446,7 @@ export default function Workspace() {
       // Process the transcribed voice message through unified flow
       void processAssistantMessage(transcript, "voice");
     } else {
-      void transcribeSentVoice(file, id);
+      void transcribeSentVoice(file, id, duration);
     }
 
     try {
@@ -457,7 +457,7 @@ export default function Workspace() {
       );
     }
   }
-  async function transcribeSentVoice(file: File, id: string) {
+  async function transcribeSentVoice(file: File, id: string, duration = 60) {
     if (voiceBusy) return;
     setVoiceBusy(true);
     try {
@@ -470,7 +470,7 @@ export default function Workspace() {
       const form = new FormData();
       form.set("file", file);
       form.set("mode", "transcribe");
-      form.set("today", day());
+      form.set("today", day());\n      form.set("duration", String(Math.max(1, Math.min(60, Math.ceil(duration)))));
 
       const response = await fetch("/api/extract", {
         method: "POST",
@@ -527,7 +527,7 @@ export default function Workspace() {
       if (!file)
         throw new Error("This recording is no longer stored on this device.");
       voiceFilesRef.current[id] = file;
-      await transcribeSentVoice(file, id);
+      const recordedDuration = chatTurns.find((turn) => turn.voiceId === id)?.duration || 60;\n      await transcribeSentVoice(file, id, recordedDuration);
     } catch (cause) {
       setToast(
         cause instanceof Error
