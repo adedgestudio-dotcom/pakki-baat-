@@ -529,7 +529,8 @@ export default function Workspace() {
       if (!file)
         throw new Error("This recording is no longer stored on this device.");
       voiceFilesRef.current[id] = file;
-      const recordedDuration = chatTurns.find((turn) => turn.voiceId === id)?.duration || 60;\n      await transcribeSentVoice(file, id, recordedDuration);
+      const recordedDuration = chatTurns.find((turn) => turn.voiceId === id)?.duration || 60;
+      await transcribeSentVoice(file, id, recordedDuration);
     } catch (cause) {
       setToast(
         cause instanceof Error
