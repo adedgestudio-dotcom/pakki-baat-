@@ -1,10 +1,10 @@
 :root {
   --teal: #8068cf;
-  --ink: #2b3834;
-  --muted: #6b7570;
-  --line: #e8e3d8;
+  --ink: #252231;
+  --muted: #746f80;
+  --line: #ded8ec;
   --cream: #f8f7fc;
-  --coral: #ff7556;
+  --coral: #e87396;
 }
 * {
   box-sizing: border-box;
@@ -36,7 +36,7 @@ button:disabled {
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid #ddaa58;
+  outline: 3px solid #b8a7f2;
   outline-offset: 4px;
 }
 button:hover:not(:disabled) {
@@ -48,7 +48,7 @@ button:active:not(:disabled) {
 input,
 textarea,
 select {
-  border: 1px solid #dce3db;
+  border: 1px solid var(--line);
   border-radius: 10px;
   background: white;
   padding: 12px;
@@ -3191,4 +3191,68 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     border-color: #121221;
     box-shadow: 0 8px 24px rgba(155,135,232,.28);
   }
+}
+
+/* Final dark-mode palette layer: overrides legacy green component rules. */
+[data-theme="dark"] .today-reminders,
+[data-theme="dark"] .future-card,
+[data-theme="dark"] .hero,
+[data-theme="dark"] .tip-panel,
+[data-theme="dark"] .help-card,
+[data-theme="dark"] .notice,
+[data-theme="dark"] .panel .job,
+[data-theme="dark"] .job,
+[data-theme="dark"] .stats > button {
+  background: var(--pb-card);
+  border-color: var(--line);
+}
+[data-theme="dark"] .today-reminders .eyebrow,
+[data-theme="dark"] .today-reminders .text-button,
+[data-theme="dark"] .future-badge,
+[data-theme="dark"] .future-icon,
+[data-theme="dark"] .job-end > strong {
+  color: var(--pb-accent-soft);
+}
+[data-theme="dark"] .today-reminders h2,
+[data-theme="dark"] .reminder-row strong,
+[data-theme="dark"] .future-card h2,
+[data-theme="dark"] .hero h2,
+[data-theme="dark"] .job strong {
+  color: var(--ink);
+}
+[data-theme="dark"] .today-reminders .count,
+[data-theme="dark"] .future-icon,
+[data-theme="dark"] .pill {
+  background: #2b2548;
+}
+[data-theme="dark"] .reminder-row,
+[data-theme="dark"] .reminder-empty {
+  background: var(--pb-elevated);
+  border-color: var(--line);
+  color: var(--ink);
+}
+[data-theme="dark"] .reminder-row small,
+[data-theme="dark"] .reminder-empty small,
+[data-theme="dark"] .future-card p,
+[data-theme="dark"] .future-card li,
+[data-theme="dark"] .hero p,
+[data-theme="dark"] .job-main > span,
+[data-theme="dark"] .job-main small {
+  color: var(--muted);
+}
+[data-theme="dark"] .reminder-bell {
+  background: #2b2548;
+  color: var(--pb-accent-soft);
+}
+[data-theme="dark"] .reminder-row .outline.mini,
+[data-theme="dark"] .future-whatsapp-button {
+  background: var(--pb-elevated);
+  border-color: var(--pb-accent-soft);
+  color: var(--ink);
+}
+[data-theme="dark"] .tag,
+[data-theme="dark"] .tag.green {
+  background: #2b2548;
+  color: var(--pb-accent-soft);
+  border-color: var(--pb-accent-soft);
 }
