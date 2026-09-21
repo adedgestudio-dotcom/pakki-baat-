@@ -194,6 +194,8 @@ export default function Workspace() {
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
     [dark, setDark] = useState(false),
+    [isOnline, setIsOnline] = useState(true),
+    [syncPending, setSyncPending] = useState(false),
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
     [payments, setPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
@@ -211,6 +213,7 @@ export default function Workspace() {
     [lastUndo, setLastUndo] = useState<{message:string;snapshot:Snapshot}|null>(null),
     [guideOpen, setGuideOpen] = useState(false),
     [deleteJob, setDeleteJob] = useState<Job | null>(null),
+    [receiptJob, setReceiptJob] = useState<Job | null>(null),
     [directReminderOpen, setDirectReminderOpen] = useState(false),
     [reminderCustomer, setReminderCustomer] = useState(""),
     [newCustomerName, setNewCustomerName] = useState(""),
@@ -238,6 +241,21 @@ export default function Workspace() {
     document.documentElement.dataset.theme = isDark ? "dark" : "light";
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDark(isDark);
+  }, []);
+  useEffect(() => {
+    const updateOnlineState = () => setIsOnline(navigator.onLine);
+    updateOnlineState();
+    window.addEventListener("online", updateOnlineState);
+    window.addEventListener("offline", updateOnlineState);
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw.js").catch(() => {
+        // Local data still works even if the browser blocks service workers.
+      });
+    }
+    return () => {
+      window.removeEventListener("online", updateOnlineState);
+      window.removeEventListener("offline", updateOnlineState);
+    };
   }, []);
   useEffect(() => {
     if (!cloudConfigured) return;
@@ -325,14 +343,28 @@ export default function Workspace() {
     const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     writeLocalWorkspace(storageUserId, snapshot);
+
     if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
+    if (!isOnline) {
+      setSyncPending(true);
+      return;
+    }
+
     const timer = window.setTimeout(() => {
-      void saveCloud(snapshot).catch(() =>
-        setToast("Saved on this device. Cloud backup could not update yet.")
-      );
+      void saveCloud(snapshot)
+        .then(() => {
+          if (syncPending) {
+            setSyncPending(false);
+            setToast("Back online. Your offline changes are synced ✓");
+          }
+        })
+        .catch(() => {
+          setSyncPending(true);
+          setToast("Saved on this device. Cloud backup will retry when you’re online.");
+        });
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn]);
+  }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn, isOnline]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -527,6 +559,10 @@ export default function Workspace() {
   }
   async function transcribeSentVoice(file: File, id: string) {
     if (voiceBusy) return;
+    if (!navigator.onLine) {
+      setToast("Voice transcription needs internet. Your saved hisaab still works offline.");
+      return;
+    }
     setVoiceBusy(true);
     try {
       if (file.size > 2_000_000)
@@ -669,6 +705,20 @@ export default function Workspace() {
     source: "text" | "voice"
   ) {
     try {
+      if (!navigator.onLine) {
+        const offlineDraft: Job = {
+          ...(pendingJob || blank()),
+          id: pendingJob?.id || crypto.randomUUID(),
+          customer: selectedCustomer || pendingJob?.customer || "",
+          work: pendingJob?.work || message.trim(),
+          source: message,
+        };
+        setPendingJob(offlineDraft);
+        setEntryMode("form");
+        setCustomerChatOpen(true);
+        setToast("You’re offline. I kept your text — use the simple form to finish this entry.");
+        return;
+      }
       console.log(`📨 Processing ${source} message:`, message);
 
       const response = await fetch("/api/process-message", {
@@ -1437,12 +1487,12 @@ export default function Workspace() {
                     <Icon name="chat" />
                   </span>
                   <div>
-                    <span>Waiting for a reply</span>
+                    <span>Pending work</span>
                     <strong>
                       {open.filter((j) => j.status === "Waiting").length}{" "}
-                      <em>customers</em>
+                      <em>entries</em>
                     </strong>
-                    <small>Pick up where you left off</small>
+                    <small>Things that still need action</small>
                   </div>
                   <Icon name="arrow" size={18} />
                 </button>
