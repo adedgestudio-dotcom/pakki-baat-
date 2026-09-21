@@ -2,16 +2,15 @@
 
 :root {
   color-scheme: light;
-  /* Pakki Baat color system */
-  --cream-bg: #f5f1e8;
-  --teal-primary: #2d7667;
-  --teal-dark: #1f5449;
-  --coral-accent: #ff7556;
-  --peach-light: #fff3ed;
-  --yellow-highlight: #fff5cc;
-  --text-dark: #2b3834;
-  --text-muted: #6b7570;
-  --border-light: #e8e3d8;
+  --cream-bg: #f8f7fc;
+  --teal-primary: #8068cf;
+  --teal-dark: #6650b3;
+  --coral-accent: #e87396;
+  --peach-light: #f7f4fd;
+  --yellow-highlight: #fff3cc;
+  --text-dark: #252231;
+  --text-muted: #746f80;
+  --border-light: #ded8ec;
   --white: #ffffff;
 }
 
