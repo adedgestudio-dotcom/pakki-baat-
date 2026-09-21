@@ -1573,7 +1573,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   }}
                 >
                   <span className="stat-icon yellow">
-                    <Icon name="chat" />
+                    <Icon name="list" />
                   </span>
                   <div>
                     <span>Pending work</span>
@@ -2605,9 +2605,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       setDraft({ ...draft, status: e.target.value })
                     }
                   >
-                    {["Waiting", "Confirmed", "Completed"].map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
+                    <option value="Waiting">Pending</option>
+                    <option value="Confirmed">In progress</option>
+                    <option value="Completed">Done</option>
                   </select>
                 </label>
               </div>
