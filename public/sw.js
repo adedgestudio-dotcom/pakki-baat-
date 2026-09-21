@@ -135,3 +135,30 @@ self.addEventListener("notificationclick", (event) => {
     if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
   })());
 });
+
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "You have a Pakki Baat reminder." };
+  }
+
+  const title = data.title || "Pakki Baat reminder";
+  const options = {
+    body: data.body || "You have a reminder.",
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    tag: data.reminderId ? "pakki-baat-reminder-" + data.reminderId : "pakki-baat-reminder",
+    requireInteraction: true,
+    renotify: true,
+    vibrate: [350, 180, 350, 180, 650],
+    data: {
+      url: data.url || "/",
+      reminderId: data.reminderId || "",
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
