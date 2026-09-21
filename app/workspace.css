@@ -6725,3 +6725,18 @@ select:focus-visible {
     grid-template-columns:1fr;
   }
 }
+
+
+/* Mobile entry form: keep Save button at the real end of the form */
+@media(max-width:640px){
+  .inline-entry-form .smart-save{
+    position:static !important;
+    bottom:auto !important;
+    z-index:auto !important;
+    margin-top:6px;
+    min-height:50px;
+  }
+  .inline-entry-form{
+    padding-bottom:8px;
+  }
+}
