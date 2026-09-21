@@ -116,3 +116,22 @@ self.addEventListener("fetch", (event) => {
     return cached || (await network) || Response.error();
   })());
 });
+
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification?.data?.url || "/";
+  event.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of clientsList) {
+      if ("focus" in client) {
+        try {
+          await client.focus();
+          if ("navigate" in client) await client.navigate(targetUrl);
+          return;
+        } catch {}
+      }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
+  })());
+});
