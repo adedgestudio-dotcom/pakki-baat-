@@ -7134,3 +7134,36 @@ select:focus-visible {
     font-size:9.5px !important;
   }
 }
+
+
+/* Footer creator credit */
+footer a{
+  color:#4f7869;
+  font-weight:750;
+  text-decoration:none;
+  border-bottom:1px solid rgba(79,120,105,.35);
+  padding-bottom:1px;
+}
+footer a:hover{
+  color:#2d7667;
+  border-bottom-color:#2d7667;
+}
+footer .footer-separator{
+  color:inherit;
+  margin:0 6px;
+  animation:none;
+}
+[data-theme="dark"] footer a{
+  color:#9fc7b6;
+  border-bottom-color:rgba(159,199,182,.35);
+}
+[data-theme="dark"] footer a:hover{
+  color:#d7e8df;
+  border-bottom-color:#d7e8df;
+}
+@media(max-width:560px){
+  footer{
+    line-height:1.6;
+    padding-bottom:20px;
+  }
+}
