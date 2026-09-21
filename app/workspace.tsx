@@ -2323,6 +2323,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                         <div className="reminder-page-actions">
                           <button type="button" className="outline mini" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
                           <button type="button" className="primary mini" onClick={()=>completeReminder(r.id)}>Done ✓</button>
+                          <button type="button" className="reminder-delete-button" aria-label="Delete reminder" title="Delete reminder" onClick={()=>deleteReminder(r.id)}><Icon name="close" size={15}/></button>
                         </div>
                       </article>
                     ))}
@@ -2344,6 +2345,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       <div className="completed-reminder-row" key={r.id}>
                         <span className="completed-check"><Icon name="check" size={15}/></span>
                         <span><strong>{r.text}</strong><small>{r.customer ? r.customer+" · " : ""}{r.date}</small></span>
+                        <button type="button" className="reminder-delete-button completed-delete" aria-label="Delete completed reminder" title="Delete reminder" onClick={()=>deleteReminder(r.id)}><Icon name="close" size={14}/></button>
                       </div>
                     ))}
                   </div>
@@ -2548,6 +2550,39 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     onChange={(e) => setBusiness(e.target.value)}
                   />
                 </label>
+                <div className="reminder-alert-settings">
+                  <div className="reminder-alert-settings-head">
+                    <span className="reminder-alert-settings-icon"><Icon name="bell" size={19}/></span>
+                    <span><strong>Reminder alerts</strong><small>Notification, alarm sound and vibration on this device.</small></span>
+                    <button
+                      type="button"
+                      className={reminderAlertsEnabled ? "setting-switch is-on" : "setting-switch"}
+                      role="switch"
+                      aria-checked={reminderAlertsEnabled}
+                      onClick={()=>reminderAlertsEnabled ? disableReminderAlerts() : void enableReminderAlerts()}
+                    ><span/></button>
+                  </div>
+                  {reminderAlertsEnabled && (
+                    <div className="reminder-alert-options">
+                      <label className="reminder-alert-option">
+                        <span><strong>Alarm sound</strong><small>Play a clock-style alert while Pakki Baat is running.</small></span>
+                        <input type="checkbox" checked={reminderSoundEnabled} onChange={e=>setReminderSound(e.target.checked)}/>
+                      </label>
+                      <label className="reminder-alert-option">
+                        <span><strong>Vibrate</strong><small>Use phone vibration when the browser supports it.</small></span>
+                        <input type="checkbox" checked={reminderVibrationEnabled} onChange={e=>setReminderVibration(e.target.checked)}/>
+                      </label>
+                      <div className="reminder-alert-status">
+                        <span>System notifications</span>
+                        <strong className={notificationPermission==="granted" ? "ok" : ""}>
+                          {notificationPermission==="granted" ? "Allowed" : notificationPermission==="denied" ? "Blocked" : notificationPermission==="unsupported" ? "Not supported" : "Not allowed yet"}
+                        </strong>
+                      </div>
+                      <button type="button" className="outline reminder-test-alert" onClick={testReminderAlert}>Test reminder alert</button>
+                    </div>
+                  )}
+                  <p className="reminder-alert-note">System notifications can appear over other apps when your browser/device allows them. A web app cannot guarantee a clock-style alarm after the app is fully closed.</p>
+                </div>
                 <button type="button" className="how-it-works-card" onClick={()=>setGuideOpen(true)}>
                   <span className="how-it-works-icon">?</span>
                   <span><strong>How Pakki Baat works</strong><small>A 30-second guide to entries, payments, reminders and WhatsApp.</small></span>
@@ -2653,6 +2688,22 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           <span className="mobile-nav-label">Settings</span>
         </button>
       </nav>
+      {ringingReminder && (
+        <div className="modal-backdrop reminder-alarm-backdrop" onClick={()=>setRingingReminder(null)}>
+          <section className="reminder-alarm-modal" role="alertdialog" aria-modal="true" aria-labelledby="reminder-alarm-title" onClick={e=>e.stopPropagation()}>
+            <span className="reminder-alarm-icon"><Icon name="bell" size={27}/></span>
+            <span className="eyebrow">REMINDER NOW</span>
+            <h2 id="reminder-alarm-title">{ringingReminder.customer || "Pakki Baat reminder"}</h2>
+            <p>{ringingReminder.text}</p>
+            <small>{ringingReminder.date}{ringingReminder.time ? " · "+ringingReminder.time : ""}</small>
+            <div className="reminder-alarm-actions">
+              <button type="button" className="outline" onClick={()=>{snoozeReminder(ringingReminder.id);setRingingReminder(null);}}>Tomorrow</button>
+              <button type="button" className="primary" onClick={()=>{completeReminder(ringingReminder.id);setRingingReminder(null);}}>Done ✓</button>
+            </div>
+            <button type="button" className="reminder-alarm-dismiss" onClick={()=>setRingingReminder(null)}>Dismiss alert</button>
+          </section>
+        </div>
+      )}
       {(reminderJob || directReminderOpen) && (
         <div className="modal-backdrop" onClick={closeReminderEditor}>
           <section className="reminder-sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-title" onClick={e=>e.stopPropagation()}>
@@ -2674,9 +2725,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               </label>
             )}
             <label className="reminder-text-label">What should I remind you?<input autoFocus={directReminderOpen} value={reminderText} onChange={e=>setReminderText(e.target.value)} maxLength={500} placeholder="e.g. Call Asha about pending payment"/></label>
-            <div className="reminder-block"><strong>When?</strong><div className="reminder-chips"><button type="button" onClick={()=>quickReminderDate("today")}>Today</button><button type="button" onClick={()=>quickReminderDate("tomorrow")}>Tomorrow</button><label className="date-chip"><Icon name="calendar" size={16}/><input aria-label="Pick reminder date" type="date" min={day()} value={reminderDate} onChange={e=>setReminderDate(e.target.value)}/></label></div></div>
-            <div className="reminder-block"><strong>Time</strong><div className="reminder-chips"><button type="button" onClick={()=>setReminderTime("09:00")}>Morning</button><button type="button" onClick={()=>setReminderTime("15:00")}>Afternoon</button><button type="button" onClick={()=>setReminderTime("19:00")}>Evening</button><label className="date-chip"><Icon name="clock" size={16}/><input aria-label="Pick reminder time" type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)}/></label></div></div>
-            <div className="reminder-block"><strong>Repeat?</strong><div className="reminder-chips">{([["none","Once"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]] as const).map(([value,label])=><button type="button" key={value} className={reminderRepeat===value?"selected":""} onClick={()=>setReminderRepeat(value)}>{label}</button>)}</div></div>
+            <div className="reminder-block"><strong>When?</strong><div className="reminder-chips"><button type="button" className={reminderDate===dateForOffset(0)?"selected":""} onClick={()=>quickReminderDate("today")}><span className="chip-check">✓</span>Today</button><button type="button" className={reminderDate===dateForOffset(1)?"selected":""} onClick={()=>quickReminderDate("tomorrow")}><span className="chip-check">✓</span>Tomorrow</button><label className={reminderDate && reminderDate!==dateForOffset(0) && reminderDate!==dateForOffset(1) ? "date-chip selected" : "date-chip"}><Icon name="calendar" size={16}/><input aria-label="Pick reminder date" type="date" min={day()} value={reminderDate} onChange={e=>setReminderDate(e.target.value)}/></label></div></div>
+            <div className="reminder-block"><strong>Time</strong><div className="reminder-chips"><button type="button" className={reminderTime==="09:00"?"selected":""} onClick={()=>setReminderTime("09:00")}><span className="chip-check">✓</span>Morning</button><button type="button" className={reminderTime==="15:00"?"selected":""} onClick={()=>setReminderTime("15:00")}><span className="chip-check">✓</span>Afternoon</button><button type="button" className={reminderTime==="19:00"?"selected":""} onClick={()=>setReminderTime("19:00")}><span className="chip-check">✓</span>Evening</button><label className={!["09:00","15:00","19:00"].includes(reminderTime) ? "date-chip selected" : "date-chip"}><Icon name="clock" size={16}/><input aria-label="Pick reminder time" type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)}/></label></div></div>
+            <div className="reminder-block"><strong>Repeat?</strong><div className="reminder-chips">{([["none","Once"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]] as const).map(([value,label])=><button type="button" key={value} className={reminderRepeat===value?"selected":""} onClick={()=>setReminderRepeat(value)}><span className="chip-check">✓</span>{label}</button>)}</div></div>
             <div className="reminder-sheet-actions"><button type="button" onClick={closeReminderEditor}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={saveReminder}>Save reminder</button></div>
           </section>
         </div>
