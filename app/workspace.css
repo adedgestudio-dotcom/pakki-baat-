@@ -6740,3 +6740,28 @@ select:focus-visible {
     padding-bottom:8px;
   }
 }
+
+
+/* Receipt image actions */
+.receipt-image-button{
+  background:#f2f6f3;
+  border-color:#cfddd5;
+  color:#315f50;
+}
+.receipt-image-button:hover:not(:disabled){
+  background:#e9f2ed;
+  border-color:#a9c7b8;
+}
+.receipt-image-button:disabled{
+  opacity:.58;
+  cursor:wait;
+}
+[data-theme="dark"] .receipt-image-button{
+  background:#1b3027;
+  border-color:#3a574a;
+  color:#d2e5dc;
+}
+[data-theme="dark"] .receipt-image-button:hover:not(:disabled){
+  background:#233d32;
+  border-color:#527765;
+}
