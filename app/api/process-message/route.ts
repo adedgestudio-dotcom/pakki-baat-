@@ -26,6 +26,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const publicKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const auth = request.headers.get("authorization");
+    if (!base || !publicKey || !service) return NextResponse.json({ error: "AI usage tracking is not configured" }, { status: 503 });
+    if (!auth?.startsWith("Bearer ")) return NextResponse.json({ error: "Continue with Google in Settings to use AI." }, { status: 401 });
+    const userResponse = await fetch(`${base}/auth/v1/user`, {
+      headers: { apikey: publicKey, Authorization: auth },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!userResponse.ok) return NextResponse.json({ error: "Your sign-in expired. Please sign in again." }, { status: 401 });
+    const user = await userResponse.json();
+
     const { message, pending, today, customerContext } = await request.json();
 
     if (!message || typeof message !== "string") {
@@ -159,6 +172,14 @@ Extract information and determine the next question.`;
     }
 
     const parsed = JSON.parse(content);
+    const usageResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
+      method: "POST",
+      headers: { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id, requested_voice_seconds: 0, requested_ai_calls: 1 }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!usageResponse.ok) console.error("Could not record AI usage:", await usageResponse.text());
+
     console.log("✅ Groq raw response:", parsed);
 
     if (parsed.intent === "reminder") {
