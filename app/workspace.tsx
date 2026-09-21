@@ -200,6 +200,8 @@ export default function Workspace() {
     [payments, setPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
     [customerPhones, setCustomerPhones] = useState<Record<string,string>>({}),
+    [customerContactsOpen, setCustomerContactsOpen] = useState(false),
+    [contactQuery, setContactQuery] = useState(""),
     [newCustomerOpen, setNewCustomerOpen] = useState(false),
     [saveLoginPromptOpen, setSaveLoginPromptOpen] = useState(false),
     [whatsappJob, setWhatsappJob] = useState<Job | null>(null),
@@ -1314,6 +1316,35 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setPhoneEditorValue("");
     setToast(digits ? "Customer WhatsApp number saved." : "Customer number removed.");
   }
+  function customerContactText() {
+    return customerNames
+      .map(name => `${name} — ${customerPhones[name] ? "+" + customerPhones[name] : "No mobile number"}`)
+      .join("\n");
+  }
+  async function copyCustomerContacts() {
+    try {
+      await navigator.clipboard.writeText(customerContactText());
+      setToast("Customer contact list copied ✓");
+    } catch {
+      setToast("Could not copy the customer list.");
+    }
+  }
+  function downloadCustomerContacts() {
+    const rows = [
+      ["Customer","Mobile number"],
+      ...customerNames.map(name => [name, customerPhones[name] ? "+" + customerPhones[name] : ""]),
+    ];
+    const csv = rows
+      .map(row => row.map(value => `"${String(value).replace(/"/g,'""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "pakki-baat-customer-contacts.csv";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   function openPayment(job: Job) {
     if (!requireLoginForSaving()) return;
     if (job.total <= job.paid) {
@@ -1464,7 +1495,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       <Icon name="arrow" size={16}/>
     </button>
   );
-  const customerNames = Array.from(new Set([...jobs.map(j=>j.customer), ...payments.map(p=>p.customer), ...notes.map(n=>n.customer), ...reminders.map(r=>r.customer || "")])).filter(Boolean);
+  const customerNames = Array.from(new Set([...jobs.map(j=>j.customer), ...payments.map(p=>p.customer), ...notes.map(n=>n.customer), ...reminders.map(r=>r.customer || ""), ...Object.keys(customerPhones)])).filter(Boolean);
   const customerJobs = selectedCustomer ? jobs.filter(j=>j.customer===selectedCustomer) : [];
   const customerReminders = selectedCustomer ? reminders.filter(r=>r.customer===selectedCustomer && !r.done) : [];
   const selectedBaki = customerJobs.reduce((sum,j)=>sum+j.total-j.paid,0);
@@ -2171,7 +2202,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       <h1>Hisaab</h1>
                       <p>One customer, one place. Open a name and continue where you left off.</p>
                     </div>
-                    <button className="primary mobile-primary-action" onClick={() => { if (!requireLoginForSaving()) return; setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /><span>New customer</span></button>
+                    <div className="hisaab-heading-actions">
+                      <button type="button" className="outline customer-contacts-button" onClick={()=>{setContactQuery("");setCustomerContactsOpen(true);}}>
+                        <Icon name="people" size={17}/><span>Contacts</span>
+                      </button>
+                      <button className="primary mobile-primary-action" onClick={() => { if (!requireLoginForSaving()) return; setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /><span>New customer</span></button>
+                    </div>
                   </div>
                   <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
                   <div className="customer-list-mobile">
@@ -2573,6 +2609,33 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               </label>
               <button type="submit" className="primary" disabled={!paymentAmount || Number(paymentAmount)<=0}>Save payment</button>
             </form>
+          </section>
+        </div>
+      )}
+      {customerContactsOpen && (
+        <div className="modal-backdrop" onClick={()=>setCustomerContactsOpen(false)}>
+          <section className="customer-contacts-modal" role="dialog" aria-modal="true" aria-labelledby="customer-contacts-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button customer-contacts-close" aria-label="Close contacts" onClick={()=>setCustomerContactsOpen(false)}><Icon name="close"/></button>
+            <span className="eyebrow">CUSTOMER DIRECTORY</span>
+            <h2 id="customer-contacts-title">Customer contacts</h2>
+            <p>{customerNames.length} {customerNames.length===1 ? "customer" : "customers"} · {customerNames.filter(name=>customerPhones[name]).length} with mobile number</p>
+            <label className="customer-contacts-search"><Icon name="search" size={17}/><input autoFocus placeholder="Search customer…" value={contactQuery} onChange={e=>setContactQuery(e.target.value)}/></label>
+            <div className="customer-contacts-list">
+              {customerNames.filter(name=>name.toLowerCase().includes(contactQuery.toLowerCase())).map(name=>(
+                <div className="customer-contact-row" key={name}>
+                  <span className="avatar">{name[0]?.toUpperCase()}</span>
+                  <span className="customer-contact-main"><strong>{name}</strong><small>{customerPhones[name] ? "+"+customerPhones[name] : "No mobile number saved"}</small></span>
+                  <button type="button" className="customer-contact-edit" onClick={()=>{setCustomerContactsOpen(false);openPhoneEditor(name);}}>
+                    {customerPhones[name] ? "Edit" : "Add number"}
+                  </button>
+                </div>
+              ))}
+              {!customerNames.length && <div className="customer-contacts-empty">No customers yet.</div>}
+            </div>
+            <div className="customer-contacts-actions">
+              <button type="button" className="outline" disabled={!customerNames.length} onClick={()=>void copyCustomerContacts()}>Copy list</button>
+              <button type="button" className="primary" disabled={!customerNames.length} onClick={downloadCustomerContacts}>Download CSV</button>
+            </div>
           </section>
         </div>
       )}
