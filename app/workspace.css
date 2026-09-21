@@ -7560,3 +7560,33 @@ footer .footer-separator{
     font-size:25px;
   }
 }
+
+
+/* Reminder push setup diagnostics */
+.push-diagnostic{
+  padding:10px 11px;
+  border-radius:10px;
+  font-size:9px;
+  line-height:1.45;
+  border:1px solid transparent;
+}
+.push-diagnostic.ok{
+  background:#edf6f1;
+  border-color:#cfe2d8;
+  color:#2d7667;
+}
+.push-diagnostic.error{
+  background:#fff4f0;
+  border-color:#ecd2ca;
+  color:#a35442;
+}
+[data-theme="dark"] .push-diagnostic.ok{
+  background:#183429;
+  border-color:#345f4e;
+  color:#bfe0d1;
+}
+[data-theme="dark"] .push-diagnostic.error{
+  background:#35231f;
+  border-color:#634139;
+  color:#efaa9a;
+}
