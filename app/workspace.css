@@ -7167,3 +7167,346 @@ footer .footer-separator{
     padding-bottom:20px;
   }
 }
+
+
+/* Reminder selection states, alert settings, delete controls */
+.reminder-chips>button,
+.date-chip{
+  position:relative;
+}
+.reminder-chips>button.selected,
+.date-chip.selected{
+  background:#245746 !important;
+  color:#fff !important;
+  border-color:#245746 !important;
+  box-shadow:0 6px 16px rgba(36,87,70,.16);
+}
+.reminder-chips .chip-check{
+  display:none;
+  font-size:10px;
+  font-weight:900;
+  line-height:1;
+}
+.reminder-chips>button.selected .chip-check{
+  display:inline-block;
+}
+.date-chip.selected svg{
+  color:#fff;
+}
+[data-theme="dark"] .reminder-chips>button.selected,
+[data-theme="dark"] .date-chip.selected{
+  background:#33806b !important;
+  border-color:#4e9b84 !important;
+  color:#fff !important;
+}
+
+.reminder-delete-button{
+  width:35px;
+  height:35px;
+  display:grid;
+  place-items:center;
+  flex:0 0 35px;
+  padding:0;
+  border:1px solid #ead3ce;
+  border-radius:10px;
+  background:#fff8f5;
+  color:#b45b48;
+  cursor:pointer;
+}
+.reminder-delete-button:hover{
+  background:#fff0eb;
+  border-color:#dba99e;
+}
+.completed-reminder-row{
+  grid-template-columns:auto minmax(0,1fr) auto;
+}
+.completed-delete{
+  width:32px;
+  height:32px;
+  flex-basis:32px;
+}
+[data-theme="dark"] .reminder-delete-button{
+  background:#2d211e;
+  border-color:#5d3f38;
+  color:#e69b8a;
+}
+[data-theme="dark"] .reminder-delete-button:hover{
+  background:#392722;
+  border-color:#795147;
+}
+
+.reminder-alert-settings{
+  display:grid;
+  gap:13px;
+  padding:15px;
+  border:1px solid #d8e4dd;
+  border-radius:15px;
+  background:#f8fbf9;
+}
+.reminder-alert-settings-head{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:11px;
+  align-items:center;
+}
+.reminder-alert-settings-icon{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border-radius:11px;
+  background:#e5f1eb;
+  color:#2d7667;
+}
+.reminder-alert-settings-head>span:nth-child(2){
+  display:grid;
+  gap:3px;
+}
+.reminder-alert-settings-head strong{
+  font-size:12px;
+}
+.reminder-alert-settings-head small{
+  color:#7d8a83;
+  font-size:9px;
+  line-height:1.35;
+}
+.setting-switch{
+  width:44px;
+  height:26px;
+  padding:3px;
+  border:0;
+  border-radius:999px;
+  background:#cbd5cf;
+  cursor:pointer;
+  transition:background .18s ease;
+}
+.setting-switch>span{
+  width:20px;
+  height:20px;
+  display:block;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 2px 7px rgba(0,0,0,.16);
+  transition:transform .18s ease;
+}
+.setting-switch.is-on{
+  background:#2d7667;
+}
+.setting-switch.is-on>span{
+  transform:translateX(18px);
+}
+.reminder-alert-options{
+  display:grid;
+  gap:8px;
+  padding-top:11px;
+  border-top:1px solid #e3e9e4;
+}
+.reminder-alert-option{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px !important;
+  min-height:48px;
+  padding:8px 10px;
+  border:1px solid #e0e7e2;
+  border-radius:11px;
+  background:#fff;
+}
+.reminder-alert-option>span{
+  display:grid;
+  gap:2px;
+}
+.reminder-alert-option strong{
+  font-size:10px;
+}
+.reminder-alert-option small{
+  color:#85918b;
+  font-size:8.5px;
+  font-weight:500;
+}
+.reminder-alert-option input{
+  width:18px !important;
+  height:18px !important;
+  min-height:0 !important;
+  accent-color:#2d7667;
+}
+.reminder-alert-status{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 11px;
+  border-radius:10px;
+  background:#edf3ef;
+  font-size:9px;
+}
+.reminder-alert-status span{
+  color:#718078;
+}
+.reminder-alert-status strong{
+  color:#a45d42;
+}
+.reminder-alert-status strong.ok{
+  color:#2d7667;
+}
+.reminder-test-alert{
+  min-height:40px;
+  justify-content:center;
+  border-radius:10px;
+}
+.reminder-alert-note{
+  margin:0;
+  color:#839088;
+  font-size:8.5px;
+  line-height:1.45;
+}
+
+[data-theme="dark"] .reminder-alert-settings{
+  background:#15261f;
+  border-color:#344e42;
+}
+[data-theme="dark"] .reminder-alert-settings-icon{
+  background:#203a30;
+  color:#9fd0bc;
+}
+[data-theme="dark"] .reminder-alert-settings-head small,
+[data-theme="dark"] .reminder-alert-note{
+  color:#9eafa6;
+}
+[data-theme="dark"] .setting-switch{
+  background:#46584f;
+}
+[data-theme="dark"] .setting-switch.is-on{
+  background:#3c8b74;
+}
+[data-theme="dark"] .reminder-alert-options{
+  border-color:#31483d;
+}
+[data-theme="dark"] .reminder-alert-option{
+  background:#102019;
+  border-color:#30483d;
+}
+[data-theme="dark"] .reminder-alert-option small,
+[data-theme="dark"] .reminder-alert-status span{
+  color:#9eb0a6;
+}
+[data-theme="dark"] .reminder-alert-status{
+  background:#1d3028;
+}
+[data-theme="dark"] .reminder-alert-status strong.ok{
+  color:#9fd0bc;
+}
+
+.reminder-alarm-backdrop{
+  background:rgba(4,18,13,.68);
+  backdrop-filter:blur(5px);
+}
+.reminder-alarm-modal{
+  width:min(430px,calc(100vw - 24px));
+  padding:28px 24px 22px;
+  border:1px solid #cadfd4;
+  border-radius:24px;
+  background:#fffdf8;
+  box-shadow:0 28px 90px rgba(0,0,0,.28);
+  text-align:center;
+}
+.reminder-alarm-icon{
+  width:62px;
+  height:62px;
+  display:grid;
+  place-items:center;
+  margin:0 auto 14px;
+  border-radius:20px;
+  background:#e4f2eb;
+  color:#2d7667;
+  box-shadow:0 0 0 8px rgba(45,118,103,.07);
+  animation:reminderBellPulse 1.15s ease-in-out infinite;
+}
+@keyframes reminderBellPulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.06)}
+}
+.reminder-alarm-modal h2{
+  margin:6px 0 8px;
+  font:28px Georgia,serif;
+  color:#20372e;
+}
+.reminder-alarm-modal p{
+  margin:0 auto 8px;
+  max-width:330px;
+  color:#4f6359;
+  font-size:13px;
+  line-height:1.5;
+}
+.reminder-alarm-modal>small{
+  display:block;
+  color:#8a958f;
+  font-size:9px;
+}
+.reminder-alarm-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:20px;
+}
+.reminder-alarm-actions button{
+  min-height:46px;
+  justify-content:center;
+}
+.reminder-alarm-dismiss{
+  margin-top:10px;
+  padding:7px 12px;
+  border:0;
+  background:transparent;
+  color:#7e8b84;
+  font-size:9px;
+  cursor:pointer;
+}
+[data-theme="dark"] .reminder-alarm-modal{
+  background:#17271f;
+  border-color:#3a594b;
+}
+[data-theme="dark"] .reminder-alarm-icon{
+  background:#214035;
+  color:#bfe0d1;
+}
+[data-theme="dark"] .reminder-alarm-modal h2{
+  color:#f1f6f3;
+}
+[data-theme="dark"] .reminder-alarm-modal p{
+  color:#bdcbc4;
+}
+[data-theme="dark"] .reminder-alarm-modal>small,
+[data-theme="dark"] .reminder-alarm-dismiss{
+  color:#9daea5;
+}
+
+@media(max-width:560px){
+  .reminder-page-actions{
+    grid-template-columns:1fr 1fr auto !important;
+    align-items:center;
+  }
+  .reminder-page-actions .reminder-delete-button{
+    width:38px;
+    height:38px;
+  }
+  .reminder-alert-settings{
+    padding:13px;
+  }
+  .reminder-alert-settings-head{
+    grid-template-columns:36px minmax(0,1fr) auto;
+    gap:9px;
+  }
+  .reminder-alert-settings-icon{
+    width:36px;
+    height:36px;
+  }
+  .reminder-alarm-modal{
+    width:calc(100vw - 18px);
+    padding:25px 17px 18px;
+    border-radius:21px;
+  }
+  .reminder-alarm-modal h2{
+    font-size:25px;
+  }
+}
