@@ -214,6 +214,7 @@ export default function Workspace() {
     [guideOpen, setGuideOpen] = useState(false),
     [deleteJob, setDeleteJob] = useState<Job | null>(null),
     [receiptJob, setReceiptJob] = useState<Job | null>(null),
+    [receiptImageBusy, setReceiptImageBusy] = useState(false),
     [directReminderOpen, setDirectReminderOpen] = useState(false),
     [reminderCustomer, setReminderCustomer] = useState(""),
     [newCustomerName, setNewCustomerName] = useState(""),
@@ -1062,6 +1063,187 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
 <script>window.onload=()=>{window.print();};<\/script>
 </body></html>`);
     popup.document.close();
+  }
+  function safeReceiptFileName(value: string) {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "receipt";
+  }
+  function receiptCanvasBlob(job: Job): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      try {
+        const width = 1080;
+        const height = 1350;
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas is unavailable.");
+
+        const baki = Math.max(0, job.total - job.paid);
+        const businessName = business?.trim() || "Pakki Baat";
+        const issued = new Date().toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+
+        const roundRect = (x:number,y:number,w:number,h:number,r:number,fill:string,stroke?:string) => {
+          ctx.beginPath();
+          ctx.roundRect(x,y,w,h,r);
+          ctx.fillStyle = fill;
+          ctx.fill();
+          if (stroke) {
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        };
+        const text = (value:string,x:number,y:number,size:number,weight:string,color:string,align:CanvasTextAlign="left") => {
+          ctx.font = `${weight} ${size}px Arial, sans-serif`;
+          ctx.fillStyle = color;
+          ctx.textAlign = align;
+          ctx.textBaseline = "alphabetic";
+          ctx.fillText(value,x,y);
+        };
+        const wrapText = (value:string,x:number,y:number,maxWidth:number,lineHeight:number,size:number,weight:string,color:string) => {
+          ctx.font = `${weight} ${size}px Arial, sans-serif`;
+          ctx.fillStyle = color;
+          ctx.textAlign = "left";
+          const words = value.split(/\s+/);
+          let line = "";
+          let yy = y;
+          for (const word of words) {
+            const test = line ? line + " " + word : word;
+            if (ctx.measureText(test).width > maxWidth && line) {
+              ctx.fillText(line,x,yy);
+              line = word;
+              yy += lineHeight;
+            } else {
+              line = test;
+            }
+          }
+          if (line) ctx.fillText(line,x,yy);
+          return yy;
+        };
+
+        ctx.fillStyle = "#f2efe7";
+        ctx.fillRect(0,0,width,height);
+
+        // Receipt sheet
+        roundRect(76,64,928,1222,38,"#fffdf8","#dfdacd");
+
+        // Header
+        text(businessName,122,150,44,"700","#22372f");
+        text("CUSTOMER RECEIPT",122,194,18,"700","#718079");
+        text(receiptNumber(job),958,150,20,"700","#5d6f66","right");
+        text(issued,958,187,18,"400","#8a958f","right");
+
+        ctx.strokeStyle = "#e9e4d8";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(122,236);
+        ctx.lineTo(958,236);
+        ctx.stroke();
+
+        // Customer + status
+        text("CUSTOMER",122,294,17,"700","#8a958f");
+        text(job.customer,122,342,34,"700","#263d33");
+
+        const statusLabel = baki === 0 ? "PAID IN FULL" : "BALANCE DUE";
+        const statusFill = baki === 0 ? "#e7f3ec" : "#fff0e5";
+        const statusColor = baki === 0 ? "#2f735e" : "#a35d43";
+        roundRect(730,282,228,62,31,statusFill);
+        text(statusLabel,844,322,16,"700",statusColor,"center");
+
+        text("WORK / ORDER",122,406,17,"700","#8a958f");
+        const workEnd = wrapText(job.work,122,452,836,38,28,"700","#30463c");
+
+        // Amount cards
+        const cardsY = Math.max(540, workEnd + 64);
+        const cardW = 254;
+        const gap = 24;
+        const amountCard = (x:number,label:string,value:string,accent=false) => {
+          roundRect(x,cardsY,cardW,154,24,accent ? "#fff5ec" : "#f4f7f3",accent ? "#ead8c7" : "#e1e7df");
+          text(label,x+24,cardsY+46,16,"700","#7f8d85");
+          text(value,x+24,cardsY+105,30,"700",accent ? "#a35d43" : "#2a4036");
+        };
+        amountCard(122,"TOTAL",money(job.total));
+        amountCard(122+cardW+gap,"RECEIVED",money(job.paid));
+        amountCard(122+(cardW+gap)*2,"BALANCE",money(baki),true);
+
+        // Due row
+        const dueY = cardsY + 198;
+        roundRect(122,dueY,836,92,20,"#faf9f5","#e6e1d8");
+        text("DUE",150,dueY+36,15,"700","#86928b");
+        text(job.date ? job.date + (job.time ? " · " + job.time : "") : "Not set",930,dueY+57,24,"700","#32483e","right");
+
+        // Footer note
+        const noteY = dueY + 150;
+        text(baki === 0 ? "Payment complete ✓" : "Balance pending",122,noteY,24,"700",baki===0 ? "#2f735e" : "#a35d43");
+        text("Thank you.",122,noteY+62,28,"700","#33483f");
+
+        ctx.strokeStyle = "#e9e4d8";
+        ctx.beginPath();
+        ctx.moveTo(122,1168);
+        ctx.lineTo(958,1168);
+        ctx.stroke();
+        text("Generated from Pakki Baat",540,1218,17,"400","#8a958f","center");
+
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not create receipt image.")), "image/png", 0.96);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+  async function downloadReceiptImage(job: Job) {
+    try {
+      setReceiptImageBusy(true);
+      const blob = await receiptCanvasBlob(job);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeReceiptFileName(job.customer)}-${receiptNumber(job)}.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setToast("Receipt image saved ✓");
+    } catch {
+      setToast("Could not create the receipt image.");
+    } finally {
+      setReceiptImageBusy(false);
+    }
+  }
+  async function shareReceiptImage(job: Job) {
+    try {
+      setReceiptImageBusy(true);
+      const blob = await receiptCanvasBlob(job);
+      const file = new File(
+        [blob],
+        `${safeReceiptFileName(job.customer)}-${receiptNumber(job)}.png`,
+        { type: "image/png" }
+      );
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: `Receipt ${receiptNumber(job)}`,
+          text: `Receipt for ${job.customer}`,
+          files: [file],
+        });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = file.name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setToast("Image sharing is not supported here, so the receipt was downloaded.");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setToast("Could not share the receipt image.");
+    } finally {
+      setReceiptImageBusy(false);
+    }
   }
   function currentSnapshot(): Snapshot {
     return { jobs, owner, business, reminders, payments, notes, customerPhones };
@@ -2329,8 +2511,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </div>
             <p className="receipt-help">Print it directly, save it as PDF from the print screen, or send the receipt details through WhatsApp.</p>
             <div className="receipt-actions">
+              <button type="button" className="outline receipt-image-button" disabled={receiptImageBusy} onClick={()=>void downloadReceiptImage(receiptJob)}>{receiptImageBusy ? "Preparing…" : "Save image"}</button>
+              <button type="button" className="outline receipt-image-button" disabled={receiptImageBusy} onClick={()=>void shareReceiptImage(receiptJob)}>{receiptImageBusy ? "Preparing…" : "Share image"}</button>
               <button type="button" className="outline" onClick={()=>printReceipt(receiptJob)}>Print / Save PDF</button>
-              <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send on WhatsApp" : "WhatsApp needs internet"}</button>
+              <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send text on WhatsApp" : "WhatsApp needs internet"}</button>
             </div>
           </section>
         </div>
