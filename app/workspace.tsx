@@ -1797,7 +1797,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       <span className="count">{open.length}</span>
                     </h2>
                     <button
-                      className="text-button"
+                      className="text-button attention-view-all"
                       onClick={() => go("Hisaab")}
                     >
                       View all <Icon name="arrow" size={15} />
