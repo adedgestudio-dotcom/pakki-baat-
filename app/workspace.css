@@ -6765,3 +6765,40 @@ select:focus-visible {
   background:#233d32;
   border-color:#527765;
 }
+
+
+/* Needs attention: stronger View all action on phone */
+.attention-view-all{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+}
+@media(max-width:560px){
+  .section-heading .attention-view-all{
+    min-height:34px;
+    padding:7px 10px;
+    border:1px solid #c9d9d0;
+    border-radius:10px;
+    background:#edf5f1;
+    color:#245f4d;
+    font-size:9.5px;
+    font-weight:800;
+    text-decoration:none;
+    box-shadow:0 4px 12px rgba(34,88,70,.08);
+  }
+  .section-heading .attention-view-all svg{
+    width:14px;
+    height:14px;
+    stroke-width:2.1;
+  }
+  .section-heading .attention-view-all:active{
+    transform:scale(.97);
+  }
+  [data-theme="dark"] .section-heading .attention-view-all{
+    background:#244136;
+    border-color:#406353;
+    color:#e5f1eb;
+    box-shadow:0 5px 14px rgba(0,0,0,.18);
+  }
+}
