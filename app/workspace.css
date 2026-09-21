@@ -3025,3 +3025,64 @@ select:focus-visible {
 @media(max-width:800px){.reminder-row{align-items:flex-start}.reminder-actions{flex-direction:column}.customer-mini-reminder{grid-template-columns:auto 1fr auto}.customer-mini-reminder .text-button{grid-column:2;justify-self:start}.customer-history-row{padding:12px}}
 
 .saved-detail-card{display:grid;gap:8px;margin-top:12px;padding:12px;border:1px solid #c9dbce;border-radius:12px;background:#eef6ed}.saved-detail-card>strong{color:#18382f;font-size:14px}.saved-detail-card>span{color:#496358;font-size:12px}.saved-detail-card dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}.saved-detail-card div{display:grid;gap:2px;min-width:0}.saved-detail-card dt{color:#6f8178;font-size:9px;letter-spacing:.08em;text-transform:uppercase}.saved-detail-card dd{margin:0;color:#1f352d;font-size:12px;font-weight:700;overflow-wrap:anywhere}[data-theme="dark"] .saved-detail-card{background:#19352b;border-color:#3a5f4d}[data-theme="dark"] .saved-detail-card>strong,[data-theme="dark"] .saved-detail-card dd{color:#f4f7ef}[data-theme="dark"] .saved-detail-card>span,[data-theme="dark"] .saved-detail-card dt{color:#b7c9bd}@media(max-width:560px){.saved-detail-card dl{grid-template-columns:1fr}}
+
+
+/* Mobile recorder containment fix */
+.input-with-mic,
+.input-mic-button {
+  min-width: 0;
+}
+
+.input-mic-button {
+  width: 40px;
+  height: 40px;
+}
+
+.input-mic-button .whatsapp-mic-button {
+  position: relative;
+  inset: auto;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px;
+  min-height: 40px;
+  max-width: 40px;
+  max-height: 40px;
+  border-radius: 50% !important;
+}
+
+@media (max-width: 560px) {
+  .input-with-mic {
+    overflow: hidden;
+    border-radius: 14px;
+  }
+
+  .input-mic-button {
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 4;
+  }
+
+  .inline-recording-strip {
+    left: 8px;
+    right: 52px;
+    top: 50%;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    min-height: 36px;
+    transform: translateY(-50%);
+    border-radius: 12px;
+    padding: 6px 8px;
+    overflow: hidden;
+  }
+
+  .recording-wave-line {
+    min-width: 0;
+    max-width: 110px;
+  }
+
+  .whatsapp-mic-button.recording {
+    transform: none !important;
+  }
+}
