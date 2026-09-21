@@ -6802,3 +6802,208 @@ select:focus-visible {
     box-shadow:0 5px 14px rgba(0,0,0,.18);
   }
 }
+
+
+/* Customer contact directory */
+.hisaab-heading-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.customer-contacts-button{
+  min-height:42px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  padding:9px 12px;
+  border-radius:11px;
+}
+.customer-contacts-modal{
+  position:relative;
+  width:min(560px,calc(100vw - 28px));
+  max-height:min(86vh,760px);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  padding:28px 24px 20px;
+  border:1px solid #d9e3dc;
+  border-radius:22px;
+  background:#fffdf8;
+  box-shadow:0 26px 80px rgba(22,45,36,.22);
+}
+.customer-contacts-close{
+  position:absolute;
+  top:13px;
+  right:13px;
+}
+.customer-contacts-modal h2{
+  margin:5px 0 6px;
+  font:28px Georgia,serif;
+  color:#20352d;
+}
+.customer-contacts-modal>p{
+  margin:0 0 15px;
+  color:#748079;
+  font-size:11px;
+}
+.customer-contacts-search{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 11px;
+  min-height:44px;
+  border:1px solid #d7e2da;
+  border-radius:12px;
+  background:#f8faf7;
+  color:#6e8178;
+}
+.customer-contacts-search input{
+  width:100%;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-size:12px;
+}
+.customer-contacts-list{
+  display:grid;
+  gap:0;
+  margin:14px 0;
+  overflow:auto;
+  border:1px solid #e2e7e1;
+  border-radius:14px;
+  background:#fff;
+}
+.customer-contact-row{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  padding:12px;
+  border-bottom:1px solid #edf0ec;
+}
+.customer-contact-row:last-child{
+  border-bottom:0;
+}
+.customer-contact-row .avatar{
+  width:36px;
+  height:36px;
+  border-radius:10px;
+}
+.customer-contact-main{
+  min-width:0;
+}
+.customer-contact-main strong{
+  display:block;
+  font-size:12px;
+  color:#294137;
+}
+.customer-contact-main small{
+  display:block;
+  margin-top:3px;
+  font-size:10px;
+  color:#7e8c84;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.customer-contact-edit{
+  min-height:34px;
+  padding:6px 9px;
+  border:1px solid #cadbd2;
+  border-radius:9px;
+  background:#edf5f1;
+  color:#2b6654;
+  font-size:9px;
+  font-weight:800;
+}
+.customer-contact-edit:hover{
+  background:#e5f0ea;
+  border-color:#a9c8b9;
+}
+.customer-contacts-empty{
+  padding:26px 16px;
+  text-align:center;
+  color:#85918b;
+  font-size:11px;
+}
+.customer-contacts-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:auto;
+}
+.customer-contacts-actions button{
+  min-height:44px;
+  justify-content:center;
+}
+[data-theme="dark"] .customer-contacts-modal{
+  background:#17271f;
+  border-color:#31483d;
+}
+[data-theme="dark"] .customer-contacts-modal h2{
+  color:#edf4ef;
+}
+[data-theme="dark"] .customer-contacts-modal>p{
+  color:#a8b9b0;
+}
+[data-theme="dark"] .customer-contacts-search{
+  background:#13241c;
+  border-color:#334d41;
+  color:#a9bbb1;
+}
+[data-theme="dark"] .customer-contacts-list{
+  background:#14231c;
+  border-color:#31483d;
+}
+[data-theme="dark"] .customer-contact-row{
+  border-color:#2d4339;
+}
+[data-theme="dark"] .customer-contact-main strong{
+  color:#e8f1ec;
+}
+[data-theme="dark"] .customer-contact-main small{
+  color:#a3b4ab;
+}
+[data-theme="dark"] .customer-contact-edit{
+  background:#20392e;
+  border-color:#3b5e4f;
+  color:#cfe4da;
+}
+@media(max-width:560px){
+  .hisaab-heading-actions{
+    gap:6px;
+  }
+  .customer-contacts-button,
+  .page-heading.customer-heading > .mobile-primary-action{
+    min-height:40px;
+    padding:8px 10px;
+    font-size:9px;
+  }
+  .customer-contacts-modal{
+    width:calc(100vw - 18px);
+    max-height:88vh;
+    padding:24px 14px 14px;
+    border-radius:19px;
+  }
+  .customer-contacts-modal h2{
+    font-size:24px;
+  }
+  .customer-contact-row{
+    grid-template-columns:34px minmax(0,1fr) auto;
+    padding:10px;
+  }
+  .customer-contact-row .avatar{
+    width:34px;
+    height:34px;
+  }
+  .customer-contact-edit{
+    padding:6px 8px;
+    font-size:8.5px;
+  }
+  .customer-contacts-actions{
+    grid-template-columns:1fr 1fr;
+  }
+}
