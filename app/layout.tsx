@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Pakki Baat — Your little business assistant",
   description:
     "Customer conversations, clear commitments and a little less remembering. For bakers, tutors, boutique owners and other small businesses.",
-  themeColor: "#2d7667",
+  themeColor: "#8068cf",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
