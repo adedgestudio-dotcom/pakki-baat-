@@ -979,6 +979,90 @@ export default function Workspace() {
     }Total: ${money(j.total)}. Received: ${money(j.paid)}. Balance: ${money(
       j.total - j.paid
     )}. Please reply to confirm these details. Thank you!`;
+  const receiptNumber = (j: Job) =>
+    "PB-" + j.id.replace(/-/g, "").slice(0, 8).toUpperCase();
+  const receiptText = (j: Job) => {
+    const baki = Math.max(0, j.total - j.paid);
+    return [
+      `*${business?.trim() || "Pakki Baat"}*`,
+      `Receipt: ${receiptNumber(j)}`,
+      `Customer: ${j.customer}`,
+      `Work: ${j.work}`,
+      "",
+      `Total: ${money(j.total)}`,
+      `Received: ${money(j.paid)}`,
+      `Balance: ${money(baki)}`,
+      j.date ? `Due: ${j.date}${j.time ? " · " + j.time : ""}` : "",
+      "",
+      baki === 0 ? "Payment status: Paid in full" : "Payment status: Balance pending",
+      "",
+      "Thank you.",
+    ].filter(Boolean).join("\n");
+  };
+  function escapeReceiptHtml(value: string) {
+    return value.replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;",
+    }[char] || char));
+  }
+  function openReceipt(job: Job) {
+    setReceiptJob(job);
+  }
+  function sendReceiptOnWhatsApp(job: Job) {
+    setReceiptJob(null);
+    setWhatsappJob(job);
+    setWhatsappNumber(customerPhones[job.customer] || "");
+    setWhatsappMessage(receiptText(job));
+    setSaveWhatsappNumber(true);
+  }
+  function printReceipt(job: Job) {
+    const popup = window.open("", "_blank", "width=520,height=760");
+    if (!popup) {
+      setToast("Allow pop-ups once to print the receipt.");
+      return;
+    }
+    const businessName = escapeReceiptHtml(business?.trim() || "Pakki Baat");
+    const customer = escapeReceiptHtml(job.customer);
+    const work = escapeReceiptHtml(job.work);
+    const receiptNo = escapeReceiptHtml(receiptNumber(job));
+    const due = job.date
+      ? escapeReceiptHtml(job.date + (job.time ? " · " + job.time : ""))
+      : "Not set";
+    const baki = Math.max(0, job.total - job.paid);
+    const issued = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    popup.document.write(`<!doctype html>
+<html><head><meta charset="utf-8"><title>${receiptNo}</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f1eb;color:#22332d;font-family:Arial,sans-serif;padding:28px}
+.receipt{max-width:440px;margin:auto;background:#fff;border:1px solid #ddd8cb;border-radius:18px;padding:28px;box-shadow:0 10px 30px #00000012}
+.brand{font-family:Georgia,serif;font-size:28px;margin:0 0 4px}.muted{color:#7d8983;font-size:12px}
+.rule{height:1px;background:#e9e4d9;margin:22px 0}
+h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:space-between;gap:18px;margin:10px 0;font-size:13px}.row span:first-child{color:#7b8781}
+.total{font-size:16px;font-weight:700}.baki{color:#a65b42}.status{margin-top:18px;padding:10px 12px;border-radius:10px;background:#eef5f0;color:#2d6e5b;font-size:12px;font-weight:700}
+.footer{text-align:center;margin-top:24px;color:#8b948f;font-size:10px}
+@media print{body{background:#fff;padding:0}.receipt{box-shadow:none;border:0;max-width:none;border-radius:0}}
+</style></head><body>
+<div class="receipt">
+<p class="brand">${businessName}</p>
+<p class="muted">Receipt ${receiptNo} · ${issued}</p>
+<div class="rule"></div>
+<h2>${work}</h2>
+<div class="row"><span>Customer</span><strong>${customer}</strong></div>
+<div class="row"><span>Due</span><strong>${due}</strong></div>
+<div class="rule"></div>
+<div class="row"><span>Total</span><strong>${escapeReceiptHtml(money(job.total))}</strong></div>
+<div class="row"><span>Received</span><strong>${escapeReceiptHtml(money(job.paid))}</strong></div>
+<div class="row total"><span>Balance</span><strong class="baki">${escapeReceiptHtml(money(baki))}</strong></div>
+<div class="status">${baki === 0 ? "Paid in full" : "Balance pending"}</div>
+<p class="footer">Generated from Pakki Baat</p>
+</div>
+<script>window.onload=()=>{window.print();};<\/script>
+</body></html>`);
+    popup.document.close();
+  }
   function currentSnapshot(): Snapshot {
     return { jobs, owner, business, reminders, payments, notes, customerPhones };
   }
@@ -1267,6 +1351,11 @@ export default function Workspace() {
   }
   return (
     <div className="shell">
+      {!isOnline && (
+        <div className="offline-banner" role="status">
+          <span className="offline-dot" /> Offline · changes are saved on this device
+        </div>
+      )}
       <aside className="sidebar">
         <button className="brand" onClick={() => go("Today")}>
           <span className="brand-mark">
@@ -1984,7 +2073,7 @@ export default function Workspace() {
                     </div>
                   )}
                   <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
-                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="entry-status-chips" aria-label="Entry status"><button type="button" className={j.status==="Waiting"?"active":""} onClick={()=>updateJobStatus(j,"Waiting")}>Pending</button><button type="button" className={j.status==="Confirmed"?"active":""} onClick={()=>updateJobStatus(j,"Confirmed")}>In progress</button><button type="button" className={j.status==="Completed"?"active":""} onClick={()=>updateJobStatus(j,"Completed")}>Done</button></div><div className="chat-turn-actions saved-card-actions">{j.paid<j.total && <button type="button" className="card-action payment-action" onClick={()=>openPayment(j)}>₹ Payment</button>}<button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button><button type="button" className="card-action delete-action" onClick={()=>deleteEntry(j)}><Icon name="close" size={14}/> Delete</button></div></article>)}</div>
+                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="entry-status-chips" aria-label="Entry status"><button type="button" className={j.status==="Waiting"?"active":""} onClick={()=>updateJobStatus(j,"Waiting")}>Pending</button><button type="button" className={j.status==="Confirmed"?"active":""} onClick={()=>updateJobStatus(j,"Confirmed")}>In progress</button><button type="button" className={j.status==="Completed"?"active":""} onClick={()=>updateJobStatus(j,"Completed")}>Done</button></div><div className="chat-turn-actions saved-card-actions">{j.paid<j.total && <button type="button" className="card-action payment-action" onClick={()=>openPayment(j)}>₹ Payment</button>}<button type="button" className="card-action receipt-action" onClick={()=>openReceipt(j)}>Receipt</button><button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button><button type="button" className="card-action delete-action" onClick={()=>deleteEntry(j)}><Icon name="close" size={14}/> Delete</button></div></article>)}</div>
                   </div>
                   {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
