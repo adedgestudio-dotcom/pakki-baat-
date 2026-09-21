@@ -6471,3 +6471,11 @@ select:focus-visible {
     right:-5px;
   }
 }
+
+
+/* Phone: reminders already live in bottom nav, so hide the duplicate top bell */
+@media(max-width:800px){
+  .top-reminder-button{
+    display:none !important;
+  }
+}
