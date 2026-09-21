@@ -2903,6 +2903,15 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           </button>
         ))}
         <button
+          type="button"
+          className="mobile-add-entry"
+          aria-label="Add new entry"
+          title="Add new entry"
+          onClick={() => go("My assistant")}
+        >
+          <Icon name="plus" size={25} />
+        </button>
+        <button
           aria-label="Settings"
           className={tab === "Settings" ? "active mobile-nav-item" : "mobile-nav-item"}
           onClick={() => go("Settings")}
