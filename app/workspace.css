@@ -7007,3 +7007,130 @@ select:focus-visible {
     grid-template-columns:1fr 1fr;
   }
 }
+
+
+/* Final phone Hisaab header — stack copy above actions, keep controls compact */
+@media(max-width:560px){
+  .page-heading.customer-heading{
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    justify-content:flex-start !important;
+    gap:14px !important;
+    margin-bottom:14px !important;
+    padding-right:0 !important;
+  }
+
+  .page-heading.customer-heading > div:first-child{
+    width:100%;
+    min-width:0;
+    max-width:none !important;
+  }
+
+  .page-heading.customer-heading .eyebrow{
+    display:block;
+    margin:0 0 7px !important;
+    font-size:8px !important;
+    line-height:1.25;
+    letter-spacing:1.35px;
+  }
+
+  .page-heading.customer-heading h1{
+    margin:0 !important;
+    font-size:39px !important;
+    line-height:1 !important;
+    letter-spacing:-1px;
+  }
+
+  .page-heading.customer-heading p{
+    width:100%;
+    max-width:330px !important;
+    margin:9px 0 0 !important;
+    font-size:11.5px !important;
+    line-height:1.5 !important;
+    white-space:normal !important;
+  }
+
+  .hisaab-heading-actions{
+    width:100%;
+    display:grid !important;
+    grid-template-columns:minmax(0,.9fr) minmax(0,1.35fr);
+    gap:8px !important;
+    align-items:stretch;
+  }
+
+  .hisaab-heading-actions .customer-contacts-button,
+  .hisaab-heading-actions .mobile-primary-action{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:44px !important;
+    height:44px !important;
+    margin:0 !important;
+    padding:0 11px !important;
+    border-radius:12px !important;
+    display:flex !important;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    font-size:10px !important;
+    font-weight:800;
+    white-space:nowrap;
+  }
+
+  .hisaab-heading-actions .customer-contacts-button svg,
+  .hisaab-heading-actions .mobile-primary-action svg{
+    width:17px !important;
+    height:17px !important;
+    flex:0 0 17px;
+  }
+
+  .customer-search{
+    width:100%;
+    min-height:48px !important;
+    margin:0 0 12px !important;
+    padding:0 13px !important;
+    gap:9px !important;
+    border-radius:14px !important;
+  }
+
+  .customer-search svg{
+    width:18px !important;
+    height:18px !important;
+    flex:0 0 18px;
+  }
+
+  .customer-search input{
+    min-width:0;
+    min-height:46px !important;
+    padding:0 !important;
+    font-size:12px !important;
+    line-height:1.2;
+  }
+
+  .customer-list-mobile{
+    margin-top:0 !important;
+  }
+}
+
+@media(max-width:390px){
+  .page-heading.customer-heading h1{
+    font-size:36px !important;
+  }
+
+  .page-heading.customer-heading p{
+    max-width:295px !important;
+    font-size:11px !important;
+  }
+
+  .hisaab-heading-actions{
+    grid-template-columns:minmax(0,.88fr) minmax(0,1.32fr);
+  }
+
+  .hisaab-heading-actions .customer-contacts-button,
+  .hisaab-heading-actions .mobile-primary-action{
+    min-height:42px !important;
+    height:42px !important;
+    padding:0 9px !important;
+    font-size:9.5px !important;
+  }
+}
