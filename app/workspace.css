@@ -6767,12 +6767,46 @@ select:focus-visible {
 }
 
 
-/* Needs attention: stronger View all action on phone */
-.attention-view-all{
+/* Needs attention: clear View all action on desktop + phone */
+.section-heading .attention-view-all{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:5px;
+  gap:6px;
+  flex:0 0 auto;
+  min-height:36px;
+  padding:8px 12px;
+  border:1px solid #cbd9d1;
+  border-radius:10px;
+  background:#f1f6f3;
+  color:#245f4d;
+  font-size:10px;
+  font-weight:800;
+  line-height:1;
+  text-decoration:none;
+  box-shadow:0 3px 10px rgba(34,88,70,.06);
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.section-heading .attention-view-all:hover{
+  background:#e7f1ec;
+  border-color:#9fbeae;
+  transform:translateY(-1px);
+}
+.section-heading .attention-view-all svg{
+  width:14px;
+  height:14px;
+  stroke-width:2.1;
+}
+[data-theme="dark"] .section-heading .attention-view-all{
+  background:#203a30;
+  border-color:#3d5d4f;
+  color:#dcebe4;
+  box-shadow:0 4px 12px rgba(0,0,0,.14);
+}
+[data-theme="dark"] .section-heading .attention-view-all:hover{
+  background:#29493c;
+  border-color:#557866;
+  color:#f2f7f4;
 }
 @media(max-width:560px){
   .section-heading .attention-view-all{
