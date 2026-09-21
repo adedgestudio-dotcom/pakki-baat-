@@ -8,6 +8,7 @@ import AudioPlayer from "./audio-player";
 import { saveVoice, loadVoice, deleteVoice } from "@/lib/voice-messages";
 import {
   cloudConfigured,
+  cloudToken,
   currentSession,
   loadCloud,
   saveCloud,
@@ -506,7 +507,89 @@ export default function Workspace() {
       localStorage.setItem("pakki-baat-reminder-vibration", vibration ? "on" : "off");
     } catch {}
   }
+  function urlBase64ToUint8Array(value: string) {
+    const padding = "=".repeat((4 - (value.length % 4)) % 4);
+    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = window.atob(base64);
+    return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
+  }
+  async function ensurePushSubscription() {
+    if (!loggedIn) throw new Error("Sign in first to enable closed-app reminders.");
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      throw new Error("This browser does not support closed-app push notifications.");
+    }
+
+    const configResponse = await fetch("/api/push/config", { cache: "no-store" });
+    const config = await configResponse.json().catch(() => ({}));
+    if (!configResponse.ok || !config.enabled || !config.publicKey) {
+      throw new Error("Closed-app push is not configured on the server yet.");
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(String(config.publicKey)),
+      });
+    }
+    return subscription;
+  }
+  function scheduledPushKey(reminder: Reminder, endpoint: string) {
+    return `${reminder.id}:${reminder.date}:${reminder.time || "09:00"}:${endpoint.slice(-48)}`;
+  }
+  function hasScheduledPush(key: string) {
+    try {
+      const values = JSON.parse(localStorage.getItem("pakki-baat-push-scheduled") || "[]");
+      return Array.isArray(values) && values.includes(key);
+    } catch {
+      return false;
+    }
+  }
+  function rememberScheduledPush(key: string) {
+    try {
+      const values = JSON.parse(localStorage.getItem("pakki-baat-push-scheduled") || "[]");
+      const next = Array.isArray(values) ? values.filter((value): value is string => typeof value === "string") : [];
+      if (!next.includes(key)) next.push(key);
+      localStorage.setItem("pakki-baat-push-scheduled", JSON.stringify(next.slice(-500)));
+    } catch {}
+  }
+  async function scheduleClosedReminder(reminder: Reminder, existingSubscription?: PushSubscription) {
+    if (!reminderAlertsEnabled || reminder.done || !reminder.date || !loggedIn) return;
+    const subscription = existingSubscription || await ensurePushSubscription();
+    const key = scheduledPushKey(reminder, subscription.endpoint);
+    if (hasScheduledPush(key)) return;
+
+    const time = reminder.time || "09:00";
+    const due = new Date(`${reminder.date}T${time}:00`);
+    if (!Number.isFinite(due.getTime())) return;
+
+    const token = await cloudToken();
+    const response = await fetch("/api/push/schedule", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify({
+        reminder,
+        remindAt: due.toISOString(),
+        subscription: subscription.toJSON(),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(String(result.error || "Could not schedule closed-app reminder."));
+    }
+    rememberScheduledPush(key);
+  }
+
   async function enableReminderAlerts() {
+    if (!loggedIn) {
+      setToast("Sign in first so reminders can reach you even when Pakki Baat is closed.");
+      return;
+    }
+
     let permission: NotificationPermission | "unsupported" =
       "Notification" in window ? Notification.permission : "unsupported";
     if (permission === "default") {
@@ -515,13 +598,35 @@ export default function Workspace() {
       } catch {}
     }
     setNotificationPermission(permission);
-    if (permission === "denied") {
-      setToast("Notifications are blocked. Allow them in your browser/site settings, then try again.");
+
+    if (permission !== "granted") {
+      setToast(
+        permission === "denied"
+          ? "Notifications are blocked. Allow them in your browser/site settings, then try again."
+          : "This browser cannot show closed-app reminder notifications."
+      );
       return;
     }
-    setReminderAlertsEnabled(true);
-    persistReminderAlertSettings(true);
-    setToast(permission === "granted" ? "Reminder alerts are on ✓" : "In-app reminder alerts are on.");
+
+    try {
+      const subscription = await ensurePushSubscription();
+      setReminderAlertsEnabled(true);
+      persistReminderAlertSettings(true);
+
+      for (const reminder of reminders) {
+        if (!reminder.done) {
+          try {
+            await scheduleClosedReminder(reminder, subscription);
+          } catch {}
+        }
+      }
+
+      setToast("Closed-app reminder notifications are on ✓");
+    } catch (error) {
+      setReminderAlertsEnabled(false);
+      persistReminderAlertSettings(false);
+      setToast(error instanceof Error ? error.message : "Could not enable closed-app reminders.");
+    }
   }
   function disableReminderAlerts() {
     setReminderAlertsEnabled(false);
@@ -597,17 +702,40 @@ export default function Workspace() {
     }
     void showSystemReminder(reminder);
   }
-  function testReminderAlert() {
+  async function testReminderAlert() {
     const test: Reminder = {
       id: "test-reminder",
-      text: "This is how your reminder will alert you.",
+      text: "Closed-app notifications are working ✓",
       date: day(),
       time: new Date().toTimeString().slice(0,5),
       repeat: "none",
       done: false,
       createdAt: new Date().toISOString(),
     };
-    fireReminderAlert(test, false);
+
+    setRingingReminder(test);
+    playReminderAlarm();
+    if (reminderVibrationEnabled && "vibrate" in navigator) {
+      navigator.vibrate([350,180,350,180,650]);
+    }
+
+    try {
+      const subscription = await ensurePushSubscription();
+      const token = await cloudToken();
+      const response = await fetch("/api/push/test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ subscription: subscription.toJSON() }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(result.error || "Push test failed."));
+      setToast("Test push sent. You should see a system notification too ✓");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not send the closed-app test.");
+    }
   }
   function deleteReminder(id: string) {
     const reminder = reminders.find(r => r.id === id);
@@ -1672,6 +1800,11 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       createdAt: new Date().toISOString(),
     };
     setReminders(items => [reminder, ...items]);
+    if (reminderAlertsEnabled) {
+      void scheduleClosedReminder(reminder).catch(error =>
+        setToast(error instanceof Error ? error.message : "Reminder saved, but closed-app alert could not be scheduled.")
+      );
+    }
     closeReminderEditor();
     setToast("Reminder saved.");
   }
@@ -1700,6 +1833,28 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     }));
     setToast(message);
   }
+  useEffect(() => {
+    if (!ready || !loggedIn || !reminderAlertsEnabled || notificationPermission !== "granted") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const subscription = await ensurePushSubscription();
+        if (cancelled) return;
+        for (const reminder of reminders) {
+          if (cancelled) return;
+          if (!reminder.done) {
+            try {
+              await scheduleClosedReminder(reminder, subscription);
+            } catch {}
+          }
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reminders, ready, loggedIn, reminderAlertsEnabled, notificationPermission]);
+
   useEffect(() => {
     if (!ready || !reminderAlertsEnabled) return;
     const checkDueReminders = () => {
@@ -2578,10 +2733,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           {notificationPermission==="granted" ? "Allowed" : notificationPermission==="denied" ? "Blocked" : notificationPermission==="unsupported" ? "Not supported" : "Not allowed yet"}
                         </strong>
                       </div>
-                      <button type="button" className="outline reminder-test-alert" onClick={testReminderAlert}>Test reminder alert</button>
+                      <button type="button" className="outline reminder-test-alert" onClick={()=>void testReminderAlert()}>Test reminder alert</button>
                     </div>
                   )}
-                  <p className="reminder-alert-note">System notifications can appear over other apps when your browser/device allows them. A web app cannot guarantee a clock-style alarm after the app is fully closed.</p>
+                  <p className="reminder-alert-note">Closed-app reminders use system push notifications, so they can appear over other apps after Pakki Baat is closed. The custom clock-style sound is used while Pakki Baat is open; when closed, your phone controls the notification sound and vibration.</p>
                 </div>
                 <button type="button" className="how-it-works-card" onClick={()=>setGuideOpen(true)}>
                   <span className="how-it-works-icon">?</span>
