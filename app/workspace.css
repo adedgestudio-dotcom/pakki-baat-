@@ -5,6 +5,13 @@
   --line: #ded8ec;
   --cream: #f8f7fc;
   --coral: #e87396;
+  --pb-surface: #ffffff;
+  --pb-card: #f0ecfa;
+  --pb-elevated: #f7f4fd;
+  --pb-accent: #8068cf;
+  --pb-accent-soft: #b8a7f2;
+  --pb-success: #63b895;
+  --pb-alert: #df6689;
 }
 * {
   box-sizing: border-box;
@@ -3193,115 +3200,137 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   }
 }
 
-/* Final dark-mode palette layer: overrides legacy green component rules. */
-[data-theme="dark"] .today-reminders,
-[data-theme="dark"] .future-card,
-[data-theme="dark"] .hero,
-[data-theme="dark"] .tip-panel,
-[data-theme="dark"] .help-card,
-[data-theme="dark"] .notice,
-[data-theme="dark"] .panel .job,
-[data-theme="dark"] .job,
-[data-theme="dark"] .stats > button {
-  background: var(--pb-card);
-  border-color: var(--line);
+/* =========================================================
+   PAKKI BAAT — 2026 LAVENDER THEME
+   Definitive color layer. Layout/spacing rules remain above.
+   ========================================================= */
+:root {
+  --pb-bg: #f8f7fc;
+  --pb-surface: #ffffff;
+  --pb-card: #f0ecfa;
+  --pb-elevated: #f7f4fd;
+  --pb-border: #ded8ec;
+  --pb-primary: #8068cf;
+  --pb-primary-strong: #6650b3;
+  --pb-primary-soft: #b8a7f2;
+  --pb-primary-wash: #eee9fa;
+  --pb-text: #252231;
+  --pb-muted: #746f80;
+  --pb-success: #63b895;
+  --pb-alert: #df6689;
+  --pb-shadow: rgba(76,58,118,.10);
+  --teal: var(--pb-primary);
+  --ink: var(--pb-text);
+  --muted: var(--pb-muted);
+  --line: var(--pb-border);
+  --cream: var(--pb-bg);
+  --coral: var(--pb-alert);
 }
-[data-theme="dark"] .today-reminders .eyebrow,
-[data-theme="dark"] .today-reminders .text-button,
-[data-theme="dark"] .future-badge,
-[data-theme="dark"] .future-icon,
-[data-theme="dark"] .job-end > strong {
-  color: var(--pb-accent-soft);
+[data-theme="dark"] {
+  --pb-bg: #0d0d18;
+  --pb-surface: #121221;
+  --pb-card: #19182a;
+  --pb-elevated: #201e34;
+  --pb-border: #302d47;
+  --pb-primary: #9b87e8;
+  --pb-primary-strong: #b6a4f4;
+  --pb-primary-soft: #d4c9fa;
+  --pb-primary-wash: #2b2548;
+  --pb-text: #f4f2f8;
+  --pb-muted: #aaa6b7;
+  --pb-success: #72c9a5;
+  --pb-alert: #e87396;
+  --pb-shadow: rgba(0,0,0,.26);
+  --teal: var(--pb-primary);
+  --ink: var(--pb-text);
+  --muted: var(--pb-muted);
+  --line: var(--pb-border);
+  --cream: var(--pb-bg);
+  --coral: var(--pb-alert);
 }
-[data-theme="dark"] .today-reminders h2,
-[data-theme="dark"] .reminder-row strong,
-[data-theme="dark"] .future-card h2,
-[data-theme="dark"] .hero h2,
-[data-theme="dark"] .job strong {
-  color: var(--ink);
+html,body,.shell,.workspace { background:var(--pb-bg); color:var(--pb-text); }
+.sidebar,.topbar,.panel,.modal,.composer,.mobile-nav,.chat-panel,.search,
+.customer-card,.customer-row-card,.customer-timeline-entry,.chat-compose-row,
+.voice-preview,.chat-review-card,.note,.outline {
+  background:var(--pb-surface);
+  color:var(--pb-text);
+  border-color:var(--pb-border);
 }
-[data-theme="dark"] .today-reminders .count,
-[data-theme="dark"] .future-icon,
-[data-theme="dark"] .pill {
-  background: #2b2548;
+.hero,.tip-panel,.help-card,.today-reminders,.future-card,.notice,
+.panel .job,.job,.stats > button {
+  background:var(--pb-card);
+  color:var(--pb-text);
+  border-color:var(--pb-border);
+  box-shadow:0 4px 18px var(--pb-shadow);
 }
-[data-theme="dark"] .reminder-row,
-[data-theme="dark"] .reminder-empty {
-  background: var(--pb-elevated);
-  border-color: var(--line);
-  color: var(--ink);
+.hero h2,.tip-panel h2,.future-card h2,.today-reminders h2,.job strong,
+.reminder-row strong { color:var(--pb-text); }
+.hero p,.tip-panel p,.tip-panel .tiny,.future-card p,.future-card li,
+.job-main > span,.job-main small,.reminder-row small,.reminder-empty small {
+  color:var(--pb-muted);
 }
-[data-theme="dark"] .reminder-row small,
-[data-theme="dark"] .reminder-empty small,
-[data-theme="dark"] .future-card p,
-[data-theme="dark"] .future-card li,
-[data-theme="dark"] .hero p,
-[data-theme="dark"] .job-main > span,
-[data-theme="dark"] .job-main small {
-  color: var(--muted);
+.eyebrow,.text-button,.future-badge,.future-icon,.job-end > strong,
+.chat-speaker { color:var(--pb-primary-strong); }
+.primary,.voice-send-primary,.voice-actions .voice-send {
+  background:var(--pb-primary);
+  border-color:var(--pb-primary);
+  color:#fff;
+  box-shadow:0 3px 12px rgba(128,104,207,.22);
 }
-[data-theme="dark"] .reminder-bell {
-  background: #2b2548;
-  color: var(--pb-accent-soft);
+.primary:hover:not(:disabled) { background:var(--pb-primary-strong); }
+.sidebar nav button.active,.mobile-nav button.active,.pill,.tag,.tag.green,
+.reminder-bell,.today-reminders .count,.future-icon,.chat-turn.from-me {
+  background:var(--pb-primary-wash);
+  color:var(--pb-primary-strong);
+  border-color:var(--pb-primary-soft);
 }
-[data-theme="dark"] .reminder-row .outline.mini,
-[data-theme="dark"] .future-whatsapp-button {
-  background: var(--pb-elevated);
-  border-color: var(--pb-accent-soft);
-  color: var(--ink);
+.reminder-row,.reminder-empty,.voice-preview,.chat-review-card,
+.voice-actions button,.chat-turn-actions button,.google-sign-in {
+  background:var(--pb-elevated);
+  color:var(--pb-text);
+  border-color:var(--pb-border);
 }
-[data-theme="dark"] .tag,
-[data-theme="dark"] .tag.green {
-  background: #2b2548;
-  color: var(--pb-accent-soft);
-  border-color: var(--pb-accent-soft);
+input,textarea,select {
+  background:var(--pb-surface);
+  color:var(--pb-text);
+  border-color:var(--pb-border);
 }
-
-/* Lavender compatibility layer for legacy workspace sections */
-.hero,
-.help-card,
-.tip-panel {
-  background: var(--pb-card);
-  border-color: var(--line);
+input:focus,textarea:focus,select:focus,.chat-compose-row:focus-within {
+  border-color:var(--pb-primary);
+  box-shadow:0 0 0 3px rgba(128,104,207,.12);
 }
-.hero h2,
-.tip-panel h2 { color: var(--ink); }
-.hero p,
-.tip-panel p,
-.tip-panel .tiny { color: var(--muted); }
-.tip-panel .eyebrow { color: var(--pb-accent); }
-.tip-panel .outline {
-  background: var(--pb-surface);
-  border-color: var(--line);
-  color: var(--ink);
+.tip-panel .outline,.reminder-row .outline.mini,.future-whatsapp-button {
+  background:var(--pb-elevated);
+  color:var(--pb-text);
+  border-color:var(--pb-primary-soft);
 }
-.primary {
-  background: var(--pb-accent);
-  box-shadow: 0 2px 8px rgba(128,104,207,.20);
+.avatar { background:var(--pb-primary-wash); color:var(--pb-primary-strong); }
+.brand-mark,.brand-dot { color:var(--pb-primary); }
+.switch { background:var(--pb-border); }
+.switch.on { background:var(--pb-primary); }
+.push-diagnostic.ok {
+  background:var(--pb-card);
+  border-color:var(--pb-border);
+  color:var(--pb-primary-strong);
 }
-.primary:hover:not(:disabled) {
-  background: #725bc2;
-  box-shadow: 0 4px 12px rgba(128,104,207,.30);
+.reminder-alarm-modal {
+  background:var(--pb-surface);
+  border-color:var(--pb-border);
+  color:var(--pb-text);
 }
-[data-theme="dark"] .hero,
-[data-theme="dark"] .help-card,
-[data-theme="dark"] .tip-panel,
-[data-theme="dark"] .today-reminders,
-[data-theme="dark"] .future-card,
-[data-theme="dark"] .panel .job,
-[data-theme="dark"] .job,
-[data-theme="dark"] .stats > button {
-  background: var(--pb-card);
-  border-color: var(--line);
+.reminder-alarm-icon {
+  background:var(--pb-primary-wash);
+  color:var(--pb-primary-strong);
 }
-[data-theme="dark"] .hero h2,
-[data-theme="dark"] .tip-panel h2 { color: var(--ink); }
-[data-theme="dark"] .hero p,
-[data-theme="dark"] .tip-panel p,
-[data-theme="dark"] .tip-panel .tiny { color: var(--muted); }
-[data-theme="dark"] .tip-panel .eyebrow { color: var(--pb-accent-soft); }
-[data-theme="dark"] .tip-panel .outline {
-  background: var(--pb-elevated);
-  border-color: var(--line);
-  color: var(--ink);
+.reminder-alarm-modal h2 { color:var(--pb-text); }
+.reminder-alarm-modal p,.reminder-alarm-modal>small,.reminder-alarm-dismiss { color:var(--pb-muted); }
+@media(max-width:760px){
+  .mobile-nav .mobile-add-entry{
+    display:grid;place-items:center;align-self:start;width:58px;height:58px;min-width:58px;
+    margin:-23px auto 0;padding:0;border-radius:50%;color:#fff;
+    background:linear-gradient(145deg,var(--pb-primary-soft),var(--pb-primary));
+    border:4px solid var(--pb-surface);box-shadow:0 8px 22px rgba(128,104,207,.30);
+    transition:transform .18s ease,box-shadow .18s ease;
+  }
+  .mobile-nav .mobile-add-entry:active{transform:scale(.9)}
 }
