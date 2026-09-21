@@ -232,6 +232,8 @@ export default function Workspace() {
     [reminderVibrationEnabled, setReminderVibrationEnabled] = useState(true),
     [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default"),
     [ringingReminder, setRingingReminder] = useState<Reminder | null>(null),
+    [pushDiagnostic, setPushDiagnostic] = useState(""),
+    [pushDiagnosticBusy, setPushDiagnosticBusy] = useState(false),
     [entryMode, setEntryMode] = useState<"quick"|"form">("quick");
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
@@ -258,9 +260,12 @@ export default function Workspace() {
     window.addEventListener("online", updateOnlineState);
     window.addEventListener("offline", updateOnlineState);
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js").catch(() => {
-        // Local data still works even if the browser blocks service workers.
-      });
+      void navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .then((registration) => registration.update())
+        .catch(() => {
+          // Local data still works even if the browser blocks service workers.
+        });
     }
     return () => {
       window.removeEventListener("online", updateOnlineState);
@@ -703,6 +708,10 @@ export default function Workspace() {
     void showSystemReminder(reminder);
   }
   async function testReminderAlert() {
+    if (pushDiagnosticBusy) return;
+    setPushDiagnosticBusy(true);
+    setPushDiagnostic("Checking phone + server notification setup…");
+
     const test: Reminder = {
       id: "test-reminder",
       text: "Closed-app notifications are working ✓",
@@ -713,15 +722,31 @@ export default function Workspace() {
       createdAt: new Date().toISOString(),
     };
 
-    setRingingReminder(test);
-    playReminderAlarm();
-    if (reminderVibrationEnabled && "vibrate" in navigator) {
-      navigator.vibrate([350,180,350,180,650]);
-    }
-
     try {
+      if (!loggedIn) throw new Error("Sign in first. Closed-app reminders need your account.");
+      if (!("Notification" in window)) throw new Error("This browser does not support notifications.");
+      if (Notification.permission !== "granted") {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        if (permission !== "granted") throw new Error("Phone notification permission is not allowed.");
+      }
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        throw new Error("This browser does not support closed-app push.");
+      }
+
+      const configResponse = await fetch("/api/push/config", { cache: "no-store" });
+      const config = await configResponse.json().catch(() => ({}));
+      if (!configResponse.ok) throw new Error("Could not check server push setup.");
+      if (!config.enabled) {
+        const missing = Array.isArray(config.missing) ? config.missing.join(", ") : "server push settings";
+        throw new Error("Server push setup is incomplete: " + missing);
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      await registration.update().catch(() => {});
       const subscription = await ensurePushSubscription();
       const token = await cloudToken();
+
       const response = await fetch("/api/push/test", {
         method: "POST",
         headers: {
@@ -731,10 +756,22 @@ export default function Workspace() {
         body: JSON.stringify({ subscription: subscription.toJSON() }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(result.error || "Push test failed."));
-      setToast("Test push sent. You should see a system notification too ✓");
+      if (!response.ok) throw new Error(String(result.error || "Server push test failed."));
+
+      setPushDiagnostic("✓ Server push sent successfully. If no phone notification appears, Android/Chrome notifications are blocked for Pakki Baat.");
+      setToast("Test push sent from the server ✓");
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not send the closed-app test.");
+      const message = error instanceof Error ? error.message : "Could not complete notification test.";
+      setPushDiagnostic("✕ " + message);
+      setToast(message);
+    } finally {
+      setPushDiagnosticBusy(false);
+    }
+
+    setRingingReminder(test);
+    playReminderAlarm();
+    if (reminderVibrationEnabled && "vibrate" in navigator) {
+      navigator.vibrate([350,180,350,180,650]);
     }
   }
   function deleteReminder(id: string) {
@@ -1785,7 +1822,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   function quickReminderDate(kind:"today"|"tomorrow") {
     setReminderDate(dateForOffset(kind === "tomorrow" ? 1 : 0));
   }
-  function saveReminder() {
+  async function saveReminder() {
     if ((!reminderJob && !directReminderOpen) || !reminderDate || !reminderText.trim()) return;
     const customer = reminderJob?.customer || reminderCustomer.trim() || undefined;
     const reminder: Reminder = {
@@ -1799,13 +1836,41 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       done: false,
       createdAt: new Date().toISOString(),
     };
-    setReminders(items => [reminder, ...items]);
-    if (reminderAlertsEnabled) {
-      void scheduleClosedReminder(reminder).catch(error =>
-        setToast(error instanceof Error ? error.message : "Reminder saved, but closed-app alert could not be scheduled.")
-      );
-    }
+    const nextReminders = [reminder, ...reminders];
+    setReminders(nextReminders);
     closeReminderEditor();
+
+    let cloudReadyForPush = true;
+    if (loggedIn && isOnline) {
+      try {
+        await saveCloud({ jobs, owner, business, reminders: nextReminders, payments, notes, customerPhones });
+      } catch {
+        cloudReadyForPush = false;
+      }
+    }
+
+    if (reminderAlertsEnabled) {
+      if (!loggedIn) {
+        setToast("Reminder saved locally. Sign in to receive it when Pakki Baat is closed.");
+        return;
+      }
+      if (!isOnline) {
+        setToast("Reminder saved. Closed-app alert will be scheduled when you’re online.");
+        return;
+      }
+      if (!cloudReadyForPush) {
+        setToast("Reminder saved, but cloud sync failed. Closed-app alert will retry.");
+        return;
+      }
+      try {
+        await scheduleClosedReminder(reminder);
+        setToast("Reminder saved + phone alert scheduled ✓");
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : "Reminder saved, but phone alert could not be scheduled.");
+      }
+      return;
+    }
+
     setToast("Reminder saved.");
   }
   function completeReminder(id:string) {
@@ -2733,7 +2798,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           {notificationPermission==="granted" ? "Allowed" : notificationPermission==="denied" ? "Blocked" : notificationPermission==="unsupported" ? "Not supported" : "Not allowed yet"}
                         </strong>
                       </div>
-                      <button type="button" className="outline reminder-test-alert" onClick={()=>void testReminderAlert()}>Test reminder alert</button>
+                      <button type="button" className="outline reminder-test-alert" disabled={pushDiagnosticBusy} onClick={()=>void testReminderAlert()}>
+                        {pushDiagnosticBusy ? "Checking setup…" : "Check & send test notification"}
+                      </button>
+                      {pushDiagnostic && <div className={pushDiagnostic.startsWith("✓") ? "push-diagnostic ok" : "push-diagnostic error"}>{pushDiagnostic}</div>}
                     </div>
                   )}
                   <p className="reminder-alert-note">Closed-app reminders use system push notifications, so they can appear over other apps after Pakki Baat is closed. The custom clock-style sound is used while Pakki Baat is open; when closed, your phone controls the notification sound and vibration.</p>
@@ -2883,7 +2951,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <div className="reminder-block"><strong>When?</strong><div className="reminder-chips"><button type="button" className={reminderDate===dateForOffset(0)?"selected":""} onClick={()=>quickReminderDate("today")}><span className="chip-check">✓</span>Today</button><button type="button" className={reminderDate===dateForOffset(1)?"selected":""} onClick={()=>quickReminderDate("tomorrow")}><span className="chip-check">✓</span>Tomorrow</button><label className={reminderDate && reminderDate!==dateForOffset(0) && reminderDate!==dateForOffset(1) ? "date-chip selected" : "date-chip"}><Icon name="calendar" size={16}/><input aria-label="Pick reminder date" type="date" min={day()} value={reminderDate} onChange={e=>setReminderDate(e.target.value)}/></label></div></div>
             <div className="reminder-block"><strong>Time</strong><div className="reminder-chips"><button type="button" className={reminderTime==="09:00"?"selected":""} onClick={()=>setReminderTime("09:00")}><span className="chip-check">✓</span>Morning</button><button type="button" className={reminderTime==="15:00"?"selected":""} onClick={()=>setReminderTime("15:00")}><span className="chip-check">✓</span>Afternoon</button><button type="button" className={reminderTime==="19:00"?"selected":""} onClick={()=>setReminderTime("19:00")}><span className="chip-check">✓</span>Evening</button><label className={!["09:00","15:00","19:00"].includes(reminderTime) ? "date-chip selected" : "date-chip"}><Icon name="clock" size={16}/><input aria-label="Pick reminder time" type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)}/></label></div></div>
             <div className="reminder-block"><strong>Repeat?</strong><div className="reminder-chips">{([["none","Once"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]] as const).map(([value,label])=><button type="button" key={value} className={reminderRepeat===value?"selected":""} onClick={()=>setReminderRepeat(value)}><span className="chip-check">✓</span>{label}</button>)}</div></div>
-            <div className="reminder-sheet-actions"><button type="button" onClick={closeReminderEditor}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={saveReminder}>Save reminder</button></div>
+            <div className="reminder-sheet-actions"><button type="button" onClick={closeReminderEditor}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={()=>void saveReminder()}>Save reminder</button></div>
           </section>
         </div>
       )}
