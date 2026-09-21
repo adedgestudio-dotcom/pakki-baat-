@@ -471,7 +471,8 @@ export default function Workspace() {
       const form = new FormData();
       form.set("file", file);
       form.set("mode", "transcribe");
-      form.set("today", day());\n      form.set("duration", String(Math.max(1, Math.min(60, Math.ceil(duration)))));
+      form.set("today", day());
+      form.set("duration", String(Math.max(1, Math.min(60, Math.ceil(duration)))));
 
       const response = await fetch("/api/extract", {
         method: "POST",
