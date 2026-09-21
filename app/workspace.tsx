@@ -1803,20 +1803,32 @@ export default function Workspace() {
         </div>
       </main>
       <nav className="mobile-nav">
-        {nav.map(([t, i]) => (
-          <button
-            aria-label={t}
-            key={t}
-            className={tab === t ? "active" : ""}
-            onClick={() => go(t)}
-          >
-            <Icon name={i} size={21} />
-            <span>{t === "My assistant" ? "Assistant" : t}</span>
-          </button>
-        ))}
-        <button onClick={() => go("Settings")}>
-          <Icon name="settings" size={21} />
-          <span>Settings</span>
+        <button aria-label="Today" className={tab === "Today" ? "active" : ""} onClick={() => go("Today")}>
+          <Icon name="home" size={21} /><span>Today</span>
+        </button>
+        <button aria-label="Hisaab" className={tab === "Hisaab" ? "active" : ""} onClick={() => go("Hisaab")}>
+          <Icon name="list" size={21} /><span>Hisaab</span>
+        </button>
+        <button
+          type="button"
+          className="mobile-add-entry"
+          aria-label="Add new entry"
+          title="Add new entry"
+          onClick={() => {
+            setSelectedCustomer(null);
+            setPendingJob(null);
+            setPendingReminderText("");
+            setMessage("");
+            go("My assistant");
+          }}
+        >
+          <Icon name="plus" size={25} />
+        </button>
+        <button aria-label="Customers" className={tab === "Customers" ? "active" : ""} onClick={() => go("Customers")}>
+          <Icon name="people" size={21} /><span>Customers</span>
+        </button>
+        <button aria-label="Settings" className={tab === "Settings" ? "active" : ""} onClick={() => go("Settings")}>
+          <Icon name="settings" size={21} /><span>Settings</span>
         </button>
       </nav>
       {draft && (
