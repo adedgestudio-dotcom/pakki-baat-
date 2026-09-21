@@ -145,32 +145,23 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Add a message first." }, { status: 400 });
     }
 
-    // Check AI credit
-    const credit = await fetch(`${base}/rest/v1/rpc/consume_ai_credit`, {
-      method: "POST",
-      headers: {
-        apikey: service as string,
-        Authorization: `Bearer ${service}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ user_id: user.id }),
-      signal: AbortSignal.timeout(10000),
-    });
+    const requestedVoiceSeconds = Math.max(
+      1,
+      Math.min(60, Number.parseInt(String(form.get("duration") || "60"), 10) || 60)
+    );
 
-    if (!credit.ok) {
-      throw new Error(
-        "Usage limits are not configured. Ask the creator to run the database setup."
-      );
-    }
-
-    if (!(await credit.json())) {
-      return Response.json(
-        {
-          error:
-            "You have used today's 30 AI captures. Manual entry still works.",
-        },
-        { status: 429 }
-      );
+    if (mode === "transcribe") {
+      const usageResponse = await fetch(`${base}/rest/v1/rpc/get_ai_usage`, {
+        method: "POST",
+        headers: { apikey: service as string, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!usageResponse.ok) throw new Error("Usage limits are not configured. Ask the creator to run the latest database setup.");
+      const usage = await usageResponse.json();
+      if (usage.status === "expired" || usage.status === "cancelled" || Number(usage.voice_remaining_seconds || 0) < requestedVoiceSeconds) {
+        return Response.json({ error: "Your monthly AI voice limit has been reached. You can still type and use Pakki Baat manually.", usage }, { status: 429 });
+      }
     }
 
     let transcript = text;
@@ -205,6 +196,18 @@ export async function POST(req: NextRequest) {
 
       const transcriptResult = await trans.json();
       transcript = String(transcriptResult.text || "").trim();
+      const consumeResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
+        method: "POST",
+        headers: { apikey: service as string, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, requested_voice_seconds: requestedVoiceSeconds, requested_ai_calls: 1 }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!consumeResponse.ok) throw new Error("Could not update AI usage. Please try again.");
+      const consumedUsage = await consumeResponse.json();
+      if (!consumedUsage.allowed) {
+        return Response.json({ error: "Your monthly AI voice limit has been reached. You can still type and use Pakki Baat manually.", usage: consumedUsage }, { status: 429 });
+      }
+
       console.log("✅ Transcribed:", transcript.substring(0, 100));
 
       if (mode === "transcribe") {
