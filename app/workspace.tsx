@@ -226,6 +226,11 @@ export default function Workspace() {
     [reminderTime, setReminderTime] = useState("09:00"),
     [reminderRepeat, setReminderRepeat] = useState<"none"|"daily"|"weekly"|"monthly">("none"),
     [reminderText, setReminderText] = useState(""),
+    [reminderAlertsEnabled, setReminderAlertsEnabled] = useState(false),
+    [reminderSoundEnabled, setReminderSoundEnabled] = useState(true),
+    [reminderVibrationEnabled, setReminderVibrationEnabled] = useState(true),
+    [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default"),
+    [ringingReminder, setRingingReminder] = useState<Reminder | null>(null),
     [entryMode, setEntryMode] = useState<"quick"|"form">("quick");
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
@@ -233,6 +238,7 @@ export default function Workspace() {
   const loadingVoiceIds = useRef(new Set<string>());
   const activeUserIdRef = useRef<string | null>(null);
   const cloudHydratedRef = useRef(false);
+  const firedReminderKeysRef = useRef(new Set<string>());
 
   // Display name priority: custom name → Google/account name → email name → "there"
   const displayName = owner?.trim() || userName || "there";
@@ -259,6 +265,16 @@ export default function Workspace() {
       window.removeEventListener("online", updateOnlineState);
       window.removeEventListener("offline", updateOnlineState);
     };
+  }, []);
+  useEffect(() => {
+    try {
+      setReminderAlertsEnabled(localStorage.getItem("pakki-baat-reminder-alerts") === "on");
+      setReminderSoundEnabled(localStorage.getItem("pakki-baat-reminder-sound") !== "off");
+      setReminderVibrationEnabled(localStorage.getItem("pakki-baat-reminder-vibration") !== "off");
+      const fired = JSON.parse(localStorage.getItem("pakki-baat-fired-reminders") || "[]");
+      if (Array.isArray(fired)) firedReminderKeysRef.current = new Set(fired.filter((v): v is string => typeof v === "string"));
+    } catch {}
+    setNotificationPermission("Notification" in window ? Notification.permission : "unsupported");
   }, []);
   useEffect(() => {
     if (!cloudConfigured) return;
@@ -478,6 +494,130 @@ export default function Workspace() {
     setQuery("");
     setFilter("All");
   }
+  const dateForOffset = (offset: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  };
+  function persistReminderAlertSettings(enabled: boolean, sound = reminderSoundEnabled, vibration = reminderVibrationEnabled) {
+    try {
+      localStorage.setItem("pakki-baat-reminder-alerts", enabled ? "on" : "off");
+      localStorage.setItem("pakki-baat-reminder-sound", sound ? "on" : "off");
+      localStorage.setItem("pakki-baat-reminder-vibration", vibration ? "on" : "off");
+    } catch {}
+  }
+  async function enableReminderAlerts() {
+    let permission: NotificationPermission | "unsupported" =
+      "Notification" in window ? Notification.permission : "unsupported";
+    if (permission === "default") {
+      try {
+        permission = await Notification.requestPermission();
+      } catch {}
+    }
+    setNotificationPermission(permission);
+    if (permission === "denied") {
+      setToast("Notifications are blocked. Allow them in your browser/site settings, then try again.");
+      return;
+    }
+    setReminderAlertsEnabled(true);
+    persistReminderAlertSettings(true);
+    setToast(permission === "granted" ? "Reminder alerts are on ✓" : "In-app reminder alerts are on.");
+  }
+  function disableReminderAlerts() {
+    setReminderAlertsEnabled(false);
+    persistReminderAlertSettings(false);
+    setRingingReminder(null);
+    setToast("Reminder alerts turned off.");
+  }
+  function setReminderSound(next: boolean) {
+    setReminderSoundEnabled(next);
+    persistReminderAlertSettings(reminderAlertsEnabled, next, reminderVibrationEnabled);
+  }
+  function setReminderVibration(next: boolean) {
+    setReminderVibrationEnabled(next);
+    persistReminderAlertSettings(reminderAlertsEnabled, reminderSoundEnabled, next);
+  }
+  function playReminderAlarm() {
+    if (!reminderSoundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const start = ctx.currentTime + 0.02;
+      [0, .42, .84, 1.35].forEach((offset, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = index === 3 ? 740 : 880;
+        gain.gain.setValueAtTime(0.0001, start + offset);
+        gain.gain.exponentialRampToValueAtTime(0.16, start + offset + .025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + .28);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start + offset);
+        osc.stop(start + offset + .3);
+      });
+      window.setTimeout(() => void ctx.close(), 2200);
+    } catch {}
+  }
+  async function showSystemReminder(reminder: Reminder) {
+    if (notificationPermission !== "granted" && (!("Notification" in window) || Notification.permission !== "granted")) return;
+    const body = `${reminder.customer ? reminder.customer + " · " : ""}${reminder.text}`;
+    try {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification("Pakki Baat reminder", {
+          body,
+          icon: "/icon.svg",
+          badge: "/icon.svg",
+          tag: "pakki-baat-reminder-" + reminder.id,
+          requireInteraction: true,
+          data: { reminderId: reminder.id, url: "/" },
+        });
+      } else {
+        new Notification("Pakki Baat reminder", { body, icon: "/icon.svg", tag: "pakki-baat-reminder-" + reminder.id });
+      }
+    } catch {}
+  }
+  function fireReminderAlert(reminder: Reminder, markFired = true) {
+    if (markFired) {
+      const key = `${reminder.id}:${reminder.date}:${reminder.time || "09:00"}`;
+      firedReminderKeysRef.current.add(key);
+      try {
+        localStorage.setItem(
+          "pakki-baat-fired-reminders",
+          JSON.stringify(Array.from(firedReminderKeysRef.current).slice(-300))
+        );
+      } catch {}
+    }
+    setRingingReminder(current => current || reminder);
+    playReminderAlarm();
+    if (reminderVibrationEnabled && "vibrate" in navigator) {
+      navigator.vibrate([350,180,350,180,650]);
+    }
+    void showSystemReminder(reminder);
+  }
+  function testReminderAlert() {
+    const test: Reminder = {
+      id: "test-reminder",
+      text: "This is how your reminder will alert you.",
+      date: day(),
+      time: new Date().toTimeString().slice(0,5),
+      repeat: "none",
+      done: false,
+      createdAt: new Date().toISOString(),
+    };
+    fireReminderAlert(test, false);
+  }
+  function deleteReminder(id: string) {
+    const reminder = reminders.find(r => r.id === id);
+    if (!reminder) return;
+    rememberUndo("Reminder deleted");
+    setReminders(items => items.filter(r => r.id !== id));
+    if (ringingReminder?.id === id) setRingingReminder(null);
+    setToast("Reminder deleted.");
+  }
+
   function openNewReminder() {
     if (!requireLoginForSaving()) return;
     setReminderJob(null);
@@ -1515,9 +1655,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setReminderText(baki > 0 ? `Collect ${money(baki)} baki from ${job.customer}` : `Follow up with ${job.customer} about ${job.work}`);
   }
   function quickReminderDate(kind:"today"|"tomorrow") {
-    const d = new Date();
-    if (kind === "tomorrow") d.setDate(d.getDate()+1);
-    setReminderDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`);
+    setReminderDate(dateForOffset(kind === "tomorrow" ? 1 : 0));
   }
   function saveReminder() {
     if ((!reminderJob && !directReminderOpen) || !reminderDate || !reminderText.trim()) return;
@@ -1562,6 +1700,25 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     }));
     setToast(message);
   }
+  useEffect(() => {
+    if (!ready || !reminderAlertsEnabled) return;
+    const checkDueReminders = () => {
+      const now = Date.now();
+      for (const reminder of reminders) {
+        if (reminder.done || !reminder.date) continue;
+        const time = reminder.time || "09:00";
+        const dueAt = new Date(`${reminder.date}T${time}:00`).getTime();
+        if (!Number.isFinite(dueAt) || dueAt > now) continue;
+        const key = `${reminder.id}:${reminder.date}:${time}`;
+        if (firedReminderKeysRef.current.has(key)) continue;
+        fireReminderAlert(reminder, true);
+      }
+    };
+    checkDueReminders();
+    const id = window.setInterval(checkDueReminders, 15000);
+    return () => window.clearInterval(id);
+  }, [reminders, ready, reminderAlertsEnabled, reminderSoundEnabled, reminderVibrationEnabled, notificationPermission]);
+
   return (
     <div className="shell">
       {!isOnline && (
