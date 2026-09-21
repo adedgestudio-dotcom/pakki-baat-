@@ -1,12 +1,34 @@
-const VERSION = "pakki-baat-v1";
+const VERSION = "pakki-baat-v2";
 const SHELL_CACHE = VERSION + "-shell";
 const RUNTIME_CACHE = VERSION + "-runtime";
-const CORE = ["/", "/manifest.json", "/icon.svg", "/apple-icon.svg"];
+const CORE = ["/manifest.json", "/icon.svg", "/apple-icon.svg"];
+
+async function cacheAppShell() {
+  const cache = await caches.open(SHELL_CACHE);
+  await Promise.allSettled(CORE.map((url) => cache.add(url)));
+
+  try {
+    const response = await fetch("/", { cache: "reload" });
+    if (!response || !response.ok) return;
+    await cache.put("/", response.clone());
+
+    const html = await response.text();
+    const assetUrls = Array.from(
+      html.matchAll(/(?:src|href)=["']([^"']+)["']/g),
+      (match) => match[1]
+    )
+      .filter((url) => url.startsWith("/_next/static/") || /\.(?:css|js|woff2?|svg|png|webp)$/i.test(url))
+      .filter((url, index, list) => list.indexOf(url) === index);
+
+    await Promise.allSettled(assetUrls.map((url) => cache.add(url)));
+  } catch {
+    // The current page remains usable and runtime caching can complete later.
+  }
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
-    const cache = await caches.open(SHELL_CACHE);
-    await Promise.allSettled(CORE.map((url) => cache.add(url)));
+    await cacheAppShell();
     await self.skipWaiting();
   })());
 });
@@ -25,6 +47,9 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
+  if (event.data === "CACHE_APP_SHELL") {
+    event.waitUntil(cacheAppShell());
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -41,7 +66,7 @@ self.addEventListener("fetch", (event) => {
         const response = await fetch(request);
         if (response && response.ok) {
           const cache = await caches.open(RUNTIME_CACHE);
-          cache.put(request, response.clone());
+          await cache.put(request, response.clone());
         }
         return response;
       } catch {
@@ -69,7 +94,7 @@ self.addEventListener("fetch", (event) => {
       const response = await fetch(request);
       if (response && response.ok) {
         const cache = await caches.open(RUNTIME_CACHE);
-        cache.put(request, response.clone());
+        await cache.put(request, response.clone());
       }
       return response;
     })());
@@ -82,7 +107,7 @@ self.addEventListener("fetch", (event) => {
       .then(async (response) => {
         if (response && response.ok) {
           const cache = await caches.open(RUNTIME_CACHE);
-          cache.put(request, response.clone());
+          await cache.put(request, response.clone());
         }
         return response;
       })
