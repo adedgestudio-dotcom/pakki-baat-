@@ -2304,6 +2304,37 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           </section>
         </div>
       )}
+      {receiptJob && (
+        <div className="modal-backdrop" onClick={()=>setReceiptJob(null)}>
+          <section className="receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receipt-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button receipt-close" aria-label="Close receipt" onClick={()=>setReceiptJob(null)}><Icon name="close"/></button>
+            <span className="eyebrow">CUSTOMER RECEIPT</span>
+            <div className="receipt-paper">
+              <div className="receipt-head">
+                <div><strong>{business?.trim() || "Pakki Baat"}</strong><small>{receiptNumber(receiptJob)}</small></div>
+                <span className={receiptJob.total<=receiptJob.paid ? "receipt-status paid" : "receipt-status"}>{receiptJob.total<=receiptJob.paid ? "PAID" : "BALANCE DUE"}</span>
+              </div>
+              <div className="receipt-customer">
+                <small>Customer</small>
+                <strong>{receiptJob.customer}</strong>
+                <span>{receiptJob.work}</span>
+              </div>
+              <div className="receipt-values">
+                <div><small>Total</small><strong>{money(receiptJob.total)}</strong></div>
+                <div><small>Received</small><strong>{money(receiptJob.paid)}</strong></div>
+                <div className="receipt-balance"><small>Balance</small><strong>{money(Math.max(0,receiptJob.total-receiptJob.paid))}</strong></div>
+              </div>
+              <div className="receipt-due"><span>Due</span><strong>{receiptJob.date || "Not set"}{receiptJob.time ? " · "+receiptJob.time : ""}</strong></div>
+              <p>Thank you.</p>
+            </div>
+            <p className="receipt-help">Print it directly, save it as PDF from the print screen, or send the receipt details through WhatsApp.</p>
+            <div className="receipt-actions">
+              <button type="button" className="outline" onClick={()=>printReceipt(receiptJob)}>Print / Save PDF</button>
+              <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send on WhatsApp" : "WhatsApp needs internet"}</button>
+            </div>
+          </section>
+        </div>
+      )}
       {deleteJob && (
         <div className="modal-backdrop delete-confirm-backdrop" onClick={()=>setDeleteJob(null)}>
           <section className="delete-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-entry-title" aria-describedby="delete-entry-description" onClick={e=>e.stopPropagation()}>
