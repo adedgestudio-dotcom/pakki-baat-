@@ -1878,7 +1878,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </section>
               </div>
               <footer>
-                Made with <span>♡</span> by Zorivo
+                Made with <span>♡</span> by Sarrah Aliasgar Bharmal
+                <span className="footer-separator">·</span>
+                <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">zorivo.in</a>
               </footer>
             </>
           )}
