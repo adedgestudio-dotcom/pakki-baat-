@@ -7625,3 +7625,26 @@ footer .footer-separator{
     border-color: #0f1b16 !important;
   }
 }
+
+/* Compact Hisaab back control on customer detail */
+.customer-detail .customer-back {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 7px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 36px !important;
+  padding: 7px 11px !important;
+  margin: 0 0 14px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+@media (max-width: 800px) {
+  .customer-detail .customer-back {
+    min-height: 34px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+}
