@@ -7946,3 +7946,39 @@ footer .footer-separator{
   .smart-compose-field .inline-recording-strip .recording-strip-hint{display:none !important}
   .smart-compose-field .recording-wave-line{min-width:54px !important;height:25px !important}
 }
+
+
+/* Stable mobile recorder v4 - isolated from legacy inline recorder rules */
+.voice-recording-pill{
+  position:absolute;
+  left:10px;
+  right:52px;
+  bottom:9px;
+  height:42px;
+  z-index:8;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 11px;
+  border:1px solid rgba(45,128,111,.28);
+  border-radius:13px;
+  background:#edf7f2;
+  color:#245f50;
+  overflow:hidden;
+}
+.voice-recording-pill .recording-strip-time{font-size:13px;font-weight:800;flex:0 0 auto}
+.voice-recording-pill .recording-wave-line{display:flex;align-items:center;justify-content:center;gap:3px;flex:1 1 auto;min-width:60px;height:26px;overflow:hidden}
+[data-theme="dark"] .voice-recording-pill{background:#173a31;border-color:#326b5b;color:#eaf7f1}
+.smart-compose-field:has(.voice-recording-pill) > .smart-compose-tool.right{display:flex !important;z-index:10 !important}
+.smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording{
+  display:flex !important;visibility:visible !important;opacity:1 !important;
+  width:38px !important;height:38px !important;border-radius:11px !important;
+}
+
+/* Dedicated inline trash action */
+.customer-row-with-delete .customer-delete-button{
+  display:flex !important;align-items:center !important;justify-content:center !important;
+  width:48px !important;min-width:48px !important;padding:0 !important;
+  color:#a95045 !important;background:transparent !important;
+}
+.customer-trash-svg{display:block !important;flex:none !important}
