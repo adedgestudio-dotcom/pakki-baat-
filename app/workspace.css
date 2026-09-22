@@ -8208,3 +8208,29 @@ footer .footer-separator{
     cursor:not-allowed;
   }
 }
+
+
+/* Final desktop hover normalization: never wash out button text/icons */
+@media (hover:hover) and (pointer:fine) and (min-width:761px){
+  button:hover:not(:disabled){filter:none !important}
+  .outline:hover:not(:disabled){
+    background:#e8f3ee !important;
+    border-color:#2d7667 !important;
+    color:#205e50 !important;
+  }
+  .outline:hover:not(:disabled) svg{color:currentColor !important;stroke:currentColor !important}
+  .primary:hover:not(:disabled){
+    background:#245f50 !important;
+    color:#fff !important;
+  }
+  .primary:hover:not(:disabled) svg{color:#fff !important;stroke:#fff !important}
+  [data-theme="dark"] .outline:hover:not(:disabled){
+    background:#21483c !important;
+    border-color:#63a78f !important;
+    color:#f0faf6 !important;
+  }
+  [data-theme="dark"] .primary:hover:not(:disabled){
+    background:#4a927b !important;
+    color:#fff !important;
+  }
+}
