@@ -502,35 +502,46 @@ export default function Workspace() {
           : j.status === filter))
   );
   function go(t: Tab) {
+    if (t === tab && !selectedCustomer && !customerChatOpen) return;
     if (t === "My assistant") setSelectedCustomer(null);
+    window.history.pushState({ pakkiBaat: true, tab: t }, "");
     setTab(t);
     setQuery("");
     setFilter("All");
   }
   useEffect(() => {
-    const handlePopState = () => {
-      if (customerChatOpen) {
-        setCustomerChatOpen(false);
-        setPendingJob(null);
-        setMessage("");
-        return;
-      }
-      if (selectedCustomer) {
+    const savedTab = localStorage.getItem("pakki-baat-last-tab") as Tab | null;
+    if (savedTab && ["Today", "Hisaab", "Reminders", "Settings"].includes(savedTab)) {
+      setTab(savedTab);
+    }
+    window.history.replaceState({ pakkiBaat: true, tab: savedTab || "Today" }, "");
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("pakki-baat-last-tab", tab);
+  }, [tab]);
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { pakkiBaat?: boolean; tab?: Tab; customer?: string } | null;
+      setNewCustomerOpen(false);
+      setCustomerChatOpen(false);
+      setPendingJob(null);
+      setMessage("");
+      if (state?.pakkiBaat) {
+        setTab(state.tab || "Today");
+        setSelectedCustomer(state.customer || null);
+      } else {
         setSelectedCustomer(null);
-        setMessage("");
-        return;
-      }
-      if (newCustomerOpen) {
-        setNewCustomerOpen(false);
       }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [customerChatOpen, selectedCustomer, newCustomerOpen]);
+  }, []);
 
   function openCustomerFromHisaab(name: string) {
-    window.history.pushState({ pakkiBaatView: "customer" }, "");
+    window.history.pushState({ pakkiBaat: true, tab: "Hisaab", customer: name }, "");
     setSelectedCustomer(name);
+    setMessage("");
+    setCustomerChatOpen(false);
   }
 
   function openReminders() {
@@ -2668,8 +2679,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       const entries=jobs.filter(j=>j.customer===name);
                       const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
                       const latest=entries[0];
-                      return <div className="customer-row-wrap" key={name}>
-                        <button className="customer-row-card" onClick={()=>openCustomerFromHisaab(name)}>
+                      return <div className="customer-row-card customer-row-with-delete" key={name} role="group">
+                        <button type="button" className="customer-row-open" onClick={()=>openCustomerFromHisaab(name)}>
                           <span className="avatar large">{name[0]}</span>
                           <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Ready for first entry"} · {entries.length} saved {entries.length===1?"entry":"entries"}</small></span>
                           <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
