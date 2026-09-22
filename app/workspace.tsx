@@ -26,7 +26,7 @@ import {
   type Snapshot,
 } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
-type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Customers" | "Settings";
+type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Customers" | "Subscription" | "Admin" | "Settings";
 type ChatTurn = {
   id: string;
   role: "me" | "assistant";
@@ -156,6 +156,8 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
       "M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 3v-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z M8 11l2.2 2.2L16 8",
     sun: "M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4 M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
     moon: "M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z",
+    crown: "M3 7l4 4 5-7 5 7 4-4-2 11H5L3 7Z M5 18h14",
+    shield: "M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3Z M9 12l2 2 4-5",
   };
   return (
     <svg
@@ -513,7 +515,7 @@ export default function Workspace() {
     setFilter("All");
   }
   useEffect(() => {
-    const validTabs: Tab[] = ["Today", "Hisaab", "Reminders", "Settings"];
+    const validTabs: Tab[] = ["Today", "Hisaab", "Reminders", "Subscription", "Admin", "Settings"];
     let restoredTab: Tab = "Today";
     let restoredCustomer: string | null = null;
     let restoredCustomerChatOpen = false;
@@ -2188,6 +2190,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <strong>{tab}</strong>
           </div>
           <div className="top-actions">
+            <button type="button" className={tab === "Subscription" ? "subscription-nav-button active" : "subscription-nav-button"} onClick={()=>go("Subscription")} title="Subscription & usage">
+              <Icon name="crown" size={18}/><span>Plan</span>
+            </button>
             {!loggedIn && (
               <button
                 type="button"
@@ -2910,6 +2915,35 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               )}
             </>
           )}
+          {tab === "Subscription" && (
+            <>
+              <div className="page-heading subscription-heading"><div><div className="eyebrow">YOUR PAKKI BAAT PLAN</div><h1>Subscription</h1><p>Simple plans with clear voice limits. Your hisaab stays yours.</p></div></div>
+              <section className="subscription-current-card">
+                <div><span className="subscription-badge">CURRENT PLAN</span><h2>Trial</h2><p>Explore Pakki Baat before choosing a monthly plan.</p></div>
+                <div className="subscription-usage"><strong>600 min</strong><small>voice allowance during trial</small><div className="usage-track"><span style={{width:"0%"}}/></div><small>Usage will appear here after your account is connected.</small></div>
+              </section>
+              <div className="plan-grid">
+                {[
+                  ["Basic","₹99","120","For light everyday hisaab"],
+                  ["Smart","₹199","600","For regular voice entry"],
+                  ["Business","₹349","1,200","For busy businesses"],
+                ].map(([name,price,mins,copy])=><article className={"plan-card "+(name==="Smart"?"recommended":"")} key={name}>
+                  {name==="Smart"&&<span className="recommended-tag">POPULAR</span>}<h3>{name}</h3><div className="plan-price">{price}<small>/ month</small></div><p>{copy}</p><strong>{mins} voice min / month</strong><span>Hisaab, payments & reminders</span><span>AI extraction</span><button type="button" className={name==="Smart"?"primary":"outline"} onClick={()=>setToast("Payments are coming next — your plan choice is saved for setup.")}>Choose {name}</button>
+                </article>)}
+              </div>
+              <section className="subscription-note"><Icon name="shield" size={20}/><div><strong>Your data stays separate from your plan.</strong><p>If voice minutes finish, you can still type and use your saved hisaab. We only stop metered AI/voice features until renewal or bonus minutes are added.</p></div></section>
+            </>
+          )}
+          {tab === "Admin" && (
+            <>
+              <div className="page-heading"><div><div className="eyebrow">PAKKI BAAT CONTROL</div><h1>Admin</h1><p>Subscription controls for the Pakki Baat owner.</p></div></div>
+              <section className="admin-gate panel">
+                <span className="admin-gate-icon"><Icon name="shield" size={25}/></span>
+                <div><h2>Owner console</h2><p>The admin UI is ready for the next step: securely load users, plans, usage and expiry through a server-only owner endpoint.</p></div>
+                <div className="admin-stat-row"><span><strong>Users</strong><small>Account list</small></span><span><strong>Plans</strong><small>Change / extend</small></span><span><strong>Usage</strong><small>Voice + AI</small></span></div>
+              </section>
+            </>
+          )}
           {tab === "Settings" && (
             <>
               <div className="page-heading">
@@ -2919,6 +2953,11 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <p>A few details to make Pakki Baat yours.</p>
                 </div>
               </div>
+              <section className="settings-subscription-card">
+                <span className="settings-subscription-icon"><Icon name="crown" size={20}/></span>
+                <span><strong>Subscription & usage</strong><small>See your plan, voice minutes and renewal details.</small></span>
+                <button type="button" className="outline" onClick={()=>go("Subscription")}>View plan</button>
+              </section>
               <section className="settings-panel panel">
                 <label className="profile-name-setting">
                   Display name
