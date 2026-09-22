@@ -1808,7 +1808,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         <span>{j.customer}</span>
         <small>{j.date ? new Date(j.date + "T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"}) : "Date to be agreed"}{j.time ? " · " + j.time : ""}</small>
       </span>
-      <span className="job-end"><strong>{money(j.total-j.paid)} baki</strong><span className={j.status==="Confirmed"?"tag green":"tag"}>{j.status}</span></span>
+      <span className="job-end"><strong>{money(j.total-j.paid)}</strong><span className={j.status==="Confirmed"?"tag green":"tag"}>{j.status}</span></span>
       <Icon name="arrow" size={16}/>
     </button>
   );
