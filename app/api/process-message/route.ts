@@ -26,6 +26,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const publicKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const auth = request.headers.get("authorization");
+    if (!base || !publicKey || !service) {
+      return NextResponse.json({ error: "Account rights are not configured on the server." }, { status: 503 });
+    }
+    if (!auth?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Continue with Google to use AI." }, { status: 401 });
+    }
+    const userResponse = await fetch(`${base}/auth/v1/user`, {
+      headers: { apikey: publicKey, Authorization: auth },
+    });
+    if (!userResponse.ok) {
+      return NextResponse.json({ error: "Your sign-in expired. Please sign in again." }, { status: 401 });
+    }
+    const user = await userResponse.json();
+    const usageResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
+      method: "POST",
+      headers: { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id, voice_seconds_to_add: 0, ai_calls_to_add: 1 }),
+    });
+    if (!usageResponse.ok) {
+      return NextResponse.json({ error: "Account rights are not ready. Run the latest Supabase schema." }, { status: 503 });
+    }
+    const usage = await usageResponse.json();
+    if (!usage?.allowed) {
+      return NextResponse.json(
+        { error: usage?.reason === "subscription_inactive" ? "Your Pakki Baat subscription is not active." : "Your plan limit has been reached." },
+        { status: 403 }
+      );
+    }
+
     const { message, pending, today, customerContext } = await request.json();
 
     if (!message || typeof message !== "string") {
