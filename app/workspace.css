@@ -7764,3 +7764,56 @@ footer .footer-separator{
   transform:translateY(-1px) !important;
   flex:0 0 auto !important;
 }
+
+/* Quick entry v3: compact composer, no visible textarea scrollbar */
+.smart-compose-field textarea{
+  min-height:96px !important;
+  max-height:150px !important;
+  resize:none !important;
+  overflow-y:auto !important;
+  scrollbar-width:none !important;
+  padding:16px 60px 48px 16px !important;
+  border-radius:16px !important;
+}
+.smart-compose-field textarea::-webkit-scrollbar{display:none !important}
+.smart-input-topline{
+  margin-bottom:8px !important;
+}
+.smart-input-footer{
+  padding-top:8px !important;
+}
+@media(max-width:640px){
+  .smart-input-shell{
+    padding:10px !important;
+    border-radius:16px !important;
+  }
+  .smart-compose-field textarea{
+    min-height:104px !important;
+    max-height:142px !important;
+    padding:14px 56px 47px 14px !important;
+    font-size:14px !important;
+    line-height:1.45 !important;
+  }
+  .smart-compose-field .chat-attach-button,
+  .smart-compose-field .whatsapp-mic-button,
+  .smart-compose-field .send-icon-button{
+    width:38px !important;
+    height:38px !important;
+    border-radius:11px !important;
+  }
+  .smart-compose-tool{bottom:8px !important}
+  .smart-compose-tool.left{left:8px !important}
+  .smart-compose-tool.right{right:8px !important}
+  .smart-input-footer{font-size:11px !important}
+}
+[data-theme="dark"] .smart-compose-field textarea{
+  background:#18201c !important;
+  border-color:#34423b !important;
+  color:#edf3ef !important;
+  box-shadow:none !important;
+}
+[data-theme="dark"] .smart-compose-field textarea:focus{
+  background:#1b2520 !important;
+  border-color:#4d806c !important;
+  box-shadow:0 0 0 2px rgba(77,128,108,.13) !important;
+}
