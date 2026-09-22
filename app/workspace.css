@@ -8098,3 +8098,9 @@ footer .footer-separator{
     min-height:42px !important;
   }
 }
+
+
+/* Prevent the default Today screen flashing before the saved view is restored. */
+.navigation-restoring{
+  visibility:hidden;
+}
