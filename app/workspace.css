@@ -7982,3 +7982,119 @@ footer .footer-separator{
   color:#a95045 !important;background:transparent !important;
 }
 .customer-trash-svg{display:block !important;flex:none !important}
+
+
+/* Voice recorder v5 — the recording pill must be positioned from the full compose field,
+   not from the tiny right-side mic wrapper. This fixes the collapsed vertical bar on phones. */
+@media(max-width:800px){
+  .smart-compose-field:has(.voice-recording-pill) > .smart-compose-tool.right{
+    position:static !important;
+    display:block !important;
+    width:0 !important;
+    height:0 !important;
+    z-index:auto !important;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill{
+    position:absolute !important;
+    left:8px !important;
+    right:58px !important;
+    bottom:8px !important;
+    top:auto !important;
+    width:auto !important;
+    min-width:0 !important;
+    height:44px !important;
+    min-height:44px !important;
+    margin:0 !important;
+    padding:0 12px !important;
+    display:flex !important;
+    align-items:center !important;
+    gap:8px !important;
+    overflow:hidden !important;
+    border-radius:13px !important;
+    z-index:12 !important;
+    box-sizing:border-box !important;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill .recording-live-dot{
+    flex:0 0 8px !important;
+    width:8px !important;
+    height:8px !important;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill .recording-strip-time{
+    flex:0 0 auto !important;
+    min-width:34px !important;
+    font-size:12px !important;
+    line-height:1 !important;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill .recording-wave-line{
+    display:flex !important;
+    flex:1 1 auto !important;
+    align-items:center !important;
+    justify-content:center !important;
+    gap:3px !important;
+    min-width:0 !important;
+    height:27px !important;
+    overflow:hidden !important;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill .recording-wave-line span{
+    flex:0 0 3px !important;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording{
+    position:absolute !important;
+    right:8px !important;
+    bottom:8px !important;
+    left:auto !important;
+    top:auto !important;
+    width:44px !important;
+    min-width:44px !important;
+    height:44px !important;
+    min-height:44px !important;
+    margin:0 !important;
+    padding:0 !important;
+    display:grid !important;
+    place-items:center !important;
+    border-radius:13px !important;
+    background:#d95f55 !important;
+    color:#fff !important;
+    box-shadow:0 7px 18px rgba(157,62,52,.22) !important;
+    transform:none !important;
+    z-index:13 !important;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording svg{
+    display:block !important;
+    width:18px !important;
+    height:18px !important;
+    color:#fff !important;
+  }
+
+  .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording svg rect{
+    fill:currentColor !important;
+  }
+}
+
+@media(max-width:390px){
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill{
+    left:7px !important;
+    right:55px !important;
+    bottom:7px !important;
+    height:42px !important;
+    min-height:42px !important;
+    padding:0 9px !important;
+    gap:6px !important;
+  }
+  .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording{
+    right:7px !important;
+    bottom:7px !important;
+    width:42px !important;
+    min-width:42px !important;
+    height:42px !important;
+    min-height:42px !important;
+  }
+}
