@@ -270,8 +270,8 @@ export default function Workspace() {
   }
   function downloadPaymentQr() {
     const link = document.createElement("a");
-    link.href = "/pakki-baat-payment-qr.jpg";
-    link.download = "pakki-baat-payment-qr.jpg";
+    link.href = "/QR%20zorivo-icic.jpg";
+    link.download = "QR zorivo-icic.jpg";
     link.click();
   }
   function submitPaymentReference() {
@@ -3266,7 +3266,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <h2 id="payment-title">{paymentPlan.name} · {paymentPlan.price}</h2>
             <p className="payment-intro">Scan this QR with any UPI app, or save it and pay from another app.</p>
             <div className="payment-qr-frame">
-              <img src="/pakki-baat-payment-qr.jpg" alt="Zorivo UPI QR code for Pakki Baat subscription payment"/>
+              <img src="/QR%20zorivo-icic.jpg" alt="Zorivo UPI QR code for Pakki Baat subscription payment"/>
             </div>
             <div className="payment-upi-row"><span><small>UPI ID</small><strong>zorivoworks-1@okicici</strong></span><button type="button" className="outline" onClick={()=>void copyUpiId()}>Copy</button></div>
             <div className="payment-actions"><button type="button" className="outline" onClick={downloadPaymentQr}>Download QR</button></div>
