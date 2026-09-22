@@ -179,6 +179,8 @@ export default function Workspace() {
     [ready, setReady] = useState(false),
     [owner, setOwner] = useState(""),
     [business, setBusiness] = useState("My small business"),
+    [profileOwnerDraft, setProfileOwnerDraft] = useState(""),
+    [profileBusinessDraft, setProfileBusinessDraft] = useState("My small business"),
     [message, setMessage] = useState(""),
     [draft, setDraft] = useState<Job | null>(null),
     [pendingJob, setPendingJob] = useState<Job | null>(null),
@@ -245,6 +247,16 @@ export default function Workspace() {
 
   // Display name priority: custom name → Google/account name → email name → "there"
   const displayName = owner?.trim() || userName || "there";
+  useEffect(() => {
+    if (tab !== "Settings") return;
+    setProfileOwnerDraft(owner);
+    setProfileBusinessDraft(business);
+  }, [tab, owner, business]);
+  function saveProfileDetails() {
+    setOwner(profileOwnerDraft.trim());
+    setBusiness(profileBusinessDraft.trim() || "My small business");
+    setToast("Name and business saved ✓");
+  }
   // Account workspaces are loaded after authentication. Never hydrate business data
   // from a shared browser key, otherwise one signed-out user can see another user's data.
   useEffect(() => {
@@ -2793,9 +2805,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <label className="profile-name-setting">
                   Display name
                   <input
-                    value={owner}
+                    value={profileOwnerDraft}
                     maxLength={60}
-                    onChange={(e) => setOwner(e.target.value)}
+                    onChange={(e) => setProfileOwnerDraft(e.target.value)}
                     placeholder={userName || "Your name"}
                   />
                   <small>Change this anytime. Pakki Baat will use it in greetings and your workspace.</small>
@@ -2803,11 +2815,20 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <label>
                   Business name
                   <input
-                    value={business}
+                    value={profileBusinessDraft}
                     maxLength={100}
-                    onChange={(e) => setBusiness(e.target.value)}
+                    onChange={(e) => setProfileBusinessDraft(e.target.value)}
                   />
+                  <small>This appears on receipts and business details.</small>
                 </label>
+                <button
+                  type="button"
+                  className="primary settings-profile-save"
+                  onClick={saveProfileDetails}
+                  disabled={profileOwnerDraft.trim() === owner.trim() && profileBusinessDraft.trim() === business.trim()}
+                >
+                  Save name & business
+                </button>
                 <div className="reminder-alert-settings">
                   <div className="reminder-alert-settings-head">
                     <span className="reminder-alert-settings-icon"><Icon name="bell" size={19}/></span>
