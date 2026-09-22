@@ -8179,3 +8179,32 @@ footer .footer-separator{
   .app-shell{padding-top:0 !important;margin-top:0 !important}
   .topbar{top:0 !important}
 }
+
+
+/* Desktop customer action hover — keep labels/icons readable */
+@media (hover:hover) and (pointer:fine) and (min-width:761px){
+  .customer-action-strip button:not(:disabled){
+    transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .16s ease;
+  }
+  .customer-action-strip button.outline:not(:disabled):hover{
+    background:#e8f3ee !important;
+    border-color:#2d7667 !important;
+    color:#205e50 !important;
+    transform:translateY(-1px);
+  }
+  .customer-action-strip button.outline:not(:disabled):hover svg{
+    color:currentColor !important;
+    stroke:currentColor !important;
+  }
+  [data-theme="dark"] .customer-action-strip button.outline:not(:disabled):hover{
+    background:#21483c !important;
+    border-color:#63a78f !important;
+    color:#f0faf6 !important;
+  }
+  .customer-action-strip button:disabled,
+  .customer-action-strip button:disabled:hover{
+    opacity:.48 !important;
+    transform:none !important;
+    cursor:not-allowed;
+  }
+}
