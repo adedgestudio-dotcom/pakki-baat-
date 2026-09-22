@@ -173,7 +173,11 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
   );
 }
 export default function Workspace() {
-  const [tab, setTab] = useState<Tab>("Today"),
+  const [tab, setTab] = useState<Tab>(() => {
+      if (typeof window === "undefined") return "Today";
+      const saved = localStorage.getItem("pakki-baat-last-tab") as Tab | null;
+      return saved && ["Today", "Hisaab", "Reminders", "Settings"].includes(saved) ? saved : "Today";
+    }),
     [jobs, setJobs] = useState<Job[]>([]),
     [reminders, setReminders] = useState<Reminder[]>([]),
     [ready, setReady] = useState(false),
@@ -511,10 +515,7 @@ export default function Workspace() {
   }
   useEffect(() => {
     const savedTab = localStorage.getItem("pakki-baat-last-tab") as Tab | null;
-    if (savedTab && ["Today", "Hisaab", "Reminders", "Settings"].includes(savedTab)) {
-      setTab(savedTab);
-    }
-    window.history.replaceState({ pakkiBaat: true, tab: savedTab || "Today" }, "");
+    window.history.replaceState({ pakkiBaat: true, tab: savedTab || tab }, "");
   }, []);
   useEffect(() => {
     localStorage.setItem("pakki-baat-last-tab", tab);
