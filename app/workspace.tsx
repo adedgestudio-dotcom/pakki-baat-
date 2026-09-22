@@ -195,6 +195,8 @@ export default function Workspace() {
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
+    [paymentPlan, setPaymentPlan] = useState<{name:string;price:string}|null>(null),
+    [paymentRef, setPaymentRef] = useState(""),
     [feedback, setFeedback] = useState(""),
     [loggedIn, setLoggedIn] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
@@ -258,6 +260,30 @@ export default function Workspace() {
     setProfileOwnerDraft(owner);
     setProfileBusinessDraft(business);
   }, [tab, owner, business]);
+  async function copyUpiId() {
+    try {
+      await navigator.clipboard.writeText("zorivoworks-1@okicici");
+      setToast("UPI ID copied ✓");
+    } catch {
+      setToast("UPI ID: zorivoworks-1@okicici");
+    }
+  }
+  function downloadPaymentQr() {
+    const link = document.createElement("a");
+    link.href = "/pakki-baat-payment-qr.jpg";
+    link.download = "pakki-baat-payment-qr.jpg";
+    link.click();
+  }
+  function submitPaymentReference() {
+    if (!paymentRef.trim()) {
+      setToast("Enter your UPI transaction/reference ID.");
+      return;
+    }
+    setToast("Payment details submitted ✓");
+    setPaymentPlan(null);
+    setPaymentRef("");
+  }
+
   function saveProfileDetails() {
     setOwner(profileOwnerDraft.trim());
     setBusiness(profileBusinessDraft.trim() || "My small business");
@@ -2942,7 +2968,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <div className="plan-price">{price}<small>/month</small></div>
                   <div className="plan-minutes"><strong>{mins}</strong><span>voice minutes / month</span></div>
                   <ul><li>Customer Hisaab</li><li>Payments & reminders</li><li>Voice transcription + AI entry</li></ul>
-                  <button type="button" className={name==="Smart"?"primary":"outline"} onClick={()=>setToast("Plan payments will be enabled in the next step.")}>Choose {name}</button>
+                  <button type="button" className={name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name,price});setPaymentRef("");}}>Choose {name}</button>
                 </article>)}
               </div>
               <section className="subscription-help">
@@ -3230,6 +3256,26 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send text on WhatsApp" : "WhatsApp needs internet"}</button>
             </div>
           </section>
+        </div>
+      )}
+      {paymentPlan && (
+        <div className="modal-backdrop payment-backdrop" onClick={()=>setPaymentPlan(null)}>
+          <div className="modal payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button payment-close" aria-label="Close payment" onClick={()=>setPaymentPlan(null)}><Icon name="close"/></button>
+            <span className="eyebrow">PAY WITH UPI</span>
+            <h2 id="payment-title">{paymentPlan.name} · {paymentPlan.price}</h2>
+            <p className="payment-intro">Scan this QR with any UPI app, or save it and pay from another app.</p>
+            <div className="payment-qr-frame">
+              <img src="/pakki-baat-payment-qr.jpg" alt="Zorivo UPI QR code for Pakki Baat subscription payment"/>
+            </div>
+            <div className="payment-upi-row"><span><small>UPI ID</small><strong>zorivoworks-1@okicici</strong></span><button type="button" className="outline" onClick={()=>void copyUpiId()}>Copy</button></div>
+            <div className="payment-actions"><button type="button" className="outline" onClick={downloadPaymentQr}>Download QR</button></div>
+            <div className="payment-confirm">
+              <label>Already paid?<input value={paymentRef} onChange={e=>setPaymentRef(e.target.value)} placeholder="Enter UPI transaction/reference ID" maxLength={80}/></label>
+              <button type="button" className="primary" onClick={submitPaymentReference}>Submit payment</button>
+              <small>No need to message us. Submit the reference here after payment.</small>
+            </div>
+          </div>
         </div>
       )}
       {deleteCustomer && (
