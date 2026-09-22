@@ -7817,3 +7817,27 @@ footer .footer-separator{
   border-color:#4d806c !important;
   box-shadow:0 0 0 2px rgba(77,128,108,.13) !important;
 }
+
+
+/* Mobile voice recorder containment: keep recording UI inside Quick Entry */
+@media (max-width: 800px) {
+  .smart-compose-field .inline-recording-strip {
+    position: absolute !important;
+    inset: 8px 52px 8px 8px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 38px !important;
+    height: auto !important;
+    padding: 8px 10px !important;
+    border-radius: 14px !important;
+    z-index: 4 !important;
+    box-shadow: none !important;
+  }
+  .smart-compose-field .recording-wave-line {
+    min-width: 44px !important;
+  }
+  .smart-compose-field .recording-strip-time {
+    font-size: 12px !important;
+  }
+}
