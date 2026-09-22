@@ -218,6 +218,7 @@ export default function Workspace() {
     [lastUndo, setLastUndo] = useState<{message:string;snapshot:Snapshot}|null>(null),
     [guideOpen, setGuideOpen] = useState(false),
     [deleteJob, setDeleteJob] = useState<Job | null>(null),
+    [deleteCustomer, setDeleteCustomer] = useState<string | null>(null),
     [receiptJob, setReceiptJob] = useState<Job | null>(null),
     [receiptImageBusy, setReceiptImageBusy] = useState(false),
     [directReminderOpen, setDirectReminderOpen] = useState(false),
@@ -1748,6 +1749,25 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   function deleteEntry(job: Job) {
     setDeleteJob(job);
   }
+  function confirmDeleteCustomer() {
+    if (!deleteCustomer) return;
+    const name = deleteCustomer;
+    rememberUndo("Customer deleted");
+    const jobIds = new Set(jobs.filter(j => j.customer === name).map(j => j.id));
+    setJobs(items => items.filter(j => j.customer !== name));
+    setPayments(items => items.filter(p => p.customer !== name && (!p.jobId || !jobIds.has(p.jobId))));
+    setReminders(items => items.filter(r => r.customer !== name && (!r.jobId || !jobIds.has(r.jobId))));
+    setNotes(items => items.filter(n => n.customer !== name));
+    setChatTurns(items => items.filter(t => t.customer !== name));
+    setCustomerPhones(items => {
+      const next = { ...items };
+      delete next[name];
+      return next;
+    });
+    if (selectedCustomer === name) setSelectedCustomer(null);
+    setDeleteCustomer(null);
+    setToast(name + " deleted from Hisaab");
+  }
   function confirmDeleteEntry() {
     if (!deleteJob) return;
     const job = deleteJob;
@@ -2647,12 +2667,15 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       const entries=jobs.filter(j=>j.customer===name);
                       const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
                       const latest=entries[0];
-                      return <button className="customer-row-card" key={name} onClick={()=>{setSelectedCustomer(name);setMessage("");setCustomerChatOpen(false);}}>
-                        <span className="avatar large">{name[0]}</span>
-                        <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Ready for first entry"} · {entries.length} saved {entries.length===1?"entry":"entries"}</small></span>
-                        <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
-                        <Icon name="arrow" size={17}/>
-                      </button>;
+                      return <div className="customer-row-wrap" key={name}>
+                        <button className="customer-row-card" onClick={()=>openCustomerFromHisaab(name)}>
+                          <span className="avatar large">{name[0]}</span>
+                          <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Ready for first entry"} · {entries.length} saved {entries.length===1?"entry":"entries"}</small></span>
+                          <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
+                          <Icon name="arrow" size={17}/>
+                        </button>
+                        <button type="button" className="customer-delete-button" aria-label={"Delete " + name} title="Delete customer" onClick={()=>setDeleteCustomer(name)}><Icon name="trash" size={17}/></button>
+                      </div>;
                     })}
                   </div>
                   {!customerNames.length && <div className="empty"><h3>Your hisaab book is empty</h3><p>Tap New customer, add a name, then type or speak naturally.</p></div>}
@@ -3057,6 +3080,21 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send text on WhatsApp" : "WhatsApp needs internet"}</button>
             </div>
           </section>
+        </div>
+      )}
+      {deleteCustomer && (
+        <div className="modal-backdrop delete-confirm-backdrop" onClick={()=>setDeleteCustomer(null)}>
+          <div className="modal delete-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-customer-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button delete-confirm-close" aria-label="Close" onClick={()=>setDeleteCustomer(null)}><Icon name="close"/></button>
+            <div className="delete-confirm-icon"><Icon name="trash" size={22}/></div>
+            <span className="eyebrow">DELETE CUSTOMER</span>
+            <h2 id="delete-customer-title">Delete {deleteCustomer}?</h2>
+            <p>This removes this customer and their hisaab entries, payments, notes and reminders.</p>
+            <div className="modal-actions">
+              <button type="button" className="outline" onClick={()=>setDeleteCustomer(null)}>Keep customer</button>
+              <button type="button" className="danger-button" onClick={confirmDeleteCustomer}>Delete customer</button>
+            </div>
+          </div>
         </div>
       )}
       {deleteJob && (
