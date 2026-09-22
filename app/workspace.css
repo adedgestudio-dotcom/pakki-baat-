@@ -7748,3 +7748,19 @@ footer .footer-separator{
     color:#9fb0a7 !important;
   }
 }
+
+/* Align compact Hisaab back arrow and label */
+.customer-detail .customer-back {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  line-height:1 !important;
+}
+.customer-detail .customer-back > span[aria-hidden="true"] {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  line-height:1 !important;
+  transform:translateY(-1px) !important;
+  flex:0 0 auto !important;
+}
