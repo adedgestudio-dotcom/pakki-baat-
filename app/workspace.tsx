@@ -150,6 +150,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     copy: "M9 9h12v12H9Z M5 15H3V3h12v2",
     search: "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0 m-2 5 6 6",
     close: "m6 6 12 12 M6 18 18 6",
+    trash: "M4 7h16 M9 7V4h6v3 M7 7l1 14h8l1-14 M10 11v6 M14 11v6",
     leaf: "M5 20c0-10 6-15 15-16 0 10-5 16-15 16Z M5 20l10-10",
     promise:
       "M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 3v-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z M8 11l2.2 2.2L16 8",
