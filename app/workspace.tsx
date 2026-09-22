@@ -2112,10 +2112,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </h1>
                   <p>Let’s make room for the work you love.</p>
                 </div>
-                <button className="primary mobile-primary-action" onClick={() => go("Hisaab")}>
-                  <Icon name="plus" size={18} />
-                  <span>Add entry</span>
-                </button>
               </div>
               <section className="hero">
                 <div className="hero-copy">
