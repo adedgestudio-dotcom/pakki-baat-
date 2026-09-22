@@ -814,6 +814,18 @@ export default function Workspace() {
     setPendingReminderText("");
     setMessage(seed);
   }
+  function openNewEntry() {
+    setTab("Hisaab");
+    setQuery("");
+    setFilter("All");
+    setSelectedCustomer(null);
+    setCustomerChatOpen(false);
+    setPendingJob(null);
+    setPendingReminderText("");
+    setMessage("");
+    setNewCustomerName("");
+    setNewCustomerOpen(true);
+  }
   function toggleTheme() {
     const next = !dark;
     setDark(next);
@@ -2896,7 +2908,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 className="mobile-add-entry"
                 aria-label="Add new entry"
                 title="Add new entry"
-                onClick={() => go("My assistant")}
+                onClick={openNewEntry}
               >
                 <Icon name="plus" size={25} />
               </button>
