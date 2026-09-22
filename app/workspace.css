@@ -7841,3 +7841,28 @@ footer .footer-separator{
     font-size: 12px !important;
   }
 }
+
+
+/* Voice recording controls */
+.recording-strip-action{
+  width:30px;height:30px;min-width:30px;padding:0;border:0;border-radius:9px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.10);color:#f7fff9;font:700 16px/1 system-ui;cursor:pointer;
+}
+.recording-strip-action:active{transform:scale(.94)}
+.recording-cancel{font-size:22px;font-weight:400}
+.recording-pause{font-size:14px}
+
+/* Hisaab customer delete action */
+.customer-row-wrap{position:relative;display:flex;align-items:stretch;gap:8px}
+.customer-row-wrap .customer-row-card{flex:1;min-width:0}
+.customer-delete-button{
+  width:44px;min-width:44px;border:1px solid var(--line,#e7e1d6);border-radius:15px;
+  background:var(--card,#fff);color:#a45d50;display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+[data-theme="dark"] .customer-delete-button{background:#1f2723;border-color:#35413b;color:#df8d82}
+@media(max-width:800px){
+  .smart-compose-field .inline-recording-strip{right:50px !important}
+  .smart-compose-field .recording-wave-line{min-width:28px !important}
+  .recording-strip-action{width:30px;height:30px;min-width:30px}
+}
