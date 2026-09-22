@@ -199,15 +199,14 @@ export default function SimpleVoiceButton({
   return (
     <>
       {isRecording && (
-        <div className="inline-recording-strip" role="status" aria-live="polite">
+        <div className="voice-recording-pill" role="status" aria-live="polite">
           <span className="recording-live-dot" />
           <span className="recording-strip-time">{formattedDuration}</span>
           <span className="recording-wave-line" aria-hidden="true">
-            {Array.from({ length: 16 }).map((_, index) => (
+            {Array.from({ length: 12 }).map((_, index) => (
               <span key={index} style={{ animationDelay: `${index * 0.06}s` }} />
             ))}
           </span>
-          <span className="recording-strip-hint">Tap stop to send for review</span>
         </div>
       )}
       <button
