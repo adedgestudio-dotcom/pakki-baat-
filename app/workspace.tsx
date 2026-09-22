@@ -174,11 +174,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
   );
 }
 export default function Workspace() {
-  const [tab, setTab] = useState<Tab>(() => {
-      if (typeof window === "undefined") return "Today";
-      const saved = localStorage.getItem("pakki-baat-last-tab") as Tab | null;
-      return saved && ["Today", "Hisaab", "Reminders", "Settings"].includes(saved) ? saved : "Today";
-    }),
+  const [tab, setTab] = useState<Tab>("Today"),
     [jobs, setJobs] = useState<Job[]>([]),
     [reminders, setReminders] = useState<Reminder[]>([]),
     [ready, setReady] = useState(false),
@@ -240,6 +236,7 @@ export default function Workspace() {
     [reminderVibrationEnabled, setReminderVibrationEnabled] = useState(true),
     [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default"),
     [ringingReminder, setRingingReminder] = useState<Reminder | null>(null),
+    [navigationReady, setNavigationReady] = useState(false),
     [pushDiagnostic, setPushDiagnostic] = useState(""),
     [pushDiagnosticBusy, setPushDiagnosticBusy] = useState(false),
     [entryMode, setEntryMode] = useState<"quick"|"form">("quick");
@@ -250,6 +247,7 @@ export default function Workspace() {
   const activeUserIdRef = useRef<string | null>(null);
   const cloudHydratedRef = useRef(false);
   const firedReminderKeysRef = useRef(new Set<string>());
+  const navigationRestoredRef = useRef(false);
 
   // Display name priority: custom name → Google/account name → email name → "there"
   const displayName = owner?.trim() || userName || "there";
@@ -515,15 +513,96 @@ export default function Workspace() {
     setFilter("All");
   }
   useEffect(() => {
-    const savedTab = localStorage.getItem("pakki-baat-last-tab") as Tab | null;
-    window.history.replaceState({ pakkiBaat: true, tab: savedTab || tab }, "");
+    const validTabs: Tab[] = ["Today", "Hisaab", "Reminders", "Settings"];
+    let restoredTab: Tab = "Today";
+    let restoredCustomer: string | null = null;
+    let restoredCustomerChatOpen = false;
+    let restoredEntryMode: "quick" | "form" = "quick";
+
+    try {
+      const historyState = window.history.state as {
+        pakkiBaat?: boolean;
+        tab?: Tab;
+        customer?: string;
+        customerChatOpen?: boolean;
+        entryMode?: "quick" | "form";
+      } | null;
+      const raw = localStorage.getItem("pakki-baat-last-view");
+      const saved = raw ? JSON.parse(raw) as {
+        tab?: Tab;
+        customer?: string | null;
+        customerChatOpen?: boolean;
+        entryMode?: "quick" | "form";
+      } : null;
+
+      const candidateTab =
+        historyState?.pakkiBaat && historyState.tab
+          ? historyState.tab
+          : saved?.tab ||
+            (localStorage.getItem("pakki-baat-last-tab") as Tab | null);
+
+      if (candidateTab && validTabs.includes(candidateTab)) restoredTab = candidateTab;
+
+      const candidateCustomer =
+        historyState?.pakkiBaat && typeof historyState.customer === "string"
+          ? historyState.customer
+          : saved?.customer;
+      restoredCustomer =
+        restoredTab === "Hisaab" && typeof candidateCustomer === "string" && candidateCustomer.trim()
+          ? candidateCustomer
+          : null;
+
+      restoredCustomerChatOpen =
+        Boolean(restoredCustomer) &&
+        Boolean(
+          historyState?.pakkiBaat
+            ? historyState.customerChatOpen
+            : saved?.customerChatOpen
+        );
+
+      const candidateEntryMode =
+        historyState?.pakkiBaat ? historyState.entryMode : saved?.entryMode;
+      restoredEntryMode = candidateEntryMode === "form" ? "form" : "quick";
+    } catch {
+      // Fall back to Today if browser storage is unavailable or malformed.
+    }
+
+    setTab(restoredTab);
+    setSelectedCustomer(restoredCustomer);
+    setCustomerChatOpen(restoredCustomerChatOpen);
+    setEntryMode(restoredEntryMode);
+    navigationRestoredRef.current = true;
+    setNavigationReady(true);
+
+    window.history.replaceState(
+      {
+        pakkiBaat: true,
+        tab: restoredTab,
+        customer: restoredCustomer || undefined,
+        customerChatOpen: restoredCustomerChatOpen || undefined,
+        entryMode: restoredEntryMode,
+      },
+      ""
+    );
   }, []);
+
   useEffect(() => {
-    localStorage.setItem("pakki-baat-last-tab", tab);
-  }, [tab]);
+    if (!navigationRestoredRef.current) return;
+    const view = {
+      tab,
+      customer: tab === "Hisaab" ? selectedCustomer : null,
+      customerChatOpen: tab === "Hisaab" && Boolean(selectedCustomer) && customerChatOpen,
+      entryMode,
+    };
+    try {
+      localStorage.setItem("pakki-baat-last-tab", tab);
+      localStorage.setItem("pakki-baat-last-view", JSON.stringify(view));
+    } catch {}
+    window.history.replaceState({ pakkiBaat: true, ...view }, "");
+  }, [tab, selectedCustomer, customerChatOpen, entryMode]);
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      const state = event.state as { pakkiBaat?: boolean; tab?: Tab; customer?: string } | null;
+      const state = event.state as { pakkiBaat?: boolean; tab?: Tab; customer?: string; customerChatOpen?: boolean; entryMode?: "quick"|"form" } | null;
       setNewCustomerOpen(false);
       setCustomerChatOpen(false);
       setPendingJob(null);
@@ -531,6 +610,8 @@ export default function Workspace() {
       if (state?.pakkiBaat) {
         setTab(state.tab || "Today");
         setSelectedCustomer(state.customer || null);
+        setCustomerChatOpen(Boolean(state.customer && state.customerChatOpen));
+        if (state.entryMode) setEntryMode(state.entryMode);
       } else {
         setSelectedCustomer(null);
       }
@@ -540,7 +621,7 @@ export default function Workspace() {
   }, []);
 
   function openCustomerFromHisaab(name: string) {
-    window.history.pushState({ pakkiBaat: true, tab: "Hisaab", customer: name }, "");
+    window.history.pushState({ pakkiBaat: true, tab: "Hisaab", customer: name, customerChatOpen: false, entryMode }, "");
     setSelectedCustomer(name);
     setMessage("");
     setCustomerChatOpen(false);
@@ -2029,7 +2110,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   }, [reminders, ready, reminderAlertsEnabled, reminderSoundEnabled, reminderVibrationEnabled, notificationPermission]);
 
   return (
-    <div className="shell">
+    <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
       {!isOnline && (
         <div className="offline-banner" role="status">
           <span className="offline-dot" /> Offline · changes are saved on this device
