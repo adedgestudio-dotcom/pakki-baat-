@@ -34,9 +34,6 @@ export default function SimpleVoiceButton({
 }: SimpleVoiceButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const cancelledRef = useRef(false);
-  const elapsedBeforePauseRef = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -70,29 +67,6 @@ export default function SimpleVoiceButton({
     return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
   }
 
-  function cancelRecording() {
-    const recorder = recorderRef.current;
-    if (!recorder || recorder.state === "inactive") return;
-    cancelledRef.current = true;
-    recognitionRef.current?.abort();
-    recorder.stop();
-  }
-
-  function togglePause() {
-    const recorder = recorderRef.current;
-    if (!recorder) return;
-    if (recorder.state === "recording") {
-      elapsedBeforePauseRef.current = duration;
-      recorder.pause();
-      recognitionRef.current?.stop();
-      setIsPaused(true);
-    } else if (recorder.state === "paused") {
-      startedAtRef.current = Date.now();
-      recorder.resume();
-      setIsPaused(false);
-    }
-  }
-
   function stopRecording() {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
@@ -113,9 +87,6 @@ export default function SimpleVoiceButton({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       liveTranscriptRef.current = "";
-      cancelledRef.current = false;
-      elapsedBeforePauseRef.current = 0;
-      setIsPaused(false);
       const speechWindow = window as typeof window & {
         SpeechRecognition?: SpeechRecognitionConstructor;
         webkitSpeechRecognition?: SpeechRecognitionConstructor;
@@ -171,16 +142,8 @@ export default function SimpleVoiceButton({
         streamRef.current = null;
         recorderRef.current = null;
         setIsRecording(false);
-        setIsPaused(false);
 
-        if (cancelledRef.current) {
-          chunksRef.current = [];
-          cancelledRef.current = false;
-          setDuration(0);
-          return;
-        }
-
-        const recordedSeconds = Math.max(1, duration || Math.round((Date.now() - startedAtRef.current) / 1000));
+        const recordedSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
         const type = mediaRecorder.mimeType || "audio/webm";
         const audioBlob = new Blob(chunksRef.current, { type });
         chunksRef.current = [];
@@ -208,7 +171,7 @@ export default function SimpleVoiceButton({
       mediaRecorder.start();
       setIsRecording(true);
       timerRef.current = window.setInterval(() => {
-        setDuration(elapsedBeforePauseRef.current + Math.round((Date.now() - startedAtRef.current) / 1000));
+        setDuration(Math.round((Date.now() - startedAtRef.current) / 1000));
       }, 250);
     } catch (err) {
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -244,8 +207,7 @@ export default function SimpleVoiceButton({
               <span key={index} style={{ animationDelay: `${index * 0.06}s` }} />
             ))}
           </span>
-          <button type="button" className="recording-strip-action recording-cancel" onClick={cancelRecording} aria-label="Cancel recording" title="Cancel recording">×</button>
-          <button type="button" className="recording-strip-action recording-pause" onClick={togglePause} aria-label={isPaused ? "Resume recording" : "Pause recording"} title={isPaused ? "Resume" : "Pause"}>{isPaused ? "▶" : "Ⅱ"}</button>
+          <span className="recording-strip-hint">Tap stop to send for review</span>
         </div>
       )}
       <button
