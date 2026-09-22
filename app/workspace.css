@@ -7697,3 +7697,103 @@ footer .footer-separator{
     stroke-width: 2.4 !important;
   }
 }
+
+/* Dark Today mood refresh: calm charcoal + lavender + warm accents. Layout untouched. */
+@media (max-width: 9999px) {
+  [data-theme="dark"] .workspace,
+  [data-theme="dark"] .content {
+    background:#0d0d18 !important;
+  }
+  [data-theme="dark"] .topbar,
+  [data-theme="dark"] .sidebar,
+  [data-theme="dark"] .mobile-nav {
+    background:#12121f !important;
+    border-color:#29283a !important;
+  }
+  [data-theme="dark"] .hero {
+    background:linear-gradient(145deg,#211d32 0%,#181a28 58%,#20232d 100%) !important;
+    border-color:#37334d !important;
+    box-shadow:0 18px 42px rgba(0,0,0,.18) !important;
+  }
+  [data-theme="dark"] .hero .eyebrow,
+  [data-theme="dark"] .eyebrow {
+    color:#b9a8f3 !important;
+  }
+  [data-theme="dark"] .hero h1,
+  [data-theme="dark"] .hero h2,
+  [data-theme="dark"] .hero strong {
+    color:#f6f1e8 !important;
+  }
+  [data-theme="dark"] .hero p,
+  [data-theme="dark"] .hero small {
+    color:#bbb6c5 !important;
+  }
+  [data-theme="dark"] .stats > button:nth-child(1) {
+    background:#211d2b !important;
+    border-color:#3b3345 !important;
+  }
+  [data-theme="dark"] .stats > button:nth-child(2) {
+    background:#18252a !important;
+    border-color:#2c4147 !important;
+  }
+  [data-theme="dark"] .stats > button:nth-child(3) {
+    background:#29251f !important;
+    border-color:#443d31 !important;
+  }
+  [data-theme="dark"] .stats > button strong {
+    color:#f5f1ea !important;
+  }
+  [data-theme="dark"] .stats > button small,
+  [data-theme="dark"] .stats > button p {
+    color:#aaa6b5 !important;
+  }
+  [data-theme="dark"] .stat-icon.peach {
+    background:#3a2830 !important;
+    color:#f0a98e !important;
+  }
+  [data-theme="dark"] .stat-icon.mint {
+    background:#23352f !important;
+    color:#9bd7bd !important;
+  }
+  [data-theme="dark"] .stat-icon.yellow {
+    background:#3b3525 !important;
+    color:#e9ce83 !important;
+  }
+  [data-theme="dark"] .today-focus {
+    background:#171725 !important;
+    border-color:#302e43 !important;
+  }
+  [data-theme="dark"] .today-focus-item {
+    background:#1d1c2c !important;
+    border-color:#343148 !important;
+  }
+  [data-theme="dark"] .today-focus-item:hover {
+    background:#242139 !important;
+    border-color:#665b91 !important;
+  }
+  [data-theme="dark"] .help-card,
+  [data-theme="dark"] .tip-panel {
+    background:#1c2029 !important;
+    border-color:#343744 !important;
+  }
+  [data-theme="dark"] .mobile-nav .mobile-nav-item {
+    color:#aaa7b5 !important;
+  }
+  [data-theme="dark"] .mobile-nav-icon-wrap {
+    background:#1d1d2b !important;
+    color:#bbb6ca !important;
+  }
+  [data-theme="dark"] .mobile-nav .mobile-nav-item.active {
+    color:#d8cdfb !important;
+  }
+  [data-theme="dark"] .mobile-nav .mobile-nav-item.active .mobile-nav-icon-wrap {
+    background:#332b55 !important;
+    color:#d8cdfb !important;
+    box-shadow:inset 0 0 0 1px #514575,0 5px 12px rgba(0,0,0,.2) !important;
+  }
+  [data-theme="dark"] .mobile-nav .mobile-add-entry {
+    background:linear-gradient(145deg,#a18be8,#8068cf) !important;
+    border-color:#12121f !important;
+    box-shadow:0 8px 20px rgba(128,104,207,.3) !important;
+  }
+}
