@@ -894,7 +894,7 @@ export default function Workspace() {
         setVoiceBusy(false);
       }
     } else {
-      await transcribeSentVoice(file, id);
+      await transcribeSentVoice(file, id, duration);
     }
 
     try {
@@ -903,7 +903,7 @@ export default function Workspace() {
       // The entry can still be created even if local audio playback cannot be saved.
     }
   }
-  async function transcribeSentVoice(file: File, id: string) {
+  async function transcribeSentVoice(file: File, id: string, duration: number) {
     if (voiceBusy) return;
     if (!navigator.onLine) {
       setToast("Voice transcription needs internet. Your saved hisaab still works offline.");
@@ -920,9 +920,12 @@ export default function Workspace() {
       form.set("file", file);
       form.set("mode", "transcribe");
       form.set("today", day());
+      form.set("duration", String(Math.max(1, Math.ceil(duration))));
 
+      const token = await cloudToken();
       const response = await fetch("/api/extract", {
         method: "POST",
+        headers: { Authorization: "Bearer " + token },
         body: form,
       });
 
