@@ -2688,7 +2688,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
                           <Icon name="arrow" size={17}/>
                         </button>
-                        <button type="button" className="customer-delete-button" aria-label={"Delete " + name} title="Delete customer" onClick={()=>setDeleteCustomer(name)}><Icon name="trash" size={17}/></button>
+                        <button type="button" className="customer-delete-button" aria-label={"Delete " + name} title="Delete customer" onClick={()=>setDeleteCustomer(name)}><svg className="customer-trash-svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 10v6M14 10v6"/></svg></button>
                       </div>;
                     })}
                   </div>
