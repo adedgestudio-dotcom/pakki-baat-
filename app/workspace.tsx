@@ -1067,10 +1067,12 @@ export default function Workspace() {
       }
       console.log(`📨 Processing ${source} message:`, message);
 
+      const token = await cloudToken();
       const response = await fetch("/api/process-message", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           message: pendingReminderText
