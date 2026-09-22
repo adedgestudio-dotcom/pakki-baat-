@@ -7866,3 +7866,35 @@ footer .footer-separator{
   .smart-compose-field .recording-wave-line{min-width:28px !important}
   .recording-strip-action{width:30px;height:30px;min-width:30px}
 }
+
+
+/* UI refinements: roomier theme toggle, inline customer delete, usable mobile recorder */
+.theme-toggle{width:68px !important;height:34px !important}
+.theme-toggle .theme-sun{left:8px !important}
+.theme-toggle .theme-moon{right:8px !important}
+.theme-toggle-thumb{top:4px !important;left:4px !important; width:24px !important;height:24px !important}
+.theme-toggle.is-dark .theme-toggle-thumb{transform:translateX(34px) !important}
+
+.customer-row-with-delete{
+  display:flex !important;align-items:stretch !important;gap:0 !important;padding:0 !important;overflow:hidden;
+}
+.customer-row-open{
+  flex:1;min-width:0;border:0;background:transparent;color:inherit;cursor:pointer;
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:12px;text-align:left;padding:14px;
+}
+.customer-row-with-delete .customer-delete-button{
+  width:46px;min-width:46px;border:0 !important;border-left:1px solid var(--line,#e7e1d6) !important;
+  border-radius:0 !important;background:transparent !important;
+}
+[data-theme="dark"] .customer-row-with-delete .customer-delete-button{border-left-color:#35413b !important;color:#df8d82}
+
+@media(max-width:800px){
+  .smart-compose-field .inline-recording-strip{
+    inset:auto 50px 7px 7px !important;
+    min-height:48px !important;height:48px !important;
+    padding:7px 8px !important;border-radius:13px !important;
+  }
+  .smart-compose-field .recording-wave-line{min-width:54px !important;height:28px !important}
+  .smart-compose-field .recording-strip-time{font-size:13px !important}
+  .smart-compose-field .recording-strip-action{width:32px !important;height:32px !important;min-width:32px !important}
+}
