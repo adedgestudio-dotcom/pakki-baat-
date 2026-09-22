@@ -8234,3 +8234,19 @@ footer .footer-separator{
     color:#fff !important;
   }
 }
+
+
+/* Payment QR: focus on the scannable QR itself, hide bank branding around it */
+.payment-qr-frame{
+  overflow:hidden !important;
+  padding:0 !important;
+}
+.payment-qr-frame img{
+  width:124% !important;
+  height:124% !important;
+  max-width:none !important;
+  object-fit:cover !important;
+  object-position:center center !important;
+  transform:translate(-9.7%,-9.7%);
+  border-radius:12px;
+}
