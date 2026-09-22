@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
     const text = String(form.get("text") || "").slice(0, 6000);
     const date = String(form.get("today") || "");
     const mode = String(form.get("mode") || "extract");
+    const duration = Math.max(0, Math.min(600, Math.ceil(Number(form.get("duration") || 0))));
 
     if (!apiKey) {
       return Response.json(
@@ -108,73 +109,68 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Add a message first." }, { status: 400 });
     }
 
-    // Quick-entry voice transcription should behave like typed Quick Entry.
-    // It is intentionally usable before sign-in; cloud-backed extraction still requires auth.
-    if (mode !== "transcribe") {
-      const missingConfig = [
-        !base && "NEXT_PUBLIC_SUPABASE_URL",
-        !publicKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-        !service && "SUPABASE_SERVICE_ROLE_KEY",
-      ].filter(Boolean);
+    // AI access is tied to the signed-in user's subscription.
+    const missingConfig = [
+      !base && "NEXT_PUBLIC_SUPABASE_URL",
+      !publicKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      !service && "SUPABASE_SERVICE_ROLE_KEY",
+    ].filter(Boolean);
+    if (missingConfig.length) {
+      return Response.json({ error: "AI account rights are not configured on the server." }, { status: 503 });
+    }
+    const auth = req.headers.get("authorization");
+    if (!auth?.startsWith("Bearer ")) {
+      return Response.json({ error: "Continue with Google in Settings to use voice and AI." }, { status: 401 });
+    }
+    const userResponse = await fetch(`${base}/auth/v1/user`, {
+      headers: { apikey: publicKey as string, Authorization: auth },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!userResponse.ok) {
+      return Response.json({ error: "Your sign-in expired. Please sign in again." }, { status: 401 });
+    }
+    const user = await userResponse.json();
 
-      if (missingConfig.length) {
-        return Response.json(
-          {
-            error:
-              "AI is not configured. Missing server setup: " +
-              missingConfig.join(", ") +
-              ". Add these in Vercel Environment Variables, then redeploy.",
-          },
-          { status: 503 }
-        );
-      }
-
-      const auth = req.headers.get("authorization");
-      if (!auth?.startsWith("Bearer ")) {
-        return Response.json(
-          { error: "Continue with Google in Settings to use this AI capture." },
-          { status: 401 }
-        );
-      }
-
-      const userResponse = await fetch(`${base}/auth/v1/user`, {
-        headers: { apikey: publicKey as string, Authorization: auth },
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (!userResponse.ok) {
-        return Response.json(
-          { error: "Your sign-in expired. Please sign in again." },
-          { status: 401 }
-        );
-      }
-
-      const user = await userResponse.json();
-      const credit = await fetch(`${base}/rest/v1/rpc/consume_ai_credit`, {
+    if (mode === "transcribe") {
+      const usageResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
         method: "POST",
         headers: {
           apikey: service as string,
           Authorization: `Bearer ${service}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ user_id: user.id }),
+        body: JSON.stringify({ user_id: user.id, voice_seconds_to_add: Math.max(1, duration), ai_calls_to_add: 0 }),
         signal: AbortSignal.timeout(10000),
       });
-
-      if (!credit.ok) {
-        throw new Error(
-          "Usage limits are not configured. Ask the creator to run the database setup."
-        );
+      if (!usageResponse.ok) {
+        return Response.json({ error: "Account rights are not ready. Run the latest Supabase schema." }, { status: 503 });
       }
+      const usage = await usageResponse.json();
+      if (!usage?.allowed) {
+        const error = usage?.reason === "voice_limit"
+          ? "You have used this plan's voice minutes. You can still type entries."
+          : "Your Pakki Baat subscription is not active.";
+        return Response.json({ error, usage }, { status: 403 });
+      }
+    }
 
-      if (!(await credit.json())) {
-        return Response.json(
-          {
-            error:
-              "You have used today's 30 AI captures. Manual entry still works.",
-          },
-          { status: 429 }
-        );
+    if (mode !== "transcribe") {
+      const usageResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
+        method: "POST",
+        headers: {
+          apikey: service as string,
+          Authorization: `Bearer ${service}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ user_id: user.id, voice_seconds_to_add: 0, ai_calls_to_add: 1 }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!usageResponse.ok) {
+        return Response.json({ error: "Account rights are not ready. Run the latest Supabase schema." }, { status: 503 });
+      }
+      const usage = await usageResponse.json();
+      if (!usage?.allowed) {
+        return Response.json({ error: "Your Pakki Baat subscription is not active." }, { status: 403 });
       }
     }
 
