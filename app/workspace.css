@@ -7931,3 +7931,18 @@ footer .footer-separator{
     display:none !important;
   }
 }
+
+
+/* Restored voice recorder: keep original stop button visible beside the recording strip */
+@media(max-width:800px){
+  .smart-compose-field:has(.inline-recording-strip) > .smart-compose-tool.right{
+    display:flex !important;
+  }
+  .smart-compose-field .inline-recording-strip{
+    left:8px !important;right:54px !important;bottom:8px !important;top:auto !important;
+    width:auto !important;min-height:40px !important;height:40px !important;
+    padding:6px 9px !important;gap:6px !important;
+  }
+  .smart-compose-field .inline-recording-strip .recording-strip-hint{display:none !important}
+  .smart-compose-field .recording-wave-line{min-width:54px !important;height:25px !important}
+}
