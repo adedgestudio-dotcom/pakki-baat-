@@ -156,7 +156,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
       "M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 3v-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z M8 11l2.2 2.2L16 8",
     sun: "M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4 M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
     moon: "M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z",
-    crown: "M3 7l4 4 5-7 5 7 4-4-2 11H5L3 7Z M5 18h14",
+    plan: "M4 7h16v12H4Z M4 10h16 M8 15h4",
     shield: "M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3Z M9 12l2 2 4-5",
   };
   return (
@@ -2191,7 +2191,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           </div>
           <div className="top-actions">
             <button type="button" className={tab === "Subscription" ? "subscription-nav-button active" : "subscription-nav-button"} onClick={()=>go("Subscription")} title="Subscription & usage">
-              <Icon name="crown" size={18}/><span>Plan</span>
+              <Icon name="plan" size={18}/><span>Plan</span>
             </button>
             {!loggedIn && (
               <button
@@ -2917,21 +2917,37 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           )}
           {tab === "Subscription" && (
             <>
-              <div className="page-heading subscription-heading"><div><div className="eyebrow">YOUR PAKKI BAAT PLAN</div><h1>Subscription</h1><p>Simple plans with clear voice limits. Your hisaab stays yours.</p></div></div>
-              <section className="subscription-current-card">
-                <div><span className="subscription-badge">CURRENT PLAN</span><h2>Trial</h2><p>Explore Pakki Baat before choosing a monthly plan.</p></div>
-                <div className="subscription-usage"><strong>600 min</strong><small>voice allowance during trial</small><div className="usage-track"><span style={{width:"0%"}}/></div><small>Usage will appear here after your account is connected.</small></div>
+              <div className="page-heading subscription-heading">
+                <div><div className="eyebrow">PLAN & USAGE</div><h1>Subscription</h1><p>See your plan, monthly voice allowance and upgrade options.</p></div>
+              </div>
+              <section className="subscription-summary panel">
+                <div className="subscription-summary-main">
+                  <span className="subscription-plan-icon"><Icon name="plan" size={21}/></span>
+                  <div><small>CURRENT PLAN</small><h2>Trial</h2><p>7-day trial · 600 voice minutes</p></div>
+                </div>
+                <div className="subscription-summary-usage">
+                  <div><span>Voice used</span><strong>0 / 600 min</strong></div>
+                  <div className="usage-track"><span style={{width:"0%"}}/></div>
+                  <small>Your actual usage will appear here once connected to your account.</small>
+                </div>
               </section>
-              <div className="plan-grid">
+              <div className="subscription-section-title"><div><h2>Choose a plan</h2><p>All plans include Hisaab, payments, reminders and AI entry.</p></div></div>
+              <div className="plan-grid clean-plan-grid">
                 {[
-                  ["Basic","₹99","120","For light everyday hisaab"],
-                  ["Smart","₹199","600","For regular voice entry"],
-                  ["Business","₹349","1,200","For busy businesses"],
+                  ["Basic","₹99","120","Light use"],
+                  ["Smart","₹199","600","Regular use"],
+                  ["Business","₹349","1,200","Heavy use"],
                 ].map(([name,price,mins,copy])=><article className={"plan-card "+(name==="Smart"?"recommended":"")} key={name}>
-                  {name==="Smart"&&<span className="recommended-tag">POPULAR</span>}<h3>{name}</h3><div className="plan-price">{price}<small>/ month</small></div><p>{copy}</p><strong>{mins} voice min / month</strong><span>Hisaab, payments & reminders</span><span>AI extraction</span><button type="button" className={name==="Smart"?"primary":"outline"} onClick={()=>setToast("Payments are coming next — your plan choice is saved for setup.")}>Choose {name}</button>
+                  <div className="plan-card-head"><div><h3>{name}</h3><small>{copy}</small></div>{name==="Smart"&&<span className="recommended-tag">MOST POPULAR</span>}</div>
+                  <div className="plan-price">{price}<small>/month</small></div>
+                  <div className="plan-minutes"><strong>{mins}</strong><span>voice minutes / month</span></div>
+                  <ul><li>Customer Hisaab</li><li>Payments & reminders</li><li>Voice transcription + AI entry</li></ul>
+                  <button type="button" className={name==="Smart"?"primary":"outline"} onClick={()=>setToast("Plan payments will be enabled in the next step.")}>Choose {name}</button>
                 </article>)}
               </div>
-              <section className="subscription-note"><Icon name="shield" size={20}/><div><strong>Your data stays separate from your plan.</strong><p>If voice minutes finish, you can still type and use your saved hisaab. We only stop metered AI/voice features until renewal or bonus minutes are added.</p></div></section>
+              <section className="subscription-help">
+                <Icon name="shield" size={19}/><div><strong>What happens if voice minutes finish?</strong><p>You can keep using Hisaab and type entries. Voice/AI usage resumes after renewal or when extra minutes are added.</p></div>
+              </section>
             </>
           )}
           {tab === "Admin" && (
@@ -2954,7 +2970,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </div>
               <section className="settings-subscription-card">
-                <span className="settings-subscription-icon"><Icon name="crown" size={20}/></span>
+                <span className="settings-subscription-icon"><Icon name="plan" size={20}/></span>
                 <span><strong>Subscription & usage</strong><small>See your plan, voice minutes and renewal details.</small></span>
                 <button type="button" className="outline" onClick={()=>go("Subscription")}>View plan</button>
               </section>
