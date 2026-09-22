@@ -494,6 +494,32 @@ export default function Workspace() {
     setQuery("");
     setFilter("All");
   }
+  useEffect(() => {
+    const handlePopState = () => {
+      if (customerChatOpen) {
+        setCustomerChatOpen(false);
+        setPendingJob(null);
+        setMessage("");
+        return;
+      }
+      if (selectedCustomer) {
+        setSelectedCustomer(null);
+        setMessage("");
+        return;
+      }
+      if (newCustomerOpen) {
+        setNewCustomerOpen(false);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [customerChatOpen, selectedCustomer, newCustomerOpen]);
+
+  function openCustomerFromHisaab(name: string) {
+    window.history.pushState({ pakkiBaatView: "customer" }, "");
+    setSelectedCustomer(name);
+  }
+
   function openReminders() {
     setSelectedCustomer(null);
     setTab("Reminders");
@@ -2620,7 +2646,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </>
               ) : (
                 <section className="customer-detail">
-                  <button className="customer-back" onClick={()=>{setSelectedCustomer(null);setMessage("");}}><span aria-hidden="true">←</span> Hisaab</button>
                   <div className="customer-profile-head">
                     <span className="avatar large customer-profile-avatar">{selectedCustomer?.[0] || "?"}</span>
                     <div className="customer-profile-copy">
@@ -2709,7 +2734,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       const entries=jobs.filter(j=>j.customer===name);
                       const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
                       const latest=entries[0];
-                      return <button className="customer-row-card" key={name} onClick={()=>setSelectedCustomer(name)}>
+                      return <button className="customer-row-card" key={name} onClick={()=>openCustomerFromHisaab(name)}>
                         <span className="avatar large">{name[0]}</span>
                         <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Customer"} · {entries.length} {entries.length===1?"entry":"entries"}</small></span>
                         <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
