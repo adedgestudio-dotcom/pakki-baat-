@@ -7898,3 +7898,36 @@ footer .footer-separator{
   .smart-compose-field .recording-strip-time{font-size:13px !important}
   .smart-compose-field .recording-strip-action{width:32px !important;height:32px !important;min-width:32px !important}
 }
+
+
+/* Final mobile fixes: clear delete affordance and full-width recording controls */
+.customer-row-with-delete .customer-delete-button{
+  color:#a6534a !important;
+}
+.customer-row-with-delete .customer-delete-button svg{
+  width:19px !important;height:19px !important;stroke-width:2 !important;
+}
+
+@media(max-width:800px){
+  .smart-compose-field .inline-recording-strip{
+    left:8px !important;right:8px !important;bottom:8px !important;top:auto !important;
+    width:auto !important;height:48px !important;min-height:48px !important;
+    display:flex !important;align-items:center !important;
+    gap:7px !important;padding:7px 8px !important;
+    overflow:hidden !important;
+  }
+  .smart-compose-field .recording-wave-line{
+    display:flex !important;flex:1 1 auto !important;min-width:70px !important;
+    height:28px !important;overflow:hidden !important;
+  }
+  .smart-compose-field .recording-strip-action{
+    display:inline-flex !important;visibility:visible !important;opacity:1 !important;
+    flex:0 0 32px !important;width:32px !important;height:32px !important;min-width:32px !important;
+  }
+  .smart-compose-field > .smart-compose-tool.right{
+    z-index:5 !important;
+  }
+  .smart-compose-field:has(.inline-recording-strip) > .smart-compose-tool.right{
+    display:none !important;
+  }
+}
