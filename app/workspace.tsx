@@ -2888,29 +2888,32 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         </div>
       </main>
       <nav className="mobile-nav" aria-label="Main navigation">
-        {nav.map(([t, i]) => (
-          <button
-            aria-label={t}
-            key={t}
-            className={tab === t ? "active mobile-nav-item" : "mobile-nav-item"}
-            onClick={() => go(t)}
-          >
-            <span className="mobile-nav-icon-wrap">
-              <Icon name={i} size={23} />
-              {t==="Reminders" && activeReminders.length>0 && <b className="mobile-reminder-badge">{Math.min(99,activeReminders.length)}</b>}
-            </span>
-            <span className="mobile-nav-label">{t}</span>
-          </button>
+        {nav.map(([t, i], index) => (
+          <span key={t} style={{ display: "contents" }}>
+            {index === 2 && (
+              <button
+                type="button"
+                className="mobile-add-entry"
+                aria-label="Add new entry"
+                title="Add new entry"
+                onClick={() => go("My assistant")}
+              >
+                <Icon name="plus" size={25} />
+              </button>
+            )}
+            <button
+              aria-label={t}
+              className={tab === t ? "active mobile-nav-item" : "mobile-nav-item"}
+              onClick={() => go(t)}
+            >
+              <span className="mobile-nav-icon-wrap">
+                <Icon name={i} size={23} />
+                {t==="Reminders" && activeReminders.length>0 && <b className="mobile-reminder-badge">{Math.min(99,activeReminders.length)}</b>}
+              </span>
+              <span className="mobile-nav-label">{t}</span>
+            </button>
+          </span>
         ))}
-        <button
-          type="button"
-          className="mobile-add-entry"
-          aria-label="Add new entry"
-          title="Add new entry"
-          onClick={() => go("My assistant")}
-        >
-          <Icon name="plus" size={25} />
-        </button>
         <button
           aria-label="Settings"
           className={tab === "Settings" ? "active mobile-nav-item" : "mobile-nav-item"}
