@@ -131,7 +131,6 @@ strong {
 /* Cleaner sidebar scrollbar */
 .sidebar {
   scrollbar-width: thin;
-  scrollbar-
 }
 
 .sidebar::-webkit-scrollbar {
@@ -2767,7 +2766,6 @@ select:focus-visible {
   overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-
 }
 .sidebar::-webkit-scrollbar { width: 6px; }
 .sidebar::-webkit-scrollbar-track {  }
