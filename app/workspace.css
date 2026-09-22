@@ -8162,3 +8162,13 @@ footer .footer-separator{
  .clean-plan-grid{display:grid !important;grid-template-columns:1fr !important;gap:11px !important}
  .clean-plan-grid .plan-card{padding:16px !important}
 }
+
+
+/* UPI subscription payment */
+.payment-modal{width:min(440px,calc(100vw - 28px)) !important;max-height:90vh;overflow:auto;padding:22px !important}
+.payment-close{position:absolute;right:14px;top:14px}.payment-modal h2{margin:5px 0 4px;font-size:25px}.payment-intro{margin:0 32px 15px 0;color:var(--muted);font-size:13px}
+.payment-qr-frame{width:min(270px,78vw);aspect-ratio:1/1;margin:0 auto 14px;padding:8px;border:1px solid var(--line);border-radius:18px;background:#fff;overflow:hidden}.payment-qr-frame img{width:100%;height:100%;object-fit:cover;object-position:center;display:block;border-radius:12px}
+.payment-upi-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:14px}.payment-upi-row span{min-width:0;display:flex;flex-direction:column}.payment-upi-row small{font-size:9px;letter-spacing:.1em;color:var(--muted);font-weight:800}.payment-upi-row strong{font-size:13px;overflow-wrap:anywhere}.payment-upi-row button{flex:none}
+.payment-actions{display:grid;margin-top:9px}.payment-actions button{width:100%}
+.payment-confirm{margin-top:16px;padding-top:15px;border-top:1px solid var(--line);display:grid;gap:9px}.payment-confirm label{display:grid;gap:7px;font-size:13px;font-weight:800}.payment-confirm input{width:100%;height:43px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);padding:0 12px;font:inherit}.payment-confirm>small{text-align:center;color:var(--muted);font-size:10px}
+@media(max-width:640px){.payment-modal{padding:18px !important}.payment-qr-frame{width:min(245px,72vw)}}
