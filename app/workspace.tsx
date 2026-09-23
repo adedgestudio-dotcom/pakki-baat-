@@ -197,6 +197,8 @@ export default function Workspace() {
     [toast, setToast] = useState(""),
     [paymentPlan, setPaymentPlan] = useState<{name:string;price:string}|null>(null),
     [paymentRef, setPaymentRef] = useState(""),
+    [paymentProof, setPaymentProof] = useState<File | null>(null),
+    [paymentSubmitting, setPaymentSubmitting] = useState(false),
     [feedback, setFeedback] = useState(""),
     [loggedIn, setLoggedIn] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
@@ -274,14 +276,35 @@ export default function Workspace() {
     link.download = "QR zorivo-icic.jpg";
     link.click();
   }
-  function submitPaymentReference() {
-    if (!paymentRef.trim()) {
-      setToast("Enter your UPI transaction/reference ID.");
+  async function submitPaymentReference() {
+    if (!paymentProof && !paymentRef.trim()) {
+      setToast("Upload your payment screenshot or enter the transaction ID.");
       return;
     }
-    setToast("Payment details submitted ✓");
-    setPaymentPlan(null);
-    setPaymentRef("");
+    if (!loggedIn) {
+      setToast("Please sign in before submitting your payment.");
+      return;
+    }
+    try {
+      setPaymentSubmitting(true);
+      const token = await cloudToken();
+      const form = new FormData();
+      form.append("plan", paymentPlan?.name || "");
+      form.append("price", paymentPlan?.price || "");
+      form.append("transactionRef", paymentRef.trim());
+      if (paymentProof) form.append("proof", paymentProof);
+      const response = await fetch("/api/payment-request", { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:form });
+      const result = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(result?.error || "Could not submit payment.");
+      setToast("Payment submitted ✓ We’ll verify it and activate your plan.");
+      setPaymentPlan(null);
+      setPaymentRef("");
+      setPaymentProof(null);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not submit payment.");
+    } finally {
+      setPaymentSubmitting(false);
+    }
   }
 
   function saveProfileDetails() {
@@ -3288,9 +3311,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <div className="payment-upi-row"><span><small>UPI ID</small><strong>zorivoworks-1@okicici</strong></span><button type="button" className="outline" onClick={()=>void copyUpiId()}>Copy</button></div>
             <div className="payment-actions"><button type="button" className="outline" onClick={downloadPaymentQr}>Download QR</button></div>
             <div className="payment-confirm">
-              <label>Already paid?<input value={paymentRef} onChange={e=>setPaymentRef(e.target.value)} placeholder="Enter UPI transaction/reference ID" maxLength={80}/></label>
-              <button type="button" className="primary" onClick={submitPaymentReference}>Submit payment</button>
-              <small>No need to message us. Submit the reference here after payment.</small>
+              <div className="payment-done-title"><strong>Payment done? ✓</strong><small>Upload the payment-success screenshot. This is the easiest way.</small></div>
+              <label className="payment-proof-upload">
+                <input type="file" accept="image/*" onChange={e=>setPaymentProof(e.target.files?.[0] || null)}/>
+                <span><Icon name="image" size={18}/><b>{paymentProof ? "Screenshot selected ✓" : "Upload payment screenshot"}</b></span>
+                {paymentProof && <small>{paymentProof.name}</small>}
+              </label>
+              <div className="payment-or"><span>or</span></div>
+              <label className="payment-ref-label"><span>Enter transaction ID instead</span><input value={paymentRef} onChange={e=>setPaymentRef(e.target.value)} placeholder="UPI transaction / reference ID" maxLength={80}/></label>
+              <button type="button" className="primary" disabled={paymentSubmitting || (!paymentProof && !paymentRef.trim())} onClick={()=>void submitPaymentReference()}>{paymentSubmitting ? "Submitting…" : "Yes, I’ve Paid"}</button>
+              <small className="payment-review-note">Your plan will activate after payment verification. No need to message us.</small>
             </div>
           </div>
         </div>
