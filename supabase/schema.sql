@@ -131,3 +131,26 @@ insert into public.profiles(owner_id,role)
 select id,'owner' from auth.users
 where lower(email)=lower('zorivoworks@gmail.com')
 on conflict(owner_id) do update set role='owner';
+
+
+-- Subscription payment requests submitted from the QR payment screen.
+create table if not exists public.payment_requests (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  email text,
+  plan text not null check (plan in ('basic','smart','business')),
+  amount integer not null check (amount > 0),
+  transaction_ref text,
+  proof_path text,
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  submitted_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references auth.users(id)
+);
+alter table public.payment_requests enable row level security;
+drop policy if exists "Users can read own payment requests" on public.payment_requests;
+create policy "Users can read own payment requests" on public.payment_requests for select using (auth.uid() = owner_id);
+
+insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
+values ('payment-proofs','payment-proofs',false,5242880,array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public=false,file_size_limit=5242880,allowed_mime_types=array['image/jpeg','image/png','image/webp'];
