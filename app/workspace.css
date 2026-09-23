@@ -8785,3 +8785,17 @@ footer .footer-separator{
 [data-theme="dark"] .plan-voice-value{background:#182720}
 [data-theme="dark"] .plan-voice-value small{color:#c0d1ca}
 @media(max-width:480px){.trial-value-banner{padding:17px}.trial-value-banner h2{font-size:20px}.trial-value-banner p{font-size:12px}.trial-limit-row>span{min-width:0}.trial-limit-row strong{font-size:17px}}
+
+
+/* Subscription typography override: use the app's clean sans UI face, not the decorative heading face */
+.subscription-heading,.subscription-summary,.trial-value-banner,.subscription-section-title,.value-plan-grid,.subscription-help{
+  font-family:Arial,"Helvetica Neue",sans-serif !important;
+}
+.subscription-heading h1,.subscription-summary h2,.trial-value-banner h2,.subscription-section-title h2,
+.value-plan-card h3,.value-plan-card .plan-price,.trial-limit-row strong,.plan-limit-grid strong{
+  font-family:Arial,"Helvetica Neue",sans-serif !important;
+  font-style:normal !important;
+}
+.value-plan-card h3,.trial-value-banner h2,.subscription-section-title h2{font-weight:700 !important}
+.value-plan-card .plan-price{font-weight:800 !important;letter-spacing:-.025em}
+.trial-limit-row strong,.plan-limit-grid strong{font-weight:700 !important}
