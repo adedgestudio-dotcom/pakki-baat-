@@ -12,9 +12,16 @@ export default function AdminPage(){
 
   async function login(e:FormEvent){
     e.preventDefault(); setError("");
-    const res=await fetch("/api/admin/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin})});
-    if(res.ok){sessionStorage.setItem("pakki-admin-unlocked","1");setUnlocked(true);setPin("");}
-    else setError("Incorrect PIN");
+    try {
+      const res=await fetch("/api/admin/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin})});
+      const data=await res.json().catch(()=>({}));
+      if(res.ok){sessionStorage.setItem("pakki-admin-unlocked","1");setUnlocked(true);setPin("");return;}
+      if(res.status===401) setError("Incorrect PIN. Please try again.");
+      else if(res.status===503) setError("Admin PIN is not configured on this deployment. Check ADMIN_PIN in Vercel and redeploy.");
+      else setError(data?.error||`Admin login failed (error ${res.status}).`);
+    } catch {
+      setError("Could not reach the admin login server. Please try again.");
+    }
   }
   function logout(){sessionStorage.removeItem("pakki-admin-unlocked");setUnlocked(false)}
 
