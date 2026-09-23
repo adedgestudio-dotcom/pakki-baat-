@@ -8690,3 +8690,38 @@ footer .footer-separator{
   [data-theme="dark"] .hero-preview-chip.reminder{right:10px !important;}
   [data-theme="dark"] .hero-preview-chip.whatsapp{right:-5px !important;}
 }
+
+
+/* FINAL dark phone hero parity: match the actual light-mode .hero-art rule */
+@media(max-width:560px){
+  [data-theme="dark"] .hero{
+    position:relative !important;
+    min-height:0 !important;
+    height:auto !important;
+    display:block !important;
+    overflow:hidden !important;
+  }
+  [data-theme="dark"] .hero-copy{
+    width:100% !important;
+    max-width:none !important;
+    min-height:232px !important;
+    padding:19px 112px 18px 18px !important;
+    display:block !important;
+    position:relative !important;
+    z-index:4 !important;
+  }
+  [data-theme="dark"] .hero-art.hero-app-preview{
+    pointer-events:none !important;
+    position:absolute !important;
+    z-index:2 !important;
+    top:0 !important;
+    right:-10px !important;
+    bottom:auto !important;
+    left:auto !important;
+    width:122px !important;
+    height:100% !important;
+    min-height:0 !important;
+    margin:0 !important;
+    transform:none !important;
+  }
+}
