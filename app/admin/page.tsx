@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { currentSession, signInWithGoogle } from "@/lib/cloud";
+import { currentSession } from "@/lib/cloud";
 import "./admin.css";
 
 const OWNER_EMAIL = "zorivoworks@gmail.com";
@@ -19,8 +19,8 @@ export default function AdminPage(){
   }).catch(()=>setState("signedout"));},[]);
 
   if(state==="loading") return <main className="admin-shell"><div className="admin-center">Opening owner panel…</div></main>;
-  if(state==="signedout") return <main className="admin-shell"><div className="admin-access-card"><span>PAKKI BAAT OWNER</span><h1>Admin sign in</h1><p>Sign in with the Pakki Baat owner Google account.</p><button onClick={()=>void signInWithGoogle()}>Continue with Google</button><a href="/">Back to Pakki Baat</a></div></main>;
-  if(state==="blocked") return <main className="admin-shell"><div className="admin-access-card"><span>OWNER ONLY</span><h1>Admin access</h1><p>{email} is signed in as a customer account.</p><a className="admin-button" href="/">Back to Pakki Baat</a></div></main>;
+  if(state==="signedout") return <main className="admin-shell"><div className="admin-access-card"><span>PAKKI BAAT OWNER</span><h1>Admin sign in</h1><p>Sign in with the Pakki Baat owner Google account.</p><p className="admin-login-note">Admin sign-in is kept separate so it does not replace the account currently open in Pakki Baat.</p><a className="admin-button" href="/">Back to Pakki Baat</a></div></main>;
+  if(state==="blocked") return <main className="admin-shell"><div className="admin-access-card"><span>OWNER ONLY</span><h1>Admin access</h1><p>{email} is the account currently open in Pakki Baat. It has not been changed.</p><p className="admin-login-note">To keep your testing account separate, admin will use its own owner session instead of switching this app session.</p><a className="admin-button" href="/">Back to Pakki Baat</a></div></main>;
 
   return <main className="admin-shell">
     <header className="admin-topbar"><div><span className="admin-brand-mark">P</span><div><strong>Pakki Baat</strong><small>Owner panel</small></div></div><a href="/">Open app</a></header>
