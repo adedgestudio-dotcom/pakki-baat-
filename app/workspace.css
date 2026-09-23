@@ -8309,3 +8309,56 @@ footer .footer-separator{
   border-color:#36594b !important;
   background:#22332c !important;
 }
+
+
+/* Dark home hero illustration: quieter, integrated product preview */
+[data-theme="dark"] .hero-app-preview{
+  min-height:260px !important;
+  transform:none !important;
+}
+[data-theme="dark"] .hero-preview-glow{
+  width:230px !important;
+  height:230px !important;
+  background:radial-gradient(circle, rgba(78,151,126,.16) 0%, rgba(78,151,126,.05) 48%, transparent 72%) !important;
+  filter:blur(2px) !important;
+}
+[data-theme="dark"] .hero-preview-main{
+  width:min(285px,78%) !important;
+  background:#1d2521 !important;
+  border:1px solid #3d5047 !important;
+  box-shadow:0 16px 34px rgba(0,0,0,.24) !important;
+  transform:rotate(-1.5deg) !important;
+}
+[data-theme="dark"] .hero-preview-money{
+  background:#25332d !important;
+  border-color:#394e44 !important;
+}
+[data-theme="dark"] .hero-preview-money span{
+  background:#355d4d !important;
+  color:#dff2e9 !important;
+}
+[data-theme="dark"] .hero-preview-chip{
+  width:auto !important;
+  min-width:150px !important;
+  background:#202925 !important;
+  border:1px solid #3a4a43 !important;
+  box-shadow:0 10px 24px rgba(0,0,0,.20) !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder{
+  background:#2b2923 !important;
+  border-color:#514938 !important;
+  transform:translate(-8px,2px) !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder .hero-preview-chip-icon{
+  background:#3d3527 !important;
+  color:#d9b778 !important;
+}
+[data-theme="dark"] .hero-preview-chip.whatsapp{
+  background:#202c27 !important;
+  border-color:#365046 !important;
+  transform:translate(8px,-2px) !important;
+}
+[data-theme="dark"] .hero-preview-chip.whatsapp .hero-preview-chip-icon{
+  background:#29463a !important;
+  color:#8ec8af !important;
+}
