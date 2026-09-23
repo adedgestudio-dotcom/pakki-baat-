@@ -8454,3 +8454,39 @@ footer .footer-separator{
 [data-theme="dark"] .hero-preview-glow{
   background:radial-gradient(circle at 35% 35%,#294238 0%,#20332b 62%,rgba(32,51,43,.15) 100%) !important;
 }
+
+
+/* Dark hero illustration: use exactly the same geometry/alignment as light mode */
+[data-theme="dark"] .hero-app-preview{
+  width:43% !important;
+  min-height:294px !important;
+  transform:none !important;
+}
+[data-theme="dark"] .hero-preview-glow{
+  width:238px !important;
+  height:238px !important;
+  right:26px !important;
+  top:28px !important;
+}
+[data-theme="dark"] .hero-preview-main{
+  top:54px !important;
+  right:48px !important;
+  width:218px !important;
+  padding:15px !important;
+  transform:rotate(1.5deg) !important;
+}
+[data-theme="dark"] .hero-preview-chip{
+  width:177px !important;
+  min-width:0 !important;
+  padding:10px 11px !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder{
+  right:88px !important;
+  top:183px !important;
+  transform:translateX(-18px) rotate(-2deg) !important;
+}
+[data-theme="dark"] .hero-preview-chip.whatsapp{
+  right:27px !important;
+  top:225px !important;
+  transform:rotate(2deg) !important;
+}
