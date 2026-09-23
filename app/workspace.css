@@ -8744,3 +8744,10 @@ footer .footer-separator{
 [data-theme="dark"] .trial-value-banner{background:#17231e;border-color:#2d473d}[data-theme="dark"] .trial-value-pill,[data-theme="dark"] .plan-daily-price{background:#213a31;color:#bfe6d5}[data-theme="dark"] .plan-voice-value{background:#19231f}
 @media(max-width:800px){.trial-value-banner{align-items:flex-start;padding:15px 16px;margin:12px 0 18px}.trial-value-banner h2{font-size:18px}.trial-value-pill{font-size:10px}.plan-price-row{align-items:center}.plan-customer-value strong{font-size:17px}}
 @media(max-width:480px){.trial-value-banner{display:grid;gap:10px}.trial-value-pill{justify-self:start}.value-plan-grid .value-plan-card{gap:11px!important}.plan-card-head h3{font-size:18px}.plan-price-row .plan-price{font-size:27px}.plan-daily-price{font-size:10px}.clean-plan-grid ul{gap:6px;font-size:11px}}
+
+
+/* Make plan limits instantly scannable */
+.trial-limit-row{display:flex;gap:8px;margin-top:12px}.trial-limit-row>span,.plan-limit-grid>div{display:grid;gap:2px;padding:9px 11px;border:1px solid #d5e7df;border-radius:12px;background:#fff}.trial-limit-row small,.plan-limit-grid small{font-size:8px;font-weight:900;letter-spacing:.1em;color:#5d746b}.trial-limit-row strong{font-size:16px;color:#286c59}
+.plan-limit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.plan-limit-grid>div strong{font-size:14px;line-height:1.25;color:var(--ink)}.plan-limit-grid>div:first-child strong{color:#286c59}.plan-team-line{font-size:10px;color:var(--muted);margin-top:-5px}
+[data-theme="dark"] .trial-limit-row>span,[data-theme="dark"] .plan-limit-grid>div{background:#19231f;border-color:#30473e}[data-theme="dark"] .trial-limit-row strong,[data-theme="dark"] .plan-limit-grid>div:first-child strong{color:#8fc4ae}
+@media(max-width:480px){.trial-limit-row{width:100%}.trial-limit-row>span{flex:1}.plan-limit-grid{gap:7px}.plan-limit-grid>div{padding:8px 9px}.plan-limit-grid>div strong{font-size:13px}}
