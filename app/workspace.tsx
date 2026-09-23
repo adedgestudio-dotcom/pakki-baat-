@@ -2980,18 +2980,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <small>Your actual usage will appear here once connected to your account.</small>
                 </div>
               </section>
-              <div className="subscription-section-title"><div><h2>Choose a plan</h2><p>All plans include Hisaab, payments, reminders and AI entry.</p></div></div>
+              <div className="subscription-section-title"><div><h2>Choose a plan</h2><p>All plans include unlimited Hisaab entries, payments and reminders. Plans scale with your customer base and team.</p></div></div>
               <div className="plan-grid clean-plan-grid">
                 {[
-                  ["Basic","₹99","120","Light use"],
-                  ["Smart","₹199","600","Regular use"],
-                  ["Business","₹349","1,200","Heavy use"],
-                ].map(([name,price,mins,copy])=><article className={"plan-card "+(name==="Smart"?"recommended":"")} key={name}>
-                  <div className="plan-card-head"><div><h3>{name}</h3><small>{copy}</small></div>{name==="Smart"&&<span className="recommended-tag">MOST POPULAR</span>}</div>
-                  <div className="plan-price">{price}<small>/month</small></div>
-                  <div className="plan-minutes"><strong>{mins}</strong><span>voice minutes / month</span></div>
-                  <ul><li>Customer Hisaab</li><li>Payments & reminders</li><li>Voice transcription + AI entry</li></ul>
-                  <button type="button" className={name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name,price});setPaymentRef("");}}>Choose {name}</button>
+                  {name:"Basic",price:"₹99",mins:"60",copy:"For very small businesses",customers:"Up to 50 customers",team:"1 user"},
+                  {name:"Smart",price:"₹179",mins:"300",copy:"For growing businesses",customers:"Up to 250 customers",team:"1 user"},
+                  {name:"Business",price:"₹299",mins:"750",copy:"For busy teams",customers:"Unlimited customers",team:"1 business · Up to 3 team members"},
+                ].map(plan=><article className={"plan-card "+(plan.name==="Smart"?"recommended":"")} key={plan.name}>
+                  <div className="plan-card-head"><div><h3>{plan.name}</h3><small>{plan.copy}</small></div>{plan.name==="Smart"&&<span className="recommended-tag">MOST POPULAR</span>}</div>
+                  <div className="plan-price">{plan.price}<small>/month</small></div>
+                  <div className="plan-minutes"><strong>{plan.customers}</strong><span>{plan.team}</span></div>
+                  <ul><li>Unlimited Hisaab entries</li><li>Payments, reminders & WhatsApp follow-up</li><li>{plan.mins} shared voice + AI minutes / month</li>{plan.name==="Business"&&<li>One shared business workspace for the whole team</li>}</ul>
+                  <button type="button" className={plan.name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name:plan.name,price:plan.price});setPaymentRef("");setPaymentProof(null);}}>Choose {plan.name}</button>
                 </article>)}
               </div>
               <section className="subscription-help">
