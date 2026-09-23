@@ -2981,7 +2981,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </section>
               <section className="trial-value-banner">
-                <div><span className="trial-value-kicker">TRY IT FREE</span><h2>7 days free. No payment to start.</h2><p>Try Hisaab, payments, reminders, WhatsApp follow-ups and voice entry.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>25</strong></span><span><small>VOICE + AI</small><strong>60 min</strong></span></div></div>
+                <div><span className="trial-value-kicker">FREE FOR 7 DAYS</span><h2>Try Pakki Baat free</h2><p>Start with your real customers and see how easy daily Hisaab feels — no payment needed.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>25</strong></span><span><small>VOICE + AI</small><strong>60 min</strong></span></div></div>
               </section>
               <div className="subscription-section-title"><div><h2>Choose what fits your business</h2><p>Start small and upgrade only when your customer list grows.</p></div></div>
               <div className="plan-grid clean-plan-grid value-plan-grid">
