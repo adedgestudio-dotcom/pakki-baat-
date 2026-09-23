@@ -233,3 +233,36 @@ begin
 end;$$;
 revoke all on function public.add_workspace_member(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.add_workspace_member(uuid,uuid) to service_role;
+
+
+-- Trial protection: 7 days, 25 customers and 60 voice minutes.
+-- The server records a privacy-preserving hash supplied by the app; raw device signals are never stored here.
+create table if not exists public.trial_claims (
+  device_hash text primary key,
+  first_owner_id uuid not null references auth.users(id) on delete cascade,
+  claimed_at timestamptz not null default now()
+);
+alter table public.trial_claims enable row level security;
+revoke all on public.trial_claims from public,anon,authenticated;
+
+create or replace function public.claim_trial(user_id uuid, supplied_device_hash text) returns jsonb
+language plpgsql security definer set search_path=public as $$
+declare existing_owner uuid; sub public.subscriptions%rowtype;
+begin
+  if supplied_device_hash is null or length(trim(supplied_device_hash)) < 16 then
+    return jsonb_build_object('allowed',false,'reason','invalid_device');
+  end if;
+  perform public.ensure_user_access(user_id);
+  select * into sub from public.subscriptions where owner_id=user_id for update;
+  if sub.plan <> 'trial' then return jsonb_build_object('allowed',true,'reason','paid_account'); end if;
+  select first_owner_id into existing_owner from public.trial_claims where device_hash=supplied_device_hash;
+  if existing_owner is not null and existing_owner<>user_id then
+    update public.subscriptions set status='expired',period_end=least(period_end,now()),updated_at=now() where owner_id=user_id and plan='trial';
+    return jsonb_build_object('allowed',false,'reason','trial_already_used_on_device');
+  end if;
+  insert into public.trial_claims(device_hash,first_owner_id) values(supplied_device_hash,user_id)
+    on conflict(device_hash) do nothing;
+  return jsonb_build_object('allowed',true,'reason','trial_claimed');
+end;$$;
+revoke all on function public.claim_trial(uuid,text) from public,anon,authenticated;
+grant execute on function public.claim_trial(uuid,text) to service_role;
