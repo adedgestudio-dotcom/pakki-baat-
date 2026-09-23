@@ -8250,3 +8250,62 @@ footer .footer-separator{
   transform:translate(-9.7%,-9.7%);
   border-radius:12px;
 }
+
+
+/* Dark home hero: warmer accent mix so the second section has visual hierarchy */
+[data-theme="dark"] .hero{
+  background:
+    radial-gradient(circle at 82% 24%, rgba(214,167,95,.13), transparent 31%),
+    radial-gradient(circle at 18% 88%, rgba(78,151,126,.14), transparent 36%),
+    #202824 !important;
+  border-color:#3b4a43 !important;
+}
+[data-theme="dark"] .hero .pill{
+  background:#2d3d36 !important;
+  color:#9fd3bf !important;
+  border:1px solid #416052 !important;
+}
+[data-theme="dark"] .hero h2{
+  color:#f5f1e8 !important;
+}
+[data-theme="dark"] .hero h2::first-line{
+  color:#a9d8c6;
+}
+[data-theme="dark"] .hero .hero-cta{
+  background:#d8ad6d !important;
+  color:#1e241f !important;
+  border-color:#e7c58f !important;
+  box-shadow:0 8px 22px rgba(216,173,109,.16) !important;
+}
+[data-theme="dark"] .hero .hero-cta svg{
+  color:#1e241f !important;
+  stroke:#1e241f !important;
+}
+[data-theme="dark"] .hero .hero-cta:hover:not(:disabled){
+  background:#e3bd82 !important;
+  color:#18201c !important;
+}
+[data-theme="dark"] .hero-preview-main{
+  border-color:#4b675b !important;
+  box-shadow:0 18px 42px rgba(0,0,0,.28) !important;
+}
+[data-theme="dark"] .hero-preview-money{
+  background:#283b33 !important;
+  border-color:#416052 !important;
+}
+[data-theme="dark"] .hero-preview-money span{
+  background:#e2b36e !important;
+  color:#282116 !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder{
+  border-color:#6b583d !important;
+  background:#302b22 !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder .hero-preview-chip-icon{
+  background:#493a25 !important;
+  color:#e9bd78 !important;
+}
+[data-theme="dark"] .hero-preview-chip.whatsapp{
+  border-color:#36594b !important;
+  background:#22332c !important;
+}
