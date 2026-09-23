@@ -8751,3 +8751,37 @@ footer .footer-separator{
 .plan-limit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.plan-limit-grid>div strong{font-size:14px;line-height:1.25;color:var(--ink)}.plan-limit-grid>div:first-child strong{color:#286c59}.plan-team-line{font-size:10px;color:var(--muted);margin-top:-5px}
 [data-theme="dark"] .trial-limit-row>span,[data-theme="dark"] .plan-limit-grid>div{background:#19231f;border-color:#30473e}[data-theme="dark"] .trial-limit-row strong,[data-theme="dark"] .plan-limit-grid>div:first-child strong{color:#8fc4ae}
 @media(max-width:480px){.trial-limit-row{width:100%}.trial-limit-row>span{flex:1}.plan-limit-grid{gap:7px}.plan-limit-grid>div{padding:8px 9px}.plan-limit-grid>div strong{font-size:13px}}
+
+
+/* Subscription readability pass: stronger contrast and cleaner hierarchy */
+.trial-value-banner{padding:20px 22px;border-color:#c5ddd3;background:#f7fbf9}
+.trial-value-kicker{color:#23715e;font-size:10px;letter-spacing:.13em}
+.trial-value-banner h2{font-size:22px;font-weight:750;letter-spacing:-.02em;color:var(--ink)}
+.trial-value-banner p{font-size:13px;color:#52645d;line-height:1.55}
+.trial-limit-row>span{min-width:112px;background:#fff;border-color:#c9ded5}
+.trial-limit-row small,.plan-limit-grid small{color:#52675f}
+.trial-limit-row strong{font-size:18px;color:#23715e}
+.value-plan-card .plan-card-head small{color:#596a64;font-size:12px;line-height:1.4}
+.value-plan-card .plan-price{color:var(--ink)}
+.value-plan-card .plan-price small{color:#5c6c66}
+.plan-limit-grid>div{background:#fafcfb;border-color:#d4e1dc}
+.plan-limit-grid small{font-size:9px}
+.plan-limit-grid>div strong{font-size:15px;color:#25352f}
+.plan-limit-grid>div:first-child strong{color:#23715e}
+.plan-team-line{color:#66766f;font-size:11px}
+.value-plan-grid ul{color:#52635d;font-size:12px}
+.plan-voice-value{background:#f0f6f3}
+.plan-voice-value small{color:#40544c;font-size:11px}
+[data-theme="dark"] .trial-value-banner{background:#15231d;border-color:#315347}
+[data-theme="dark"] .trial-value-kicker{color:#69c5a6}
+[data-theme="dark"] .trial-value-banner h2{color:#f2f7f5}
+[data-theme="dark"] .trial-value-banner p{color:#b6c9c1}
+[data-theme="dark"] .trial-limit-row>span,[data-theme="dark"] .plan-limit-grid>div{background:#182720;border-color:#345649}
+[data-theme="dark"] .trial-limit-row small,[data-theme="dark"] .plan-limit-grid small{color:#a7bdb4}
+[data-theme="dark"] .trial-limit-row strong,[data-theme="dark"] .plan-limit-grid>div:first-child strong{color:#72d0b0}
+[data-theme="dark"] .plan-limit-grid>div strong{color:#e8f2ee}
+[data-theme="dark"] .value-plan-card .plan-card-head small,[data-theme="dark"] .plan-team-line,[data-theme="dark"] .value-plan-grid ul{color:#a9bbb4}
+[data-theme="dark"] .plan-price,[data-theme="dark"] .plan-price small{color:#edf5f2}
+[data-theme="dark"] .plan-voice-value{background:#182720}
+[data-theme="dark"] .plan-voice-value small{color:#c0d1ca}
+@media(max-width:480px){.trial-value-banner{padding:17px}.trial-value-banner h2{font-size:20px}.trial-value-banner p{font-size:12px}.trial-limit-row>span{min-width:0}.trial-limit-row strong{font-size:17px}}
