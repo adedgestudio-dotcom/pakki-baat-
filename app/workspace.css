@@ -8725,3 +8725,9 @@ footer .footer-separator{
     transform:none !important;
   }
 }
+
+/* Payment modal: keep close control inside card and hide visible scrollbars */
+.payment-modal-card,.payment-modal,.payment-sheet{position:relative}
+.payment-modal-card,.payment-modal,.payment-sheet{scrollbar-width:none;-ms-overflow-style:none}
+.payment-modal-card::-webkit-scrollbar,.payment-modal::-webkit-scrollbar,.payment-sheet::-webkit-scrollbar{display:none;width:0;height:0}
+.payment-modal-close,.payment-close{position:absolute!important;top:14px!important;right:14px!important;z-index:8!important}
