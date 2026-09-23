@@ -2980,17 +2980,27 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <small>Your actual usage will appear here once connected to your account.</small>
                 </div>
               </section>
-              <div className="subscription-section-title"><div><h2>Choose a plan</h2><p><strong>Start with a 7-day free trial.</strong> All plans include unlimited Hisaab entries, payments and reminders. Plans scale with your customer base and team.</p></div></div>
-              <div className="plan-grid clean-plan-grid">
+              <section className="trial-value-banner">
+                <div><span className="trial-value-kicker">TRY IT FREE</span><h2>7 days free. No payment to start.</h2><p>Try Hisaab, payments, reminders, WhatsApp follow-ups and voice entry with up to 25 customers.</p></div>
+                <span className="trial-value-pill">60 voice min included</span>
+              </section>
+              <div className="subscription-section-title"><div><h2>Choose what fits your business</h2><p>Start small and upgrade only when your customer list grows.</p></div></div>
+              <div className="plan-grid clean-plan-grid value-plan-grid">
                 {[
-                  {name:"Basic",price:"₹99",mins:"100",copy:"For very small businesses",customers:"Up to 50 customers",team:"1 user"},
-                  {name:"Smart",price:"₹179",mins:"500",copy:"For growing businesses",customers:"Up to 250 customers",team:"1 user"},
-                  {name:"Business",price:"₹299",mins:"1,000",copy:"For busy teams",customers:"Unlimited customers",team:"1 business · Up to 3 team members"},
-                ].map(plan=><article className={"plan-card "+(plan.name==="Smart"?"recommended":"")} key={plan.name}>
-                  <div className="plan-card-head"><div><h3>{plan.name}</h3><small>{plan.copy}</small></div>{plan.name==="Smart"&&<span className="recommended-tag">MOST POPULAR</span>}</div>
-                  <div className="plan-price">{plan.price}<small>/month</small></div>
-                  <div className="plan-minutes"><strong>{plan.customers}</strong><span>{plan.team}</span></div>
-                  <ul><li>Unlimited Hisaab entries</li><li>Payments, reminders & WhatsApp follow-up</li><li>{plan.mins} shared voice + AI minutes / month</li>{plan.name==="Business"&&<li>One shared business workspace for the whole team</li>}</ul>
+                  {name:"Basic",price:"₹99",perDay:"₹3.30/day",copy:"Everything you need to get organised",customers:"Up to 50 customers",team:"1 user",voice:"100 voice minutes included",voiceCopy:"Speak entries instead of typing"},
+                  {name:"Smart",price:"₹179",perDay:"Less than ₹6/day",copy:"Best value for a growing business",customers:"Up to 250 customers",team:"1 user",voice:"500 voice minutes included",voiceCopy:"More freedom to enter Hisaab by voice"},
+                  {name:"Business",price:"₹299",perDay:"Less than ₹10/day",copy:"For busy businesses and small teams",customers:"Unlimited customers",team:"1 business · Up to 3 team members",voice:"1,000 shared voice minutes",voiceCopy:"Shared across your whole team"},
+                ].map(plan=><article className={"plan-card value-plan-card "+(plan.name==="Smart"?"recommended":"")} key={plan.name}>
+                  <div className="plan-card-head"><div><h3>{plan.name}</h3><small>{plan.copy}</small></div>{plan.name==="Smart"&&<span className="recommended-tag">BEST VALUE</span>}</div>
+                  <div className="plan-price-row"><div className="plan-price">{plan.price}<small>/month</small></div><span className="plan-daily-price">{plan.perDay}</span></div>
+                  <div className="plan-customer-value"><strong>{plan.customers}</strong><span>{plan.team}</span></div>
+                  <ul>
+                    <li>Unlimited Hisaab entries</li>
+                    <li>Track payments & baki</li>
+                    <li>Reminders & WhatsApp follow-ups</li>
+                    <li>Receipts & customer history</li>
+                  </ul>
+                  <div className="plan-voice-value"><strong>{plan.voice}</strong><small>{plan.voiceCopy}</small></div>
                   <button type="button" className={plan.name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name:plan.name,price:plan.price});setPaymentRef("");setPaymentProof(null);}}>Choose {plan.name}</button>
                 </article>)}
               </div>
