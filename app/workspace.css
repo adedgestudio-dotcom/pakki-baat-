@@ -8584,3 +8584,45 @@ footer .footer-separator{
   top:225px !important;
   transform:rotate(2deg) !important;
 }
+
+
+/* Mobile hero parity fix: dark mode must use the SAME illustration layout as light mode.
+   Do not apply desktop absolute positioning to the phone breakpoint. */
+@media (max-width:800px){
+  [data-theme="dark"] .hero-app-preview{
+    position:relative !important;
+    width:100% !important;
+    min-height:220px !important;
+    margin:0 !important;
+    transform:none !important;
+    overflow:visible !important;
+  }
+  [data-theme="dark"] .hero-preview-glow{
+    width:190px !important;
+    height:190px !important;
+    right:8px !important;
+    top:12px !important;
+  }
+  [data-theme="dark"] .hero-preview-main{
+    top:28px !important;
+    right:18px !important;
+    width:188px !important;
+    padding:13px !important;
+    transform:rotate(1.5deg) !important;
+  }
+  [data-theme="dark"] .hero-preview-chip{
+    width:154px !important;
+    min-width:0 !important;
+    padding:9px 10px !important;
+  }
+  [data-theme="dark"] .hero-preview-chip.reminder{
+    top:137px !important;
+    right:72px !important;
+    transform:translateX(-10px) rotate(-2deg) !important;
+  }
+  [data-theme="dark"] .hero-preview-chip.whatsapp{
+    top:177px !important;
+    right:10px !important;
+    transform:rotate(2deg) !important;
+  }
+}
