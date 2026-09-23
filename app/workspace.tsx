@@ -2979,10 +2979,27 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           {tab === "Admin" && (
             <>
               <div className="page-heading"><div><div className="eyebrow">PAKKI BAAT CONTROL</div><h1>Admin</h1><p>Subscription controls for the Pakki Baat owner.</p></div></div>
-              <section className="admin-gate panel">
-                <span className="admin-gate-icon"><Icon name="shield" size={25}/></span>
-                <div><h2>Owner console</h2><p>The admin UI is ready for the next step: securely load users, plans, usage and expiry through a server-only owner endpoint.</p></div>
-                <div className="admin-stat-row"><span><strong>Users</strong><small>Account list</small></span><span><strong>Plans</strong><small>Change / extend</small></span><span><strong>Usage</strong><small>Voice + AI</small></span></div>
+              <section className="admin-home">
+                <div className="admin-welcome panel">
+                  <span className="admin-gate-icon"><Icon name="shield" size={25}/></span>
+                  <div><span className="eyebrow">OWNER ONLY</span><h2>Simple controls, all in one place</h2><p>Manage customers, payments and subscriptions without touching the database.</p></div>
+                </div>
+                <div className="admin-stat-row admin-overview">
+                  <button type="button"><small>Total users</small><strong>—</strong><span>View customers</span></button>
+                  <button type="button"><small>Pending payments</small><strong>—</strong><span>Review requests</span></button>
+                  <button type="button"><small>Active plans</small><strong>—</strong><span>Subscriptions</span></button>
+                  <button type="button"><small>Voice used</small><strong>—</strong><span>This month</span></button>
+                </div>
+                <div className="admin-section-grid">
+                  <section className="panel admin-action-card">
+                    <div className="admin-card-title"><span className="admin-action-icon"><Icon name="check" size={19}/></span><div><h3>Pending payments</h3><p>Approve UPI payments and activate the selected plan.</p></div></div>
+                    <div className="admin-empty-state"><strong>No payment requests loaded yet</strong><small>New payment requests will appear here for one-tap approval.</small></div>
+                  </section>
+                  <section className="panel admin-action-card">
+                    <div className="admin-card-title"><span className="admin-action-icon"><Icon name="plan" size={19}/></span><div><h3>Users & plans</h3><p>See each user's plan, expiry and voice usage.</p></div></div>
+                    <div className="admin-quick-actions"><span><strong>Change plan</strong><small>Basic · Smart · Business</small></span><span><strong>Add voice minutes</strong><small>Give bonus usage when needed</small></span><span><strong>Extend / suspend</strong><small>Simple account controls</small></span></div>
+                  </section>
+                </div>
               </section>
             </>
           )}
