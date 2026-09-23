@@ -2981,8 +2981,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </section>
               <section className="trial-value-banner">
-                <div><span className="trial-value-kicker">TRY IT FREE</span><h2>7 days free. No payment to start.</h2><p>Try Hisaab, payments, reminders, WhatsApp follow-ups and voice entry with up to 25 customers.</p></div>
-                <span className="trial-value-pill">60 voice min included</span>
+                <div><span className="trial-value-kicker">TRY IT FREE</span><h2>7 days free. No payment to start.</h2><p>Try Hisaab, payments, reminders, WhatsApp follow-ups and voice entry.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>25</strong></span><span><small>VOICE + AI</small><strong>60 min</strong></span></div></div>
               </section>
               <div className="subscription-section-title"><div><h2>Choose what fits your business</h2><p>Start small and upgrade only when your customer list grows.</p></div></div>
               <div className="plan-grid clean-plan-grid value-plan-grid">
@@ -2993,14 +2992,14 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 ].map(plan=><article className={"plan-card value-plan-card "+(plan.name==="Smart"?"recommended":"")} key={plan.name}>
                   <div className="plan-card-head"><div><h3>{plan.name}</h3><small>{plan.copy}</small></div>{plan.name==="Smart"&&<span className="recommended-tag">BEST VALUE</span>}</div>
                   <div className="plan-price-row"><div className="plan-price">{plan.price}<small>/month</small></div><span className="plan-daily-price">{plan.perDay}</span></div>
-                  <div className="plan-customer-value"><strong>{plan.customers}</strong><span>{plan.team}</span></div>
+                  <div className="plan-limit-grid"><div><small>CUSTOMERS</small><strong>{plan.customers}</strong></div><div><small>VOICE + AI</small><strong>{plan.voice}</strong></div></div><div className="plan-team-line">{plan.team}</div>
                   <ul>
                     <li>Unlimited Hisaab entries</li>
                     <li>Track payments & baki</li>
                     <li>Reminders & WhatsApp follow-ups</li>
                     <li>Receipts & customer history</li>
                   </ul>
-                  <div className="plan-voice-value"><strong>{plan.voice}</strong><small>{plan.voiceCopy}</small></div>
+                  <div className="plan-voice-value"><small>{plan.voiceCopy}</small></div>
                   <button type="button" className={plan.name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name:plan.name,price:plan.price});setPaymentRef("");setPaymentProof(null);}}>Choose {plan.name}</button>
                 </article>)}
               </div>
