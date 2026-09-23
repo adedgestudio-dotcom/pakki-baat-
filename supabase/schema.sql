@@ -117,3 +117,17 @@ begin
 end;$$;
 revoke all on function public.consume_ai_usage(uuid,integer,integer) from public,anon,authenticated;
 grant execute on function public.consume_ai_usage(uuid,integer,integer) to service_role;
+
+
+-- Owner bootstrap for the Pakki Baat admin console.
+-- The server still verifies the signed-in email before serving admin data.
+update public.profiles p
+set role='owner'
+from auth.users u
+where p.owner_id=u.id
+  and lower(u.email)=lower('zorivoworks@gmail.com');
+
+insert into public.profiles(owner_id,role)
+select id,'owner' from auth.users
+where lower(email)=lower('zorivoworks@gmail.com')
+on conflict(owner_id) do update set role='owner';
