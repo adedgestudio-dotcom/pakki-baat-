@@ -8414,3 +8414,43 @@ footer .footer-separator{
 [data-theme="dark"] .hero-preview-glow{
   background:radial-gradient(circle,rgba(67,133,109,.13) 0%,rgba(67,133,109,.035) 48%,transparent 72%) !important;
 }
+
+
+/* Keep the hero illustration's light/dark palette structurally matched */
+[data-theme="dark"] .hero-preview-main{
+  background:#171d1a !important;
+  border-color:#33423b !important;
+}
+[data-theme="dark"] .hero-preview-avatar{
+  background:#263b31 !important;
+  color:#8fc4ae !important;
+}
+[data-theme="dark"] .hero-preview-top>svg{
+  color:#67a98e !important;
+}
+[data-theme="dark"] .hero-preview-money{
+  background:#1d2823 !important;
+  border-color:#2e3d36 !important;
+}
+[data-theme="dark"] .hero-preview-money span{
+  background:#3a2d28 !important;
+  color:#dfa58d !important;
+}
+[data-theme="dark"] .hero-preview-chip{
+  background:#19201d !important;
+  border-color:#33423b !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder,
+[data-theme="dark"] .hero-preview-chip.whatsapp{
+  background:#19201d !important;
+  border-color:#33423b !important;
+}
+[data-theme="dark"] .hero-preview-chip-icon,
+[data-theme="dark"] .hero-preview-chip.reminder .hero-preview-chip-icon,
+[data-theme="dark"] .hero-preview-chip.whatsapp .hero-preview-chip-icon{
+  background:#263b31 !important;
+  color:#67a98e !important;
+}
+[data-theme="dark"] .hero-preview-glow{
+  background:radial-gradient(circle at 35% 35%,#294238 0%,#20332b 62%,rgba(32,51,43,.15) 100%) !important;
+}
