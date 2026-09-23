@@ -8731,3 +8731,16 @@ footer .footer-separator{
 .payment-modal-card,.payment-modal,.payment-sheet{scrollbar-width:none;-ms-overflow-style:none}
 .payment-modal-card::-webkit-scrollbar,.payment-modal::-webkit-scrollbar,.payment-sheet::-webkit-scrollbar{display:none;width:0;height:0}
 .payment-modal-close,.payment-close{position:absolute!important;top:14px!important;right:14px!important;z-index:8!important}
+
+
+/* Subscription value cards: clear on desktop, compact on phone */
+.trial-value-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:18px 0 22px;padding:18px 20px;border:1px solid #cfe2da;border-radius:18px;background:#f4faf7}
+.trial-value-banner h2{margin:2px 0 4px;font-size:20px}.trial-value-banner p{margin:0;max-width:650px;color:var(--muted);font-size:12px;line-height:1.5}.trial-value-kicker{font-size:9px;font-weight:900;letter-spacing:.14em;color:#2d7667}.trial-value-pill{flex:none;padding:8px 11px;border-radius:999px;background:#e2f0ea;color:#286c59;font-size:11px;font-weight:800}
+.value-plan-grid .value-plan-card{display:flex;flex-direction:column}
+.plan-price-row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}.plan-daily-price{font-size:11px;font-weight:800;color:#2d7667;background:#edf6f2;padding:5px 8px;border-radius:999px;white-space:nowrap}
+.plan-customer-value{display:grid;gap:2px;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.plan-customer-value strong{font-size:18px;color:var(--ink)}.plan-customer-value span{font-size:11px;color:var(--muted)}
+.plan-voice-value{display:grid;gap:2px;padding:10px 11px;border-radius:12px;background:#f6f8f6;margin-top:auto}.plan-voice-value strong{font-size:12px;color:var(--ink)}.plan-voice-value small{font-size:10px;color:var(--muted)}
+.value-plan-card>button{width:100%;margin-top:2px}
+[data-theme="dark"] .trial-value-banner{background:#17231e;border-color:#2d473d}[data-theme="dark"] .trial-value-pill,[data-theme="dark"] .plan-daily-price{background:#213a31;color:#bfe6d5}[data-theme="dark"] .plan-voice-value{background:#19231f}
+@media(max-width:800px){.trial-value-banner{align-items:flex-start;padding:15px 16px;margin:12px 0 18px}.trial-value-banner h2{font-size:18px}.trial-value-pill{font-size:10px}.plan-price-row{align-items:center}.plan-customer-value strong{font-size:17px}}
+@media(max-width:480px){.trial-value-banner{display:grid;gap:10px}.trial-value-pill{justify-self:start}.value-plan-grid .value-plan-card{gap:11px!important}.plan-card-head h3{font-size:18px}.plan-price-row .plan-price{font-size:27px}.plan-daily-price{font-size:10px}.clean-plan-grid ul{gap:6px;font-size:11px}}
