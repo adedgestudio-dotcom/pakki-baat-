@@ -1,48 +1,20 @@
 "use client";
-
-import { FormEvent, useEffect, useState } from "react";
-import "./admin.css";
-
+import {FormEvent,useEffect,useState} from "react";import "./admin.css";
+type D={stats:any;users:any[];payments:any[]};
 export default function AdminPage(){
-  const [ready,setReady]=useState(false);
-  const [unlocked,setUnlocked]=useState(false);
-  const [pin,setPin]=useState("");
-  const [error,setError]=useState("");
-  const [showPin,setShowPin]=useState(false);
-  useEffect(()=>{setUnlocked(sessionStorage.getItem("pakki-admin-unlocked")==="1");setReady(true)},[]);
-
-  async function login(e:FormEvent){
-    e.preventDefault(); setError("");
-    try {
-      const res=await fetch("/api/admin/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin})});
-      const data=await res.json().catch(()=>({}));
-      if(res.ok){sessionStorage.setItem("pakki-admin-unlocked","1");setUnlocked(true);setPin("");return;}
-      if(res.status===401) setError(data?.error||"Incorrect PIN. Please try again.");
-      else if(res.status===503) setError("Admin PIN is not configured on this deployment. Check ADMIN_PIN in Vercel and redeploy.");
-      else setError(data?.error||`Admin login failed (error ${res.status}).`);
-    } catch {
-      setError("Could not reach the admin login server. Please try again.");
-    }
-  }
-  function logout(){sessionStorage.removeItem("pakki-admin-unlocked");setUnlocked(false)}
-
-  if(!ready) return <main className="admin-shell"><div className="admin-center">Opening admin…</div></main>;
-  if(!unlocked) return <main className="admin-shell"><form className="admin-access-card" onSubmit={login}>
-    <span>PAKKI BAAT OWNER</span><h1>Admin access</h1><p>Enter your owner PIN. Your Pakki Baat testing account stays signed in separately.</p>
-    <div className="admin-pin-row"><input className="admin-pin" type={showPin?"text":"password"} inputMode="numeric" autoComplete="current-password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="Enter PIN" maxLength={32} autoFocus /><button className="admin-pin-eye" type="button" aria-label={showPin?"Hide PIN":"Show PIN"} onClick={()=>setShowPin(v=>!v)}><span className="admin-eye-label">{showPin?"Hide":"Show"}</span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/>{showPin&&<path d="M4 4l16 16"/>}</svg></button></div>
-    {error&&<div className="admin-error">{error}</div>}
-    <button type="submit" disabled={!pin}>Open Admin</button><a href="/">Back to Pakki Baat</a>
-  </form></main>;
-
-  return <main className="admin-shell">
-    <header className="admin-topbar"><div><span className="admin-brand-mark">P</span><div><strong>Pakki Baat</strong><small>Owner panel</small></div></div><div className="admin-top-actions"><a href="/">Open app</a><button onClick={logout}>Lock</button></div></header>
-    <div className="admin-wrap">
-      <div className="admin-heading"><div><span>OWNER DASHBOARD</span><h1>Good to see you.</h1><p>Everything important, without the clutter.</p></div></div>
-      <section className="admin-stats"><article><small>Total users</small><strong>—</strong><span>Customer accounts</span></article><article><small>Pending payments</small><strong>—</strong><span>Needs your review</span></article><article><small>Active plans</small><strong>—</strong><span>Paid subscriptions</span></article><article><small>Voice used</small><strong>—</strong><span>This month</span></article></section>
-      <section className="admin-grid">
-        <article className="admin-card"><div className="admin-card-head"><div><span>PAYMENTS</span><h2>Pending approvals</h2></div><button disabled>View all</button></div><div className="admin-empty"><strong>No requests loaded yet</strong><p>UPI payment requests will appear here. You’ll be able to approve or reject them in one tap.</p></div></article>
-        <article className="admin-card"><div className="admin-card-head"><div><span>USERS</span><h2>Manage plans</h2></div></div><div className="admin-actions"><div><strong>Change plan</strong><small>Basic · Smart · Business</small></div><div><strong>Add voice minutes</strong><small>Give bonus minutes when needed</small></div><div><strong>Extend subscription</strong><small>Change renewal date</small></div><div><strong>Suspend / reactivate</strong><small>Control account access</small></div></div></article>
-      </section>
-    </div>
-  </main>;
+ const[ready,setReady]=useState(false),[unlocked,setUnlocked]=useState(false),[pin,setPin]=useState(""),[error,setError]=useState(""),[showPin,setShowPin]=useState(false),[data,setData]=useState<D|null>(null),[busy,setBusy]=useState("");
+ async function load(){const r=await fetch("/api/admin/dashboard",{cache:"no-store"});if(r.status===401){setUnlocked(false);setReady(true);return}const d=await r.json();if(!r.ok)throw new Error(d.error||"Could not load dashboard");setData(d);setUnlocked(true);setReady(true)}
+ useEffect(()=>{void load().catch(e=>{setError(e.message);setReady(true)})},[]);
+ async function login(e:FormEvent){e.preventDefault();setError("");const r=await fetch("/api/admin/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin})});const d=await r.json().catch(()=>({}));if(!r.ok){setError(d.error||"Admin login failed.");return}setPin("");await load()}
+ async function logout(){await fetch("/api/admin/auth",{method:"DELETE"});setUnlocked(false);setData(null)}
+ async function act(body:any){setBusy(body.paymentId||body.userId||body.action);setError("");try{const r=await fetch("/api/admin/dashboard",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error||"Action failed");await load()}catch(e){setError(e instanceof Error?e.message:"Action failed")}finally{setBusy("")}}
+ const mins=(s:number=0)=>Math.round(s/60);const date=(x:string)=>x?new Date(x).toLocaleDateString("en-IN"):"—";
+ if(!ready)return <main className="admin-shell"><div className="admin-center">Opening admin…</div></main>;
+ if(!unlocked)return <main className="admin-shell"><form className="admin-access-card" onSubmit={login}><span>PAKKI BAAT OWNER</span><h1>Admin access</h1><p>Enter your owner PIN.</p><div className="admin-pin-row"><input className="admin-pin" type={showPin?"text":"password"} value={pin} onChange={e=>setPin(e.target.value)} placeholder="Enter PIN" autoFocus/><button className="admin-pin-eye" type="button" onClick={()=>setShowPin(v=>!v)}>{showPin?"Hide":"Show"}</button></div>{error&&<div className="admin-error">{error}</div>}<button type="submit" disabled={!pin}>Open Admin</button><a href="/">Back to Pakki Baat</a></form></main>;
+ return <main className="admin-shell"><header className="admin-topbar"><div><span className="admin-brand-mark">P</span><div><strong>Pakki Baat</strong><small>Owner panel</small></div></div><div className="admin-top-actions"><button onClick={()=>load()}>Refresh</button><a href="/">Open app</a><button onClick={logout}>Lock</button></div></header><div className="admin-wrap">
+ <div className="admin-heading"><div><span>OWNER DASHBOARD</span><h1>Business control centre</h1><p>Users, subscriptions, payments and usage in one place.</p></div></div>{error&&<div className="admin-error admin-banner">{error}</div>}
+ <section className="admin-stats"><article><small>Total users</small><strong>{data?.stats.totalUsers??0}</strong><span>Customer accounts</span></article><article><small>Pending payments</small><strong>{data?.stats.pendingPayments??0}</strong><span>Needs review</span></article><article><small>Active plans</small><strong>{data?.stats.activePlans??0}</strong><span>Paid subscriptions</span></article><article><small>Voice used</small><strong>{mins(data?.stats.voiceSeconds)}m</strong><span>Latest monthly records</span></article></section>
+ <section className="admin-card admin-wide"><div className="admin-card-head"><div><span>PAYMENTS</span><h2>Payment approvals</h2></div></div>{!data?.payments?.length?<div className="admin-empty">No payment requests yet.</div>:<div className="admin-table-wrap"><table><thead><tr><th>User</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Proof</th><th>Action</th></tr></thead><tbody>{data.payments.map(p=><tr key={p.id}><td>{p.email||p.owner_id}</td><td>{p.plan}</td><td>₹{p.amount}</td><td>{p.transaction_ref||"—"}</td><td><span className={"status "+p.status}>{p.status}</span></td><td>{p.proof_path?<span title={p.proof_path}>Uploaded</span>:"—"}</td><td>{p.status==="pending"?<div className="row-actions"><button disabled={!!busy} onClick={()=>act({action:"review_payment",paymentId:p.id,decision:"approve"})}>Approve</button><button className="danger" disabled={!!busy} onClick={()=>act({action:"review_payment",paymentId:p.id,decision:"reject"})}>Reject</button></div>:"—"}</td></tr>)}</tbody></table></div>}</section>
+ <section className="admin-card admin-wide"><div className="admin-card-head"><div><span>USERS</span><h2>Users & plans</h2></div></div><div className="admin-table-wrap"><table><thead><tr><th>Email</th><th>Plan</th><th>Status</th><th>Voice</th><th>Expires</th><th>Trial</th><th>Manage</th></tr></thead><tbody>{data?.users.map(u=><tr key={u.id}><td>{u.email}</td><td>{u.plan||"—"}</td><td><span className={"status "+u.status}>{u.status||"—"}</span></td><td>{mins(u.usage?.voice_seconds)}m + {mins(u.bonus_voice_seconds)}m bonus</td><td>{date(u.period_end)}</td><td>{u.trial_claim?"Used":"—"}</td><td><div className="manage"><select defaultValue={u.plan||"trial"} onChange={e=>act({action:"change_plan",userId:u.id,plan:e.target.value})}><option value="trial">Trial</option><option value="basic">Basic</option><option value="smart">Smart</option><option value="business">Business</option></select><button onClick={()=>{const x=prompt("Bonus voice minutes?","60");if(x)act({action:"add_voice",userId:u.id,minutes:Number(x)})}}>+ Voice</button><button onClick={()=>{const x=prompt("Extend by how many days?","30");if(x)act({action:"extend",userId:u.id,days:Number(x)})}}>Extend</button><button onClick={()=>act({action:"status",userId:u.id,status:u.status==="suspended"?"active":"suspended"})}>{u.status==="suspended"?"Reactivate":"Suspend"}</button><button onClick={()=>act({action:"grant_trial",userId:u.id})}>Grant trial</button></div></td></tr>)}</tbody></table></div></section>
+ </div></main>
 }
