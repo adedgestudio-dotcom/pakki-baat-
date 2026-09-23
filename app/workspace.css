@@ -8362,3 +8362,55 @@ footer .footer-separator{
   background:#29463a !important;
   color:#8ec8af !important;
 }
+
+
+/* Dark hero illustration: true dark-mode surfaces */
+[data-theme="dark"] .hero-preview-main{
+  background:#171d1a !important;
+  border-color:#33423b !important;
+  box-shadow:0 18px 38px rgba(0,0,0,.38) !important;
+}
+[data-theme="dark"] .hero-preview-top{
+  border-color:#2e3a35 !important;
+}
+[data-theme="dark"] .hero-preview-avatar{
+  background:#244b3d !important;
+  color:#bce2d2 !important;
+}
+[data-theme="dark"] .hero-preview-money{
+  background:#1c2823 !important;
+  border-color:#30453b !important;
+}
+[data-theme="dark"] .hero-preview-money strong,
+[data-theme="dark"] .hero-preview-top strong,
+[data-theme="dark"] .hero-preview-chip strong{
+  color:#f1f5f2 !important;
+}
+[data-theme="dark"] .hero-preview-money small,
+[data-theme="dark"] .hero-preview-top small,
+[data-theme="dark"] .hero-preview-chip small{
+  color:#9eaaa4 !important;
+}
+[data-theme="dark"] .hero-preview-money span{
+  background:#294d3f !important;
+  color:#bfe2d4 !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder{
+  background:#1d201d !important;
+  border-color:#454137 !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder .hero-preview-chip-icon{
+  background:#342f24 !important;
+  color:#d4ad6b !important;
+}
+[data-theme="dark"] .hero-preview-chip.whatsapp{
+  background:#19241f !important;
+  border-color:#30473d !important;
+}
+[data-theme="dark"] .hero-preview-chip.whatsapp .hero-preview-chip-icon{
+  background:#213b31 !important;
+  color:#91cbb2 !important;
+}
+[data-theme="dark"] .hero-preview-glow{
+  background:radial-gradient(circle,rgba(67,133,109,.13) 0%,rgba(67,133,109,.035) 48%,transparent 72%) !important;
+}
