@@ -8490,3 +8490,48 @@ footer .footer-separator{
   top:225px !important;
   transform:rotate(2deg) !important;
 }
+
+
+/* Final hero parity: dark mode keeps light-mode illustration placement exactly */
+[data-theme="dark"] .hero-app-preview{
+  position:relative !important;
+  width:43% !important;
+  min-height:294px !important;
+  transform:none !important;
+}
+[data-theme="dark"] .hero-preview-glow{
+  width:238px !important;
+  height:238px !important;
+  right:26px !important;
+  top:28px !important;
+}
+[data-theme="dark"] .hero-preview-main{
+  top:54px !important;
+  right:48px !important;
+  width:218px !important;
+  padding:15px !important;
+  transform:rotate(1.5deg) !important;
+}
+[data-theme="dark"] .hero-preview-chip{
+  width:177px !important;
+  min-width:0 !important;
+  padding:10px 11px !important;
+}
+[data-theme="dark"] .hero-preview-chip.reminder{
+  right:88px !important;
+  top:183px !important;
+  transform:translateX(-18px) rotate(-2deg) !important;
+}
+[data-theme="dark"] .hero-preview-chip.whatsapp{
+  right:27px !important;
+  top:225px !important;
+  transform:rotate(2deg) !important;
+}
+@media(max-width:1150px){
+  [data-theme="dark"] .hero-app-preview{width:41% !important;}
+}
+@media(max-width:800px){
+  [data-theme="dark"] .hero-app-preview{
+    width:100% !important;
+  }
+}
