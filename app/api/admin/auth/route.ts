@@ -8,6 +8,6 @@ export async function POST(request:NextRequest){
   const supplied=String(body?.pin||"").trim();
   const a=Buffer.from(supplied), b=Buffer.from(expected);
   const valid=a.length===b.length && timingSafeEqual(a,b);
-  if(!valid) return NextResponse.json({error:"Invalid PIN"},{status:401});
+  if(!valid) return NextResponse.json({error:`PIN mismatch (entered ${supplied.length} digits; configured PIN has ${expected.length} digits)`},{status:401});
   return NextResponse.json({ok:true});
 }
