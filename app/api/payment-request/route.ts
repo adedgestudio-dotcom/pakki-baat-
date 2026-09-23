@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const allowedPlans:Record<string,number>={Basic:99,Smart:199,Business:349};
+const allowedPlans:Record<string,number>={Basic:99,Smart:179,Business:299};
 
 export async function POST(request:NextRequest){
   const base=process.env.NEXT_PUBLIC_SUPABASE_URL;
