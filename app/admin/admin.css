@@ -21,3 +21,17 @@
 .admin-access-card .admin-pin-row .admin-pin{flex:1!important;min-width:0!important;margin:0!important;padding:13px 14px!important}
 .admin-access-card .admin-pin-row .admin-pin-eye{position:static!important;transform:none!important;display:flex!important;width:82px!important;min-width:82px!important;height:auto!important;margin:0!important;padding:0 10px!important;border:1px solid #cfdcd6!important;border-radius:11px!important;background:#fffdf8!important;color:#2d7667!important;align-items:center!important;justify-content:center!important;gap:5px!important;z-index:auto!important}
 .admin-access-card .admin-pin-row .admin-pin-eye svg{display:block!important;stroke:#2d7667!important}
+
+/* Functional admin dark UI */
+:root{--green:#56b39d;--ink:#edf4f1;--muted:#9aa8a2;--line:#3a4541;--paper:#252a28;--card:#303634}
+.admin-shell{background:#252a28;color:#edf4f1}
+.admin-topbar{background:#2b302e;border-color:#3a4541}
+.admin-stats article,.admin-card,.admin-access-card{background:#303634;border-color:#3f4945}
+.admin-pin,.admin-access-card .admin-pin-row .admin-pin-eye{background:#292f2d!important;color:#edf4f1!important;border-color:#46514d!important}
+.admin-top-actions button,.admin-topbar a,.admin-card-head button{background:#303634;color:#8fd0bf;border-color:#46514d}
+.admin-wide{margin-top:14px}.admin-table-wrap{overflow:auto;margin-top:16px;border:1px solid var(--line);border-radius:12px}
+.admin-table-wrap table{width:100%;border-collapse:collapse;min-width:860px;font-size:12px}.admin-table-wrap th{text-align:left;color:#9eaca6;background:#292f2d;padding:11px;white-space:nowrap}.admin-table-wrap td{padding:11px;border-top:1px solid #3b4541;vertical-align:middle}.admin-table-wrap tr:hover td{background:#343b38}
+.status{display:inline-block;padding:4px 8px;border-radius:999px;background:#414a47;color:#dce7e3;text-transform:capitalize}.status.active,.status.approved{background:#244d43;color:#9de0cc}.status.pending{background:#554a2c;color:#f1d98d}.status.suspended,.status.rejected,.status.expired{background:#563736;color:#f2aaa5}
+.row-actions,.manage{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.row-actions button,.manage button,.manage select{border:1px solid #4a5651;background:#39413e;color:#e7efec;border-radius:8px;padding:7px 9px;font-size:11px;cursor:pointer}.row-actions button:hover,.manage button:hover{border-color:#56b39d}.row-actions .danger{color:#f2aaa5}.manage select{outline:none}.admin-banner{background:#563736;border:1px solid #754b48;padding:10px 12px;border-radius:10px;margin-bottom:14px}
+.admin-error{color:#ffaaa5}.admin-empty{color:#aab6b1}
+@media(max-width:760px){.admin-stats{grid-template-columns:1fr 1fr}.admin-wide{padding:14px}.admin-table-wrap{margin-left:-4px;margin-right:-4px}}
