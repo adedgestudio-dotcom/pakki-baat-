@@ -154,3 +154,82 @@ create policy "Users can read own payment requests" on public.payment_requests f
 insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
 values ('payment-proofs','payment-proofs',false,5242880,array['image/jpeg','image/png','image/webp'])
 on conflict (id) do update set public=false,file_size_limit=5242880,allowed_mime_types=array['image/jpeg','image/png','image/webp'];
+
+
+-- Workspace-based subscriptions and team membership.
+-- One subscription belongs to one business workspace, not to each login.
+create table if not exists public.business_workspaces (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default 'My small business',
+  created_at timestamptz not null default now()
+);
+create unique index if not exists business_workspaces_one_primary_per_owner on public.business_workspaces(owner_id);
+
+create table if not exists public.workspace_members (
+  workspace_id uuid not null references public.business_workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  member_role text not null default 'staff' check (member_role in ('owner','staff')),
+  joined_at timestamptz not null default now(),
+  primary key(workspace_id,user_id)
+);
+create unique index if not exists workspace_members_one_business_per_user on public.workspace_members(user_id);
+
+alter table public.business_workspaces enable row level security;
+alter table public.workspace_members enable row level security;
+revoke all on public.business_workspaces from anon;
+revoke all on public.workspace_members from anon;
+grant select on public.business_workspaces to authenticated;
+grant select on public.workspace_members to authenticated;
+drop policy if exists "Members read business workspace" on public.business_workspaces;
+create policy "Members read business workspace" on public.business_workspaces for select to authenticated
+using (owner_id=auth.uid() or exists(select 1 from public.workspace_members m where m.workspace_id=id and m.user_id=auth.uid()));
+drop policy if exists "Members read workspace membership" on public.workspace_members;
+create policy "Members read workspace membership" on public.workspace_members for select to authenticated
+using (user_id=auth.uid() or exists(select 1 from public.business_workspaces w where w.id=workspace_id and w.owner_id=auth.uid()));
+
+alter table public.subscriptions add column if not exists workspace_id uuid references public.business_workspaces(id) on delete cascade;
+create unique index if not exists subscriptions_workspace_unique on public.subscriptions(workspace_id) where workspace_id is not null;
+alter table public.ai_monthly_usage add column if not exists workspace_id uuid references public.business_workspaces(id) on delete cascade;
+
+create or replace function public.ensure_user_workspace(user_id uuid) returns uuid
+language plpgsql security definer set search_path=public as $$
+declare wid uuid;
+begin
+  select workspace_id into wid from public.workspace_members where workspace_members.user_id=user_id limit 1;
+  if wid is not null then return wid; end if;
+  select id into wid from public.business_workspaces where owner_id=user_id limit 1;
+  if wid is null then
+    insert into public.business_workspaces(owner_id) values(user_id) returning id into wid;
+  end if;
+  insert into public.workspace_members(workspace_id,user_id,member_role) values(wid,user_id,'owner')
+    on conflict(workspace_id,user_id) do nothing;
+  update public.subscriptions set workspace_id=wid where owner_id=user_id and workspace_id is null;
+  return wid;
+end;$$;
+revoke all on function public.ensure_user_workspace(uuid) from public,anon,authenticated;
+grant execute on function public.ensure_user_workspace(uuid) to service_role;
+
+-- Business-plan members share one workspace subscription and one voice allowance.
+-- Trial/Basic/Smart are single-member workspaces; Business allows 3 members total.
+create or replace function public.add_workspace_member(actor_id uuid, member_id uuid) returns jsonb
+language plpgsql security definer set search_path=public as $$
+declare wid uuid; p text; n integer; workspace_owner uuid;
+begin
+  wid:=public.ensure_user_workspace(actor_id);
+  select owner_id into workspace_owner from public.business_workspaces where id=wid;
+  if workspace_owner<>actor_id then return jsonb_build_object('allowed',false,'reason','owner_only'); end if;
+  select plan into p from public.subscriptions where workspace_id=wid and status='active' and period_end>now();
+  if p<>'business' then return jsonb_build_object('allowed',false,'reason','business_plan_required'); end if;
+  if exists(select 1 from public.workspace_members where user_id=member_id and workspace_id<>wid) then
+    return jsonb_build_object('allowed',false,'reason','member_already_has_business');
+  end if;
+  select count(*) into n from public.workspace_members where workspace_id=wid;
+  if n>=3 then return jsonb_build_object('allowed',false,'reason','member_limit');
+  end if;
+  insert into public.workspace_members(workspace_id,user_id,member_role) values(wid,member_id,'staff')
+    on conflict(workspace_id,user_id) do nothing;
+  return jsonb_build_object('allowed',true,'workspace_id',wid);
+end;$$;
+revoke all on function public.add_workspace_member(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.add_workspace_member(uuid,uuid) to service_role;
