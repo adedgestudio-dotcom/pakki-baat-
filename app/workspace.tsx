@@ -2972,20 +2972,20 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <section className="subscription-summary panel">
                 <div className="subscription-summary-main">
                   <span className="subscription-plan-icon"><Icon name="plan" size={21}/></span>
-                  <div><small>CURRENT PLAN</small><h2>Trial</h2><p>7-day trial · 600 voice minutes</p></div>
+                  <div><small>CURRENT PLAN</small><h2>7-Day Free Trial</h2><p>25 customers · 60 voice minutes · full core features</p></div>
                 </div>
                 <div className="subscription-summary-usage">
-                  <div><span>Voice used</span><strong>0 / 600 min</strong></div>
+                  <div><span>Voice used</span><strong>0 / 60 min</strong></div>
                   <div className="usage-track"><span style={{width:"0%"}}/></div>
                   <small>Your actual usage will appear here once connected to your account.</small>
                 </div>
               </section>
-              <div className="subscription-section-title"><div><h2>Choose a plan</h2><p>All plans include unlimited Hisaab entries, payments and reminders. Plans scale with your customer base and team.</p></div></div>
+              <div className="subscription-section-title"><div><h2>Choose a plan</h2><p><strong>Start with a 7-day free trial.</strong> All plans include unlimited Hisaab entries, payments and reminders. Plans scale with your customer base and team.</p></div></div>
               <div className="plan-grid clean-plan-grid">
                 {[
-                  {name:"Basic",price:"₹99",mins:"60",copy:"For very small businesses",customers:"Up to 50 customers",team:"1 user"},
-                  {name:"Smart",price:"₹179",mins:"300",copy:"For growing businesses",customers:"Up to 250 customers",team:"1 user"},
-                  {name:"Business",price:"₹299",mins:"750",copy:"For busy teams",customers:"Unlimited customers",team:"1 business · Up to 3 team members"},
+                  {name:"Basic",price:"₹99",mins:"100",copy:"For very small businesses",customers:"Up to 50 customers",team:"1 user"},
+                  {name:"Smart",price:"₹179",mins:"500",copy:"For growing businesses",customers:"Up to 250 customers",team:"1 user"},
+                  {name:"Business",price:"₹299",mins:"1,000",copy:"For busy teams",customers:"Unlimited customers",team:"1 business · Up to 3 team members"},
                 ].map(plan=><article className={"plan-card "+(plan.name==="Smart"?"recommended":"")} key={plan.name}>
                   <div className="plan-card-head"><div><h3>{plan.name}</h3><small>{plan.copy}</small></div>{plan.name==="Smart"&&<span className="recommended-tag">MOST POPULAR</span>}</div>
                   <div className="plan-price">{plan.price}<small>/month</small></div>
