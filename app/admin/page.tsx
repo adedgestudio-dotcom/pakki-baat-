@@ -8,6 +8,7 @@ export default function AdminPage(){
   const [unlocked,setUnlocked]=useState(false);
   const [pin,setPin]=useState("");
   const [error,setError]=useState("");
+  const [showPin,setShowPin]=useState(false);
   useEffect(()=>{setUnlocked(sessionStorage.getItem("pakki-admin-unlocked")==="1");setReady(true)},[]);
 
   async function login(e:FormEvent){
@@ -28,7 +29,7 @@ export default function AdminPage(){
   if(!ready) return <main className="admin-shell"><div className="admin-center">Opening admin…</div></main>;
   if(!unlocked) return <main className="admin-shell"><form className="admin-access-card" onSubmit={login}>
     <span>PAKKI BAAT OWNER</span><h1>Admin access</h1><p>Enter your owner PIN. Your Pakki Baat testing account stays signed in separately.</p>
-    <input className="admin-pin" type="password" inputMode="numeric" autoComplete="current-password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="Enter PIN" maxLength={12} autoFocus />
+    <div className="admin-pin-wrap"><input className="admin-pin" type={showPin?"text":"password"} inputMode="numeric" autoComplete="current-password" value={pin} onChange={e=>setPin(e.target.value)} placeholder="Enter PIN" maxLength={12} autoFocus /><button className="admin-pin-eye" type="button" aria-label={showPin?"Hide PIN":"Show PIN"} onClick={()=>setShowPin(v=>!v)}>{showPin?"◉":"◌"}</button></div>
     {error&&<div className="admin-error">{error}</div>}
     <button type="submit" disabled={!pin}>Open Admin</button><a href="/">Back to Pakki Baat</a>
   </form></main>;
