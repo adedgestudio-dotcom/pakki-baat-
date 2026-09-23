@@ -92,6 +92,28 @@ export async function loadCloud() {
   return rows[0]?.payload || null;
 }
 
+
+export async function claimFreeTrial() {
+  if (typeof window === "undefined") return { allowed: true, reason: "server" };
+  const storageKey = "pakki-baat-device-id-v1";
+  let deviceId = localStorage.getItem(storageKey);
+  if (!deviceId) {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    deviceId = Array.from(bytes, value => value.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(storageKey, deviceId);
+  }
+  const token = await cloudToken();
+  const response = await fetch("/api/trial/claim", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+    body: JSON.stringify({ deviceId }),
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(result?.error || "Could not check free trial.");
+  return result as { allowed: boolean; reason: string };
+}
+
 export async function signOut() {
   const { error } = await (await configuredClient()).auth.signOut();
   if (error) throw error;
