@@ -9,6 +9,7 @@ import { saveVoice, loadVoice, deleteVoice } from "@/lib/voice-messages";
 import {
   cloudConfigured,
   cloudToken,
+  claimFreeTrial,
   currentSession,
   loadCloud,
   saveCloud,
@@ -362,6 +363,15 @@ export default function Workspace() {
       activeUserIdRef.current = session?.user.id || null;
 
       if (session) {
+        try {
+          const trial = await claimFreeTrial();
+          if (!trial.allowed && trial.reason === "trial_already_used_on_device") {
+            setToast("This device has already used its 7-day free trial. Your account is safe — choose a plan to continue.");
+            setTab("Subscription");
+          }
+        } catch {
+          // A temporary trial check failure must not block sign-in or access to existing data.
+        }
         try {
           const guideKey = "pakki-baat-guide-v1:" + session.user.id;
           if (!localStorage.getItem(guideKey)) setGuideOpen(true);
