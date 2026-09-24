@@ -55,7 +55,7 @@ create table if not exists public.subscriptions (
   plan text not null default 'trial' check (plan in ('trial','basic','smart','business')),
   status text not null default 'active' check (status in ('active','past_due','suspended','expired','cancelled')),
   period_start timestamptz not null default now(),
-  period_end timestamptz not null default (now()+interval '7 days'),
+  period_end timestamptz not null default (now()+interval '30 days'),
   bonus_voice_seconds integer not null default 0 check (bonus_voice_seconds>=0),
   updated_at timestamptz not null default now()
 );
@@ -99,7 +99,7 @@ begin
   if sub.status <> 'active' or sub.period_end <= now() then
     return jsonb_build_object('allowed',false,'reason','subscription_inactive');
   end if;
-  voice_limit := case sub.plan when 'trial' then 36000 when 'basic' then 7200 when 'smart' then 36000 when 'business' then 72000 else 0 end;
+  voice_limit := case sub.plan when 'trial' then 6000 when 'basic' then 6000 when 'smart' then 30000 when 'business' then 60000 else 0 end;
   voice_limit := voice_limit + sub.bonus_voice_seconds;
   insert into public.ai_monthly_usage(owner_id,period_month,voice_seconds,ai_calls)
     values(user_id,date_trunc('month',current_date)::date,0,0)
@@ -235,7 +235,7 @@ revoke all on function public.add_workspace_member(uuid,uuid) from public,anon,a
 grant execute on function public.add_workspace_member(uuid,uuid) to service_role;
 
 
--- Trial protection: 7 days, 25 customers and 60 voice minutes.
+-- Trial protection: 30 days, 50 customers and 100 voice minutes.
 -- The server records a privacy-preserving hash supplied by the app; raw device signals are never stored here.
 create table if not exists public.trial_claims (
   device_hash text primary key,
