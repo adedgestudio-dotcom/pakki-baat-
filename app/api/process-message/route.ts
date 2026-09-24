@@ -49,7 +49,12 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ user_id: user.id, voice_seconds_to_add: 0, ai_calls_to_add: 1 }),
     });
     if (!usageResponse.ok) {
-      return NextResponse.json({ error: "Account rights are not ready. Run the latest Supabase schema." }, { status: 503 });
+      const detail = await usageResponse.text();
+      console.error("Supabase consume_ai_usage failed:", usageResponse.status, detail);
+      return NextResponse.json(
+        { error: "AI account check is temporarily unavailable. Your Hisaab is safe — please try again." },
+        { status: 503 }
+      );
     }
     const usage = await usageResponse.json();
     if (!usage?.allowed) {
