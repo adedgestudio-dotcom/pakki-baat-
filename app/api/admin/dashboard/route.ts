@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
-const plans:any={trial:{days:7,voice:0},basic:{days:30,voice:0},smart:{days:30,voice:0},business:{days:30,voice:0}};
+const plans:any={trial:{days:30,voice:0},basic:{days:30,voice:0},smart:{days:30,voice:0},business:{days:30,voice:0}};
 function env(){return {base:process.env.NEXT_PUBLIC_SUPABASE_URL||"",service:process.env.SUPABASE_SERVICE_ROLE_KEY||""}}
 async function sb(path:string,init:RequestInit={}){const {base,service}=env();const r=await fetch(base+"/rest/v1/"+path,{...init,headers:{apikey:service,Authorization:"Bearer "+service,"Content-Type":"application/json",...(init.headers||{})},cache:"no-store"});const t=await r.text();if(!r.ok)throw new Error(t||"Database request failed");return t?JSON.parse(t):null}
 async function users(){const {base,service}=env();const r=await fetch(base+"/auth/v1/admin/users?per_page=1000",{headers:{apikey:service,Authorization:"Bearer "+service},cache:"no-store"});if(!r.ok)throw new Error("Could not load users");return (await r.json()).users||[]}
@@ -33,7 +33,7 @@ export async function POST(req:NextRequest){
   }else if(action==="status"){
    await sb("subscriptions?owner_id=eq."+userId,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({status:b.status==="suspended"?"suspended":"active",updated_at:new Date().toISOString()})});
   }else if(action==="grant_trial"){
-   const end=new Date(Date.now()+7*86400000);await sb("subscriptions?owner_id=eq."+userId,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({plan:"trial",status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0,updated_at:new Date().toISOString()})});
+   const end=new Date(Date.now()+30*86400000);await sb("subscriptions?owner_id=eq."+userId,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({plan:"trial",status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0,updated_at:new Date().toISOString()})});
   }else return NextResponse.json({error:"Unknown action"},{status:400});
   return NextResponse.json({ok:true});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Admin action failed"},{status:500})}
