@@ -143,7 +143,12 @@ export async function POST(req: NextRequest) {
         signal: AbortSignal.timeout(10000),
       });
       if (!usageResponse.ok) {
-        return Response.json({ error: "Account rights are not ready. Run the latest Supabase schema." }, { status: 503 });
+        const detail = await usageResponse.text();
+        console.error("Supabase consume_ai_usage failed:", usageResponse.status, detail);
+        return Response.json(
+          { error: "Voice account check is temporarily unavailable. Your saved Hisaab still works — please retry the voice note." },
+          { status: 503 }
+        );
       }
       const usage = await usageResponse.json();
       if (!usage?.allowed) {
