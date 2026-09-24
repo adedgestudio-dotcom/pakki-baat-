@@ -8799,3 +8799,88 @@ footer .footer-separator{
 .value-plan-card h3,.trial-value-banner h2,.subscription-section-title h2{font-weight:700 !important}
 .value-plan-card .plan-price{font-weight:800 !important;letter-spacing:-.025em}
 .trial-limit-row strong,.plan-limit-grid strong{font-weight:700 !important}
+
+
+/* Persistent in-app banner for unfinished reminders due today */
+.today-reminder-banner{
+  max-width:1356px;
+  margin:14px auto 0;
+  padding:12px 16px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  border:1px solid #d7e5dc;
+  border-radius:14px;
+  background:#f7fbf8;
+  box-shadow:0 4px 14px rgba(43,56,52,.06);
+}
+.today-reminder-banner-icon{
+  width:36px;
+  height:36px;
+  display:grid;
+  place-items:center;
+  flex:0 0 36px;
+  border-radius:11px;
+  background:#e4f0e9;
+  color:var(--teal);
+}
+.today-reminder-banner-copy{
+  min-width:0;
+  flex:1;
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.today-reminder-banner-copy small{
+  width:100%;
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.13em;
+  color:#5f776d;
+}
+.today-reminder-banner-copy strong{font-size:12px;color:var(--ink)}
+.today-reminder-banner-copy span{
+  min-width:0;
+  font-size:12px;
+  color:#52645d;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.today-reminder-banner-copy em{
+  font-size:10px;
+  font-style:normal;
+  font-weight:700;
+  color:var(--teal);
+  white-space:nowrap;
+}
+.today-reminder-banner-close{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  flex:0 0 34px;
+  border-radius:50%;
+  background:transparent;
+  color:#728078;
+}
+[data-theme="dark"] .today-reminder-banner{
+  background:#17231e;
+  border-color:#30483e;
+  box-shadow:0 5px 18px rgba(0,0,0,.18);
+}
+[data-theme="dark"] .today-reminder-banner-icon{background:#223a30;color:#8fc4ae}
+[data-theme="dark"] .today-reminder-banner-copy small{color:#9db4aa}
+[data-theme="dark"] .today-reminder-banner-copy strong{color:#eef5f1}
+[data-theme="dark"] .today-reminder-banner-copy span{color:#b8c8c1}
+[data-theme="dark"] .today-reminder-banner-copy em{color:#8fc4ae}
+[data-theme="dark"] .today-reminder-banner-close{color:#a7b8b0}
+@media(max-width:800px){
+  .today-reminder-banner{margin:10px 12px 0;padding:11px 12px;gap:10px}
+  .today-reminder-banner-copy{display:grid;gap:2px}
+  .today-reminder-banner-copy small{width:auto}
+  .today-reminder-banner-copy strong{font-size:12px}
+  .today-reminder-banner-copy span{font-size:11px;white-space:normal;line-height:1.35}
+  .today-reminder-banner-copy em{font-size:10px}
+}
