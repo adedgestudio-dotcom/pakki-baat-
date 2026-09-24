@@ -2982,7 +2982,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <section className="subscription-summary panel">
                 <div className="subscription-summary-main">
                   <span className="subscription-plan-icon"><Icon name="plan" size={21}/></span>
-                  <div><small>CURRENT PLAN</small><h2>30-Day Free Trial</h2><p>50 customers · 100 voice minutes · full core features</p></div>
+                  <div><small>CURRENT PLAN</small><h2>30-Day Free Trial</h2><p>100 customers · 100 voice minutes · full core features</p></div>
                 </div>
                 <div className="subscription-summary-usage">
                   <div><span>Voice used</span><strong>0 / 60 min</strong></div>
@@ -2991,12 +2991,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </section>
               <section className="trial-value-banner">
-                <div><span className="trial-value-kicker">FREE FOR 30 DAYS</span><h2>Try Pakki Baat free for 30 days</h2><p>Start with your real customers and see how easy daily Hisaab feels — no payment needed.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>50</strong></span><span><small>VOICE + AI</small><strong>100 min</strong></span></div></div>
+                <div><span className="trial-value-kicker">FREE FOR 30 DAYS</span><h2>Try Pakki Baat free for 30 days</h2><p>Start with your real customers and see how easy daily Hisaab feels — no payment needed.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>100</strong></span><span><small>VOICE + AI</small><strong>100 min</strong></span></div></div>
               </section>
               <div className="subscription-section-title"><div><h2>Choose what fits your business</h2><p>Start small and upgrade only when your customer list grows.</p></div></div>
               <div className="plan-grid clean-plan-grid value-plan-grid">
                 {[
-                  {name:"Basic",price:"₹99",perDay:"₹3.30/day",copy:"Everything you need to get organised",customers:"Up to 50 customers",team:"1 user",voice:"100 voice minutes included",voiceCopy:"Speak entries instead of typing"},
+                  {name:"Basic",price:"₹99",perDay:"₹3.30/day",copy:"Everything you need to get organised",customers:"Up to 100 customers",team:"1 user",voice:"100 voice minutes included",voiceCopy:"Speak entries instead of typing"},
                   {name:"Smart",price:"₹179",perDay:"Less than ₹6/day",copy:"Best value for a growing business",customers:"Up to 250 customers",team:"1 user",voice:"500 voice minutes included",voiceCopy:"More freedom to enter Hisaab by voice"},
                   {name:"Business",price:"₹299",perDay:"Less than ₹10/day",copy:"For busy businesses and small teams",customers:"Unlimited customers",team:"1 business · Up to 3 team members",voice:"1,000 shared voice minutes",voiceCopy:"Shared across your whole team"},
                 ].map(plan=><article className={"plan-card value-plan-card "+(plan.name==="Smart"?"recommended":"")} key={plan.name}>
