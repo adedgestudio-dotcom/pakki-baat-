@@ -243,6 +243,7 @@ export default function Workspace() {
     [reminderVibrationEnabled, setReminderVibrationEnabled] = useState(true),
     [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default"),
     [ringingReminder, setRingingReminder] = useState<Reminder | null>(null),
+    [dismissedTodayReminderIds, setDismissedTodayReminderIds] = useState<string[]>([]),
     [navigationReady, setNavigationReady] = useState(false),
     [pushDiagnostic, setPushDiagnostic] = useState(""),
     [pushDiagnosticBusy, setPushDiagnosticBusy] = useState(false),
@@ -350,6 +351,31 @@ export default function Workspace() {
     } catch {}
     setNotificationPermission("Notification" in window ? Notification.permission : "unsupported");
   }, []);
+  useEffect(() => {
+    try {
+      const key = "pakki-baat-dismissed-today-reminders:" + day();
+      const saved = JSON.parse(localStorage.getItem(key) || "[]");
+      setDismissedTodayReminderIds(
+        Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : []
+      );
+    } catch {
+      setDismissedTodayReminderIds([]);
+    }
+  }, []);
+
+  function dismissTodayReminderBanner(id: string) {
+    setDismissedTodayReminderIds((current) => {
+      const next = current.includes(id) ? current : [...current, id];
+      try {
+        localStorage.setItem(
+          "pakki-baat-dismissed-today-reminders:" + day(),
+          JSON.stringify(next.slice(-100))
+        );
+      } catch {}
+      return next;
+    });
+  }
+
   useEffect(() => {
     if (!cloudConfigured) return;
 
@@ -2039,6 +2065,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   const customerNotes = selectedCustomer ? notes.filter(n=>n.customer===selectedCustomer) : [];
   const customerOpenJob = customerJobs.find(j=>j.paid<j.total && j.status!=="Completed") || customerJobs.find(j=>j.paid<j.total) || customerJobs[0];
   const recentCustomers = customerNames.slice(0,4);
+  const todayReminderBanners = reminders
+    .filter(r => !r.done && r.date === day() && !dismissedTodayReminderIds.includes(r.id))
+    .sort((a,b)=>(a.time || "23:59").localeCompare(b.time || "23:59"));
+  const todayReminderBanner = todayReminderBanners[0] || null;
   function openReminder(job: Job) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -2297,6 +2327,26 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </span>
           </div>
         </header>
+        {todayReminderBanner && (
+          <div className="today-reminder-banner" role="status">
+            <span className="today-reminder-banner-icon"><Icon name="bell" size={18}/></span>
+            <div className="today-reminder-banner-copy">
+              <small>TODAY'S REMINDER</small>
+              <strong>{todayReminderBanner.customer || "Reminder"}</strong>
+              <span>{todayReminderBanner.text}</span>
+              <em>{todayReminderBanner.time || "Today"}{todayReminderBanners.length > 1 ? ` · +${todayReminderBanners.length - 1} more` : ""}</em>
+            </div>
+            <button
+              type="button"
+              className="today-reminder-banner-close"
+              aria-label="Dismiss today's reminder"
+              title="Dismiss this reminder banner"
+              onClick={()=>dismissTodayReminderBanner(todayReminderBanner.id)}
+            >
+              <Icon name="close" size={17}/>
+            </button>
+          </div>
+        )}
         <div className="content">
           {tab === "Today" && (
             <>
