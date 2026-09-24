@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
+import { consumeAiUsage } from "@/lib/ai-usage";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_KEY || "";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
@@ -43,20 +44,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Your sign-in expired. Please sign in again." }, { status: 401 });
     }
     const user = await userResponse.json();
-    const usageResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
-      method: "POST",
-      headers: { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: user.id, voice_seconds_to_add: 0, ai_calls_to_add: 1 }),
+    const usageResult = await consumeAiUsage({
+      baseUrl: base,
+      serviceRoleKey: service,
+      userId: user.id,
+      voiceSeconds: 0,
+      aiCalls: 1,
+      source: "process-message",
     });
-    if (!usageResponse.ok) {
-      const detail = await usageResponse.text();
-      console.error("Supabase consume_ai_usage failed:", usageResponse.status, detail);
+    if (!usageResult.ok) {
       return NextResponse.json(
-        { error: "AI account check is temporarily unavailable. Your Hisaab is safe — please try again." },
+        { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
         { status: 503 }
       );
     }
-    const usage = await usageResponse.json();
+    const usage = usageResult.usage;
     if (!usage?.allowed) {
       return NextResponse.json(
         { error: usage?.reason === "subscription_inactive" ? "Your Pakki Baat subscription is not active." : "Your plan limit has been reached." },
@@ -82,11 +84,11 @@ export async function POST(request: NextRequest) {
     if (currentCommitment.work)
       knownFields.push(`work: ${currentCommitment.work}`);
     if (currentCommitment.total !== undefined)
-      knownFields.push(`total: ₹${currentCommitment.total}`);
+      knownFields.push(`total: â‚¹${currentCommitment.total}`);
     if (currentCommitment.paid !== undefined)
-      knownFields.push(`paid: ₹${currentCommitment.paid}`);
+      knownFields.push(`paid: â‚¹${currentCommitment.paid}`);
     if (currentCommitment.balance !== undefined)
-      knownFields.push(`balance: ₹${currentCommitment.balance}`);
+      knownFields.push(`balance: â‚¹${currentCommitment.balance}`);
     if (currentCommitment.date)
       knownFields.push(`date: ${currentCommitment.date}`);
     if (currentCommitment.time)
@@ -123,9 +125,9 @@ Rules:
 1. Extract whatever information is present in THIS message
 2. IMPORTANT: "advance" or "received" or "paid" means the PAID amount, not total
 3. IMPORTANT: "balance", "baki", "pending", "remaining", "due amount" all mean the BALANCE still owed (total - paid)
-4. If user says "2000 rs advance" → paid: 2000
-5. If user says "1000 pending" or "1000 rs baki" → balance: 1000
-6. If user says "total 5000" → total: 5000
+4. If user says "2000 rs advance" â†’ paid: 2000
+5. If user says "1000 pending" or "1000 rs baki" â†’ balance: 1000
+6. If user says "total 5000" â†’ total: 5000
 7. If there are two money amounts and one is clearly marked pending/baki/balance, use that marked amount as balance and the other money amount as total unless the other is explicitly marked paid/received/advance
 8. Example: "2kg cake 1000 rs pending 2000" means work: "2kg cake", balance: 1000, total: 2000, paid: 1000
 9. Work/item description must contain ONLY the product/service/work. Do NOT copy payment words, totals, balance amounts, dates, or times into work
@@ -162,8 +164,8 @@ The nextQuestion should ask for the MOST IMPORTANT missing field:
 
 Extract information and determine the next question.`;
 
-    console.log("🤖 Calling Groq for message:", message);
-    console.log("📋 Current commitment:", currentCommitment);
+    console.log("ðŸ¤– Calling Groq for message:", message);
+    console.log("ðŸ“‹ Current commitment:", currentCommitment);
 
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -187,7 +189,7 @@ Extract information and determine the next question.`;
 
     if (!response.ok) {
       const upstream = await response.text();
-      console.error("❌ Groq API error:", response.status, upstream);
+      console.error("âŒ Groq API error:", response.status, upstream);
       let message = `Groq API error: ${response.status}`;
       try {
         const parsed = JSON.parse(upstream);
@@ -207,7 +209,7 @@ Extract information and determine the next question.`;
     }
 
     const parsed = JSON.parse(content);
-    console.log("✅ Groq raw response:", parsed);
+    console.log("âœ… Groq raw response:", parsed);
 
     if (parsed.intent === "reminder") {
       return NextResponse.json({
@@ -247,10 +249,10 @@ Extract information and determine the next question.`;
         // Recover common shorthand used in small-business hisaab messages.
         // Example: "2kg cake 1000 rs pending 2000" => balance 1000, total 2000.
         const compact = message.toLowerCase().replace(/,/g, "");
-        const pendingBefore = compact.match(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/);
-        const pendingAfter = compact.match(/(?:pending|baki|balance|remaining)\s*(?:₹\s*)?(\d+(?:\.\d+)?)/);
+        const pendingBefore = compact.match(/(?:â‚¹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/);
+        const pendingAfter = compact.match(/(?:pending|baki|balance|remaining)\s*(?:â‚¹\s*)?(\d+(?:\.\d+)?)/);
         const balanceHint = Number((pendingBefore?.[1] || pendingAfter?.[1] || "").trim()) || undefined;
-        const moneyCandidates = Array.from(compact.matchAll(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?/g))
+        const moneyCandidates = Array.from(compact.matchAll(/(?:â‚¹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?/g))
           .map(match => ({ value: Number(match[1]), index: match.index || 0, raw: match[0] }))
           .filter(item => Number.isFinite(item.value) && item.value >= 100)
           .filter(item => {
@@ -270,10 +272,10 @@ Extract information and determine the next question.`;
         }
         if (typeof ext.work === "string" && balanceHint !== undefined && (ext.work.trim().toLowerCase() === message.trim().toLowerCase() || /\b(pending|baki|balance|remaining|rs\.?|rupees?)\b/i.test(ext.work))) {
           let cleaned = message
-            .replace(/(?:₹\s*)?\d+(?:[.,]\d+)?\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/ig, " ")
-            .replace(/(?:pending|baki|balance|remaining)\s*(?:₹\s*)?\d+(?:[.,]\d+)?/ig, " ");
+            .replace(/(?:â‚¹\s*)?\d+(?:[.,]\d+)?\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/ig, " ")
+            .replace(/(?:pending|baki|balance|remaining)\s*(?:â‚¹\s*)?\d+(?:[.,]\d+)?/ig, " ");
           const totalHint = Number(ext.total) || 0;
-          if (totalHint > 0) cleaned = cleaned.replace(new RegExp(`(?:₹\\s*)?${totalHint}(?:\\.0+)?\\s*(?:rs\\.?|rupees?)?`, "ig"), " ");
+          if (totalHint > 0) cleaned = cleaned.replace(new RegExp(`(?:â‚¹\\s*)?${totalHint}(?:\\.0+)?\\s*(?:rs\\.?|rupees?)?`, "ig"), " ");
           cleaned = cleaned.replace(/\s+/g, " ").trim();
           if (cleaned) ext.work = cleaned;
         }
@@ -324,7 +326,7 @@ Extract information and determine the next question.`;
       { status: 400 }
     );
   } catch (error) {
-    console.error("❌ Error processing message:", error);
+    console.error("âŒ Error processing message:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
 
@@ -350,3 +352,4 @@ export async function GET() {
     model: MODEL,
   });
 }
+

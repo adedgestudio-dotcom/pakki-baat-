@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
+import { consumeAiUsage } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -132,25 +133,21 @@ export async function POST(req: NextRequest) {
     const user = await userResponse.json();
 
     if (mode === "transcribe") {
-      const usageResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
-        method: "POST",
-        headers: {
-          apikey: service as string,
-          Authorization: `Bearer ${service}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ user_id: user.id, voice_seconds_to_add: Math.max(1, duration), ai_calls_to_add: 0 }),
-        signal: AbortSignal.timeout(10000),
+      const usageResult = await consumeAiUsage({
+        baseUrl: base as string,
+        serviceRoleKey: service as string,
+        userId: user.id,
+        voiceSeconds: Math.max(1, duration),
+        aiCalls: 0,
+        source: "extract:transcribe",
       });
-      if (!usageResponse.ok) {
-        const detail = await usageResponse.text();
-        console.error("Supabase consume_ai_usage failed:", usageResponse.status, detail);
+      if (!usageResult.ok) {
         return Response.json(
-          { error: "Voice account check is temporarily unavailable. Your saved Hisaab still works — please retry the voice note." },
+          { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
           { status: 503 }
         );
       }
-      const usage = await usageResponse.json();
+      const usage = usageResult.usage;
       if (!usage?.allowed) {
         const error = usage?.reason === "voice_limit"
           ? "You have used this plan's voice minutes. You can still type entries."
@@ -160,20 +157,21 @@ export async function POST(req: NextRequest) {
     }
 
     if (mode !== "transcribe") {
-      const usageResponse = await fetch(`${base}/rest/v1/rpc/consume_ai_usage`, {
-        method: "POST",
-        headers: {
-          apikey: service as string,
-          Authorization: `Bearer ${service}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ user_id: user.id, voice_seconds_to_add: 0, ai_calls_to_add: 1 }),
-        signal: AbortSignal.timeout(10000),
+      const usageResult = await consumeAiUsage({
+        baseUrl: base as string,
+        serviceRoleKey: service as string,
+        userId: user.id,
+        voiceSeconds: 0,
+        aiCalls: 1,
+        source: "extract:ai",
       });
-      if (!usageResponse.ok) {
-        return Response.json({ error: "Account rights are not ready. Run the latest Supabase schema." }, { status: 503 });
+      if (!usageResult.ok) {
+        return Response.json(
+          { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
+          { status: 503 }
+        );
       }
-      const usage = await usageResponse.json();
+      const usage = usageResult.usage;
       if (!usage?.allowed) {
         return Response.json({ error: "Your Pakki Baat subscription is not active." }, { status: 403 });
       }
@@ -183,7 +181,7 @@ export async function POST(req: NextRequest) {
 
     // Transcribe audio if provided
     if (file instanceof File && !file.type.startsWith("image/")) {
-      console.log("🎤 Transcribing audio...");
+      console.log("ðŸŽ¤ Transcribing audio...");
       const audio = new FormData();
       audio.set("file", file);
       audio.set(
@@ -203,7 +201,7 @@ export async function POST(req: NextRequest) {
 
       if (!trans.ok) {
         const error = await trans.text();
-        console.error("❌ Transcription error:", error);
+        console.error("âŒ Transcription error:", error);
         throw new Error(
           "The recording could not be transcribed. Try a shorter recording or type the details."
         );
@@ -211,7 +209,7 @@ export async function POST(req: NextRequest) {
 
       const transcriptResult = await trans.json();
       transcript = String(transcriptResult.text || "").trim();
-      console.log("✅ Transcribed:", transcript.substring(0, 100));
+      console.log("âœ… Transcribed:", transcript.substring(0, 100));
 
       if (mode === "transcribe") {
         return transcript
@@ -224,7 +222,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract details using AI
-    console.log("🤖 Extracting details with AI...");
+    console.log("ðŸ¤– Extracting details with AI...");
 
     const systemPrompt = `You are extracting business commitment details. Return ONLY valid JSON with these fields:
 {
@@ -273,7 +271,7 @@ Rules:
 
     if (!response.ok) {
       const error = await response.text();
-      console.error("❌ Extraction error:", error);
+      console.error("âŒ Extraction error:", error);
       throw new Error(
         "AI could not read the message. Try again or enter the details manually."
       );
@@ -286,11 +284,11 @@ Rules:
       throw new Error("No usable details found. Please enter them manually.");
     }
 
-    console.log("✅ Extracted:", output.substring(0, 200));
+    console.log("âœ… Extracted:", output.substring(0, 200));
     const draft = JSON.parse(output);
     return Response.json({ draft });
   } catch (e) {
-    console.error("❌ Error:", e);
+    console.error("âŒ Error:", e);
     return Response.json(
       {
         error: isTimeoutError(e)
@@ -303,3 +301,4 @@ Rules:
     );
   }
 }
+

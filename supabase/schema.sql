@@ -72,6 +72,29 @@ create table if not exists public.ai_monthly_usage (
   ai_calls integer not null default 0,
   primary key(owner_id,period_month)
 );
+-- Older deployments used period_start for the same monthly bucket. CREATE TABLE
+-- IF NOT EXISTS does not add or rename columns on an existing table, so repair
+-- that legacy shape before (re)creating consume_ai_usage below.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='ai_monthly_usage' and column_name='period_start'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='ai_monthly_usage' and column_name='period_month'
+  ) then
+    alter table public.ai_monthly_usage rename column period_start to period_month;
+  elsif not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='ai_monthly_usage' and column_name='period_month'
+  ) then
+    alter table public.ai_monthly_usage
+      add column period_month date not null default date_trunc('month',current_date)::date;
+  end if;
+end $$;
+alter table public.ai_monthly_usage
+  alter column period_month set default date_trunc('month',current_date)::date;
 alter table public.ai_monthly_usage enable row level security;
 revoke all on public.ai_monthly_usage from anon,authenticated;
 grant select on public.ai_monthly_usage to authenticated;
