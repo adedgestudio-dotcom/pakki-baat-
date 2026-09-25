@@ -93,6 +93,22 @@ export async function loadCloud() {
 }
 
 
+export type SubscriptionInfo = {
+  plan: string;
+  status: string;
+  period_end: string | null;
+};
+
+export async function loadSubscription(): Promise<SubscriptionInfo | null> {
+  const rows = await request(
+    "/rest/v1/subscriptions?select=plan,status,period_end",
+    undefined,
+    await cloudToken()
+  );
+
+  return rows[0] || null;
+}
+
 export async function claimFreeTrial() {
   if (typeof window === "undefined") return { allowed: true, reason: "server" };
   const storageKey = "pakki-baat-device-id-v1";

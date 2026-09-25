@@ -11,6 +11,7 @@ import {
   cloudToken,
   claimFreeTrial,
   currentSession,
+  loadSubscription,
   loadCloud,
   saveCloud,
   signInWithGoogle,
@@ -202,6 +203,7 @@ export default function Workspace() {
     [paymentSubmitting, setPaymentSubmitting] = useState(false),
     [feedback, setFeedback] = useState(""),
     [loggedIn, setLoggedIn] = useState(false),
+    [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
     [dark, setDark] = useState(false),
@@ -390,6 +392,14 @@ export default function Workspace() {
 
       if (session) {
         try {
+          const subscription = await loadSubscription();
+          if (!cancelled && activeUserIdRef.current === session.user.id) {
+            setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
+          }
+        } catch {
+          if (!cancelled) setSubscriptionPlan(null);
+        }
+        try {
           const trial = await claimFreeTrial();
           if (!trial.allowed && trial.reason === "trial_already_used_on_device") {
             setToast("This device has already used its 30-day free trial. Your account is safe — choose a plan to continue.");
@@ -405,6 +415,7 @@ export default function Workspace() {
       }
 
       if (!session) {
+        setSubscriptionPlan(null);
         cloudHydratedRef.current = false;
         const localSnapshot = readLocalWorkspace(LOCAL_WORKSPACE_ID);
         if (localSnapshot) restore(localSnapshot);
@@ -486,9 +497,18 @@ export default function Workspace() {
             setToast("Back online. Your offline changes are synced ✓");
           }
         })
-        .catch(() => {
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : "";
+          if (message.includes("CUSTOMER_LIMIT_REACHED")) {
+            const limit = message.match(/CUSTOMER_LIMIT_REACHED:(\d+)/)?.[1];
+            setSyncPending(false);
+            setToast(
+              `Customer limit reached${limit ? ` (${limit})` : ""}. Your existing customers are safe. Upgrade your plan to add another customer.`
+            );
+            return;
+          }
           setSyncPending(true);
-          setToast("Saved on this device. Cloud backup will retry when you’re online.");
+          setToast("Saved on this device. Cloud backup will retry when you're online.");
         });
     }, 500);
     return () => window.clearTimeout(timer);
@@ -1500,6 +1520,7 @@ export default function Workspace() {
       customer: draft.customer.trim(),
       work: draft.work.trim(),
     };
+    if (!canAddCustomer(item.customer)) return;
     const previous = jobs.find(j => j.id === item.id);
     const previousPaid = previous?.paid || 0;
     if (item.paid > previousPaid) {
@@ -2058,6 +2079,20 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     </button>
   );
   const customerNames = Array.from(new Set([...jobs.map(j=>j.customer), ...payments.map(p=>p.customer), ...notes.map(n=>n.customer), ...reminders.map(r=>r.customer || ""), ...Object.keys(customerPhones)])).filter(Boolean);
+  const customerLimit = subscriptionPlan === "business" ? Infinity : subscriptionPlan === "smart" ? 250 : 100;
+
+  function canAddCustomer(name: string) {
+    const normalized = name.trim().toLowerCase();
+    if (!normalized) return false;
+    const alreadyExists = customerNames.some(customer => customer.trim().toLowerCase() === normalized);
+    if (alreadyExists) return true;
+    if (customerNames.length >= customerLimit) {
+      setToast(`Customer limit reached (${customerLimit}). Your existing customers are safe. Upgrade your plan to add another customer.`);
+      return false;
+    }
+    return true;
+  }
+
   const customerJobs = selectedCustomer ? jobs.filter(j=>j.customer===selectedCustomer) : [];
   const customerReminders = selectedCustomer ? reminders.filter(r=>r.customer===selectedCustomer && !r.done) : [];
   const selectedBaki = customerJobs.reduce((sum,j)=>sum+j.total-j.paid,0);
@@ -3584,6 +3619,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               e.preventDefault();
               const customer=newCustomerName.trim();
               if(!customer)return;
+              if(!canAddCustomer(customer))return;
               setNotes(items=>items.some(n=>n.customer===customer)?items:[{id:crypto.randomUUID(),customer,text:"Customer created",createdAt:new Date().toISOString()},...items]);
               setSelectedCustomer(customer);
               setMessage("");
