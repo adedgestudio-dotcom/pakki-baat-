@@ -8969,3 +8969,10 @@ footer .footer-separator{
   background:#1b3027 !important;
   border-color:#4e806d !important;
 }
+
+/* Always show reminder AM/PM selection beside native phone time picker */
+.reminder-time-chip{gap:7px}
+.reminder-time-period{display:inline-grid;place-items:center;min-width:29px;padding:3px 5px;border-radius:6px;background:#e8f2ed;color:#245746;font-size:9px;font-weight:850;line-height:1}
+.reminder-time-chip.selected .reminder-time-period{background:rgba(255,255,255,.18);color:#fff}
+[data-theme="dark"] .reminder-time-period{background:#29453a;color:#bfe0d1}
+[data-theme="dark"] .reminder-time-chip.selected .reminder-time-period{background:rgba(255,255,255,.15);color:#fff}
