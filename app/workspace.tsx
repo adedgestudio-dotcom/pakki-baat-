@@ -3157,172 +3157,66 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           )}
           {tab === "Settings" && (
             <>
-              <div className="page-heading">
+              <div className="page-heading settings-heading">
                 <div>
-                  <div className="eyebrow">MAKE YOURSELF AT HOME</div>
+                  <div className="eyebrow">SETTINGS</div>
                   <h1>Your workspace</h1>
-                  <p>A few details to make Pakki Baat yours.</p>
+                  <p>Account, alerts and your Pakki Baat data.</p>
                 </div>
               </div>
-              <section className="settings-subscription-card">
-                <span className="settings-subscription-icon"><Icon name="plan" size={20}/></span>
-                <span><strong>Subscription & usage</strong><small>See your plan, voice minutes and renewal details.</small></span>
-                <button type="button" className="outline" onClick={()=>go("Subscription")}>View plan</button>
-              </section>
-              {userEmail?.trim().toLowerCase() === "zorivoworks@gmail.com" && (
-                <section className="settings-subscription-card settings-owner-admin">
-                  <span className="settings-subscription-icon"><Icon name="settings" size={20}/></span>
-                  <span><strong>Owner admin panel</strong><small>Manage users, plans, payments and usage.</small></span>
-                  <button type="button" className="outline" onClick={()=>{ window.location.href="/admin"; }}>Open admin</button>
+              <div className="settings-top-cards">
+                <section className="settings-subscription-card">
+                  <span className="settings-subscription-icon"><Icon name="plan" size={20}/></span>
+                  <span><strong>Subscription & usage</strong><small>Your plan, voice minutes and renewal.</small></span>
+                  <button type="button" className="outline" onClick={()=>go("Subscription")}>View plan</button>
                 </section>
-              )}
-              <section className="settings-panel panel">
-                <label className="profile-name-setting">
-                  Display name
-                  <input
-                    value={profileOwnerDraft}
-                    maxLength={60}
-                    onChange={(e) => setProfileOwnerDraft(e.target.value)}
-                    placeholder={userName || "Your name"}
-                  />
-                  <small>Change this anytime. Pakki Baat will use it in greetings and your workspace.</small>
-                </label>
-                <label>
-                  Business name
-                  <input
-                    value={profileBusinessDraft}
-                    maxLength={100}
-                    onChange={(e) => setProfileBusinessDraft(e.target.value)}
-                  />
-                  <small>This appears on receipts and business details.</small>
-                </label>
-                <button
-                  type="button"
-                  className="primary settings-profile-save"
-                  onClick={saveProfileDetails}
-                  disabled={profileOwnerDraft.trim() === owner.trim() && profileBusinessDraft.trim() === business.trim()}
-                >
-                  Save name & business
-                </button>
-                <div className="reminder-alert-settings">
-                  <div className="reminder-alert-settings-head">
-                    <span className="reminder-alert-settings-icon"><Icon name="bell" size={19}/></span>
-                    <span><strong>Reminder alerts</strong><small>Notification, alarm sound and vibration on this device.</small></span>
-                    <button
-                      type="button"
-                      className={reminderAlertsEnabled ? "setting-switch is-on" : "setting-switch"}
-                      role="switch"
-                      aria-checked={reminderAlertsEnabled}
-                      onClick={()=>reminderAlertsEnabled ? disableReminderAlerts() : void enableReminderAlerts()}
-                    ><span/></button>
+                {userEmail?.trim().toLowerCase() === "zorivoworks@gmail.com" && (
+                  <section className="settings-subscription-card settings-owner-admin">
+                    <span className="settings-subscription-icon"><Icon name="settings" size={20}/></span>
+                    <span><strong>Owner admin panel</strong><small>Users, plans and payments.</small></span>
+                    <button type="button" className="outline" onClick={()=>{ window.location.href="/admin"; }}>Open admin</button>
+                  </section>
+                )}
+              </div>
+              <div className="settings-section-list">
+                <section className="settings-group">
+                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="settings" size={18}/></span><span><strong>Account</strong><small>Your profile and sign-in.</small></span></div>
+                  <div className="settings-fields-grid">
+                    <label>Display name<input value={profileOwnerDraft} maxLength={60} onChange={(e)=>setProfileOwnerDraft(e.target.value)} placeholder={userName||"Your name"}/></label>
+                    <label>Business name<input value={profileBusinessDraft} maxLength={100} onChange={(e)=>setProfileBusinessDraft(e.target.value)}/></label>
                   </div>
-                  {reminderAlertsEnabled && (
-                    <div className="reminder-alert-options">
-                      <label className="reminder-alert-option">
-                        <span><strong>Alarm sound</strong><small>Play a clock-style alert while Pakki Baat is running.</small></span>
-                        <input type="checkbox" checked={reminderSoundEnabled} onChange={e=>setReminderSound(e.target.checked)}/>
-                      </label>
-                      <label className="reminder-alert-option">
-                        <span><strong>Vibrate</strong><small>Use phone vibration when the browser supports it.</small></span>
-                        <input type="checkbox" checked={reminderVibrationEnabled} onChange={e=>setReminderVibration(e.target.checked)}/>
-                      </label>
-                      <div className="reminder-alert-status">
-                        <span>System notifications</span>
-                        <strong className={notificationPermission==="granted" ? "ok" : ""}>
-                          {notificationPermission==="granted" ? "Allowed" : notificationPermission==="denied" ? "Blocked" : notificationPermission==="unsupported" ? "Not supported" : "Not allowed yet"}
-                        </strong>
-                      </div>
-                      <button type="button" className="outline reminder-test-alert" disabled={pushDiagnosticBusy} onClick={()=>void testReminderAlert()}>
-                        {pushDiagnosticBusy ? "Checking setup…" : "Check & send test notification"}
-                      </button>
-                      {pushDiagnostic && <div className={pushDiagnostic.startsWith("✓") ? "push-diagnostic ok" : "push-diagnostic error"}>{pushDiagnostic}</div>}
-                    </div>
-                  )}
-                  <p className="reminder-alert-note">Closed-app reminders use system push notifications, so they can appear over other apps after Pakki Baat is closed. The custom clock-style sound is used while Pakki Baat is open; when closed, your phone controls the notification sound and vibration.</p>
-                </div>
-                <button type="button" className="how-it-works-card" onClick={()=>setGuideOpen(true)}>
-                  <span className="how-it-works-icon">?</span>
-                  <span><strong>How Pakki Baat works</strong><small>A 30-second guide to entries, payments, reminders and WhatsApp.</small></span>
-                  <Icon name="arrow" size={17}/>
-                </button>
-                <div className="notice">
-                  <strong>Local trial mode</strong>
-                  <p>
-                    Your data is saved in this browser. Export a backup before
-                    clearing browser data or switching devices. Use a cloud
-                    backup after Google sign-in to move between devices.
-                  </p>
-                </div>
-                <button
-                  className="outline"
-                  onClick={() =>
-                    download(
-                      JSON.stringify(
-                        { jobs, owner, business, reminders, payments, notes, customerPhones },
-                        null,
-                        2
-                      ),
-                      "pakki-baat-backup.json"
-                    )
-                  }
-                >
-                  Export my data
-                </button>
-                <label className="upload restore-backup-button">
-                  <span className="restore-backup-main"><Icon name="arrow" size={17}/> Restore from backup</span>
-                  <small>Choose a Pakki Baat backup file from this device.</small>
-                  <input
-                    type="file"
-                    accept=".json,application/json"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void importBackup(f);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                <CloudSettings
-                  snapshot={{ jobs, owner, business, reminders, payments, notes, customerPhones }}
-                  onRestore={restore}
-                  dark={dark}
-                  onToggleTheme={toggleTheme}
-                />
-
-                <label>
-                  Tell us what could be better
-                  <textarea
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    placeholder="What felt easy? What got in your way?"
-                  />
-                </label>
-                <button
-                  className="outline"
-                  disabled={!feedback.trim()}
-                  onClick={shareFeedback}
-                >
-                  Share feedback
-                </button>
-                <button
-                  className="primary"
-                  disabled={!feedback.trim()}
-                  onClick={() => {
-                    download(feedback, "pakki-baat-feedback.txt");
-                    setFeedback("");
-                    setToast(
-                      "Feedback downloaded. Send this file to the creator."
-                    );
-                  }}
-                >
-                  Download feedback
-                </button>
-              </section>
-              {loggedIn && (
-                <section className="settings-signout">
-                  <div><strong>Signed in as</strong><small>{userEmail}</small></div>
-                  <button type="button" className="outline" onClick={()=>void handleSignOut()}><Icon name="arrow" size={17}/> Sign out</button>
+                  <button type="button" className="primary settings-profile-save" onClick={saveProfileDetails} disabled={profileOwnerDraft.trim()===owner.trim()&&profileBusinessDraft.trim()===business.trim()}>Save changes</button>
+                  {loggedIn&&<div className="settings-account-row"><span><small>SIGNED IN AS</small><strong>{userEmail}</strong></span><button type="button" className="outline" onClick={()=>void handleSignOut()}><Icon name="arrow" size={16}/> Sign out</button></div>}
                 </section>
-              )}
+
+                <section className="settings-group">
+                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="bell" size={18}/></span><span><strong>Notifications</strong><small>Reminder alerts on this device.</small></span><button type="button" className={reminderAlertsEnabled?"setting-switch is-on":"setting-switch"} role="switch" aria-checked={reminderAlertsEnabled} onClick={()=>reminderAlertsEnabled?disableReminderAlerts():void enableReminderAlerts()}><span/></button></div>
+                  {reminderAlertsEnabled&&<div className="settings-compact-options">
+                    <label><span><strong>Alarm sound</strong><small>While Pakki Baat is open</small></span><input type="checkbox" checked={reminderSoundEnabled} onChange={e=>setReminderSound(e.target.checked)}/></label>
+                    <label><span><strong>Vibrate</strong><small>When supported by your phone</small></span><input type="checkbox" checked={reminderVibrationEnabled} onChange={e=>setReminderVibration(e.target.checked)}/></label>
+                    <div className="settings-notification-status"><span>System notifications</span><strong className={notificationPermission==="granted"?"ok":""}>{notificationPermission==="granted"?"Allowed":notificationPermission==="denied"?"Blocked":notificationPermission==="unsupported"?"Not supported":"Not allowed yet"}</strong></div>
+                    <button type="button" className="outline" disabled={pushDiagnosticBusy} onClick={()=>void testReminderAlert()}>{pushDiagnosticBusy?"Checking…":"Send test notification"}</button>
+                    {pushDiagnostic&&<div className={pushDiagnostic.startsWith("✓")?"push-diagnostic ok":"push-diagnostic error"}>{pushDiagnostic}</div>}
+                  </div>}
+                </section>
+
+                <section className="settings-group">
+                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="cloud" size={18}/></span><span><strong>Data & backup</strong><small>Keep a copy of your workspace.</small></span></div>
+                  <div className="settings-data-actions">
+                    <button className="outline" onClick={()=>download(JSON.stringify({jobs,owner,business,reminders,payments,notes,customerPhones},null,2),"pakki-baat-backup.json")}>Export my data</button>
+                    <label className="upload restore-backup-button"><span className="restore-backup-main"><Icon name="arrow" size={17}/> Restore backup</span><input type="file" accept=".json,application/json" onChange={(e)=>{const file=e.target.files?.[0];if(file)void importBackup(file);e.target.value="";}}/></label>
+                  </div>
+                  <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={restore} dark={dark} onToggleTheme={toggleTheme}/>
+                </section>
+
+                <section className="settings-group">
+                  <div className="settings-group-head"><span className="settings-group-icon">?</span><span><strong>Help & feedback</strong><small>Guide and product feedback.</small></span></div>
+                  <button type="button" className="how-it-works-card settings-help-row" onClick={()=>setGuideOpen(true)}><span><strong>How Pakki Baat works</strong><small>Quick guide to entries, payments and reminders.</small></span><Icon name="arrow" size={17}/></button>
+                  <label className="settings-feedback">Tell us what could be better<textarea value={feedback} onChange={(e)=>setFeedback(e.target.value)} placeholder="Share your feedback…"/></label>
+                  <div className="settings-feedback-actions"><button className="outline" disabled={!feedback.trim()} onClick={shareFeedback}>Share feedback</button><button className="primary" disabled={!feedback.trim()} onClick={()=>{download(feedback,"pakki-baat-feedback.txt");setFeedback("");setToast("Feedback downloaded.");}}>Download</button></div>
+                </section>
+              </div>
+              <footer className="settings-brand-footer">Pakki Baat <span>·</span> Sarrah Bharmal <span>·</span> <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a></footer>
             </>
           )}
         </div>
