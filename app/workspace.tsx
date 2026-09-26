@@ -2421,7 +2421,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <div className="top-account-popover">
                     <div className="top-account-info">
                       <span className="avatar">{displayName.charAt(0).toUpperCase()}</span>
-                      <span><strong>{displayName}</strong><small>{userEmail}</small><em className={"top-account-plan "+(hasActiveSubscription?"active":"inactive")}>{hasActiveSubscription?(subscriptionPlan==="trial"?"Free trial":subscriptionPlan?.charAt(0).toUpperCase()+subscriptionPlan?.slice(1)):(subscriptionPlan&&subscriptionExpired?"Plan expired":"No active plan")}</em></span>
+                      <span><strong>{displayName}</strong><small>{userEmail}</small><em className={"top-account-plan "+(hasActiveSubscription?"active":"inactive")}>{hasActiveSubscription && subscriptionPlan ? (subscriptionPlan==="trial"?"Free trial":subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)) : (subscriptionPlan&&subscriptionExpired?"Plan expired":"No active plan")}</em></span>
                     </div>
                     <button type="button" onClick={()=>{setAccountMenuOpen(false);void handleSignOut();}}>
                       <Icon name="arrow" size={17}/> Sign out
