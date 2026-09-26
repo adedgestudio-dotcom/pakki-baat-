@@ -2443,6 +2443,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </button>
           </div>
         )}
+        {trialEndingSoon && (
+          <div className="trial-ending-banner" role="status">
+            <span><strong>Your free trial ends in {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"}</strong><small>Keep your Hisaab moving without interruption.</small></span>
+            <button type="button" onClick={()=>go("Subscription")}>Upgrade plan</button>
+          </div>
+        )}
         <div className="content">
           {tab === "Today" && (
             <>
@@ -3127,17 +3133,17 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <section className="subscription-summary panel">
                 <div className="subscription-summary-main">
                   <span className="subscription-plan-icon"><Icon name="plan" size={21}/></span>
-                  <div><small>CURRENT PLAN</small><h2>30-Day Free Trial</h2><p>100 customers · 100 voice minutes · full core features</p></div>
+                  <div><small>CURRENT PLAN</small><h2>{!subscriptionPlan?"No active plan":subscriptionPlan==="trial"?"30-Day Free Trial":subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)}</h2><p>{!subscriptionPlan?"Start free or choose a plan to continue.":subscriptionPlan==="business"?"Unlimited customers · 1,000 shared voice minutes":subscriptionPlan==="smart"?"250 customers · 500 voice minutes":"100 customers · 100 voice minutes"}</p>{subscriptionPeriodEnd&&<small className="subscription-expiry">{subscriptionExpired?"Expired":"Active"} · {subscriptionExpired?"Ended":"Ends"} {new Date(subscriptionPeriodEnd).toLocaleDateString("en-IN")}{trialDaysLeft!==null&&!subscriptionExpired?" · "+trialDaysLeft+" days left":""}</small>}</div>
                 </div>
                 <div className="subscription-summary-usage">
-                  <div><span>Voice used</span><strong>0 / 60 min</strong></div>
-                  <div className="usage-track"><span style={{width:"0%"}}/></div>
-                  <small>Your actual usage will appear here once connected to your account.</small>
+                  <div><span>Status</span><strong>{hasActiveSubscription?"Active":subscriptionPlan?(subscriptionExpired?"Expired":subscriptionStatus||"Inactive"):"Choose a plan"}</strong></div>
+                  <div className="usage-track"><span style={{width:hasActiveSubscription?"100%":"0%"}}/></div>
+                  <small>{hasActiveSubscription?"Your plan is active on this account.":"Your existing data stays safe. Start free or choose a plan to continue."}</small>
                 </div>
               </section>
-              <section className="trial-value-banner">
-                <div><span className="trial-value-kicker">FREE FOR 30 DAYS</span><h2>Try Pakki Baat free for 30 days</h2><p>Start with your real customers and see how easy daily Hisaab feels — no payment needed.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>100</strong></span><span><small>VOICE + AI</small><strong>100 min</strong></span></div></div>
-              </section>
+              {!subscriptionPlan&&<section className="trial-value-banner">
+                <div><span className="trial-value-kicker">FREE FOR 30 DAYS</span><h2>Try Pakki Baat free for 30 days</h2><p>Start with your real customers and see how easy daily Hisaab feels — no payment needed.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>100</strong></span><span><small>VOICE + AI</small><strong>100 min</strong></span></div><button type="button" className="primary" disabled={trialStarting} onClick={()=>void startFreeTrial()}>{trialStarting?"Starting…":"Start 30-day free trial"}</button></div>
+              </section>}
               <div className="subscription-section-title"><div><h2>Choose what fits your business</h2><p>Start small and upgrade only when your customer list grows.</p></div></div>
               <div className="plan-grid clean-plan-grid value-plan-grid">
                 {[
@@ -3366,6 +3372,24 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <button type="button" className="outline" onClick={()=>printReceipt(receiptJob)}>Print / Save PDF</button>
               <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send text on WhatsApp" : "WhatsApp needs internet"}</button>
             </div>
+          </section>
+        </div>
+      )}
+      {loggedIn && trialOfferOpen && (
+        <div className="trial-welcome-backdrop" role="dialog" aria-modal="true" aria-label="Start your free trial">
+          <section className="trial-welcome-card">
+            <span className="trial-value-kicker">WELCOME TO PAKKI BAAT</span>
+            <h2>Try everything free for 30 days</h2>
+            <p>No payment needed. Use Pakki Baat with your real business before choosing a plan.</p>
+            <div className="trial-feature-list">
+              <span><Icon name="check" size={16}/> Customer Hisaab & baki</span>
+              <span><Icon name="check" size={16}/> Payments & reminders</span>
+              <span><Icon name="check" size={16}/> AI voice transcription</span>
+              <span><Icon name="check" size={16}/> WhatsApp sharing & receipts</span>
+            </div>
+            <div className="trial-welcome-limits"><strong>100 customers</strong><strong>100 voice minutes</strong></div>
+            <button type="button" className="primary" disabled={trialStarting} onClick={()=>void startFreeTrial()}>{trialStarting?"Starting your trial…":"Start my 30-day free trial"}</button>
+            <button type="button" className="text-button" onClick={()=>{setTrialOfferOpen(false);setTab("Subscription");}}>View plans instead</button>
           </section>
         </div>
       )}
