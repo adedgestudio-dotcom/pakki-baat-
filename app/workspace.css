@@ -8981,3 +8981,10 @@ footer .footer-separator{
 .reminder-sheet{scrollbar-width:none;-ms-overflow-style:none}
 .reminder-sheet::-webkit-scrollbar{display:none;width:0;height:0}
 .reminder-time-period{display:none !important}
+
+/* Clean app boot while restoring the saved view */
+.workspace-boot-screen{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#f7f4ea;color:#2d7d69}
+.workspace-boot-brand{font-size:24px;font-weight:850;letter-spacing:-1.2px;opacity:.9}
+.workspace-boot-brand span{color:#d8ad6d}
+[data-theme="dark"] .workspace-boot-screen{background:#0d1914;color:#8fc4ae}
+.navigation-restoring{visibility:hidden !important}
