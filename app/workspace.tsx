@@ -208,6 +208,7 @@ export default function Workspace() {
     [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
     [trialOfferOpen, setTrialOfferOpen] = useState(false),
     [trialStarting, setTrialStarting] = useState(false),
+    [trialExpiryPromptOpen, setTrialExpiryPromptOpen] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
     [accountMenuOpen, setAccountMenuOpen] = useState(false),
@@ -621,6 +622,17 @@ export default function Workspace() {
   const hasActiveSubscription = Boolean(subscriptionPlan && subscriptionStatus === "active" && !subscriptionExpired);
   const trialDaysLeft = subscriptionPlan === "trial" && subscriptionPeriodEnd ? Math.max(0, Math.ceil((subscriptionEndMs - Date.now()) / 86400000)) : null;
   const trialEndingSoon = hasActiveSubscription && subscriptionPlan === "trial" && trialDaysLeft !== null && trialDaysLeft <= 2;
+
+  useEffect(() => {
+    if (!trialEndingSoon || !subscriptionPeriodEnd) return;
+    const key = "pakki-baat-trial-ending:" + subscriptionPeriodEnd.slice(0,10);
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key,"shown");
+    } catch {}
+    setTrialExpiryPromptOpen(true);
+  }, [trialEndingSoon, subscriptionPeriodEnd]);
+
 
   const open = jobs.filter((j) => j.status !== "Completed"),
     due = open.filter((j) => j.date && j.date <= day()),
@@ -3371,6 +3383,17 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <button type="button" className="outline" onClick={()=>printReceipt(receiptJob)}>Print / Save PDF</button>
               <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send text on WhatsApp" : "WhatsApp needs internet"}</button>
             </div>
+          </section>
+        </div>
+      )}
+      {trialExpiryPromptOpen && trialEndingSoon && (
+        <div className="trial-welcome-backdrop" role="dialog" aria-modal="true" aria-label="Trial ending soon">
+          <section className="trial-welcome-card trial-ending-modal">
+            <span className="trial-value-kicker">TRIAL ENDING SOON</span>
+            <h2>{trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left on your free trial</h2>
+            <p>Your Hisaab and customer data stay safe. Upgrade now to keep adding customers and using voice/AI without interruption.</p>
+            <button type="button" className="primary" onClick={()=>{setTrialExpiryPromptOpen(false);setTab("Subscription");}}>View plans</button>
+            <button type="button" className="text-button" onClick={()=>setTrialExpiryPromptOpen(false)}>Remind me later</button>
           </section>
         </div>
       )}
