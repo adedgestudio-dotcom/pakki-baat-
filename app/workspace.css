@@ -8920,3 +8920,35 @@ footer .footer-separator{
 [data-theme="dark"] .settings-group .outline,[data-theme="dark"] .settings-account-row .outline,[data-theme="dark"] .settings-data-actions .outline,[data-theme="dark"] .settings-feedback-actions .outline{background:#1a211e !important;color:#edf4ef !important;border-color:#52635b !important}
 [data-theme="dark"] .settings-help-row{background:#19231f !important;border-color:#35413b !important;color:#edf4ef !important}
 [data-theme="dark"] .settings-brand-footer a{color:#8fc4ae !important}
+
+/* Reminder action theme cleanup */
+[data-theme="dark"] .reminder-page-actions .primary.mini,
+[data-theme="dark"] .reminder-alarm-actions .primary{
+  background:#33806b !important;
+  border-color:#4e9b84 !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+[data-theme="dark"] .reminder-page-actions .primary.mini:hover,
+[data-theme="dark"] .reminder-alarm-actions .primary:hover{
+  background:#3b8d76 !important;
+}
+[data-theme="dark"] .reminder-delete-button{
+  background:#1c2b25 !important;
+  border-color:#3d594e !important;
+  color:#9dbbb0 !important;
+}
+[data-theme="dark"] .reminder-delete-button:hover{
+  background:#24372f !important;
+  border-color:#527064 !important;
+  color:#d7e7e0 !important;
+}
+[data-theme="dark"] .completed-delete{
+  background:transparent !important;
+  border-color:#3a5047 !important;
+  color:#879f95 !important;
+}
+[data-theme="dark"] .completed-delete:hover{
+  background:#22332c !important;
+  color:#c9ddd4 !important;
+}
