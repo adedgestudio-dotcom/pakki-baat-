@@ -96,12 +96,14 @@ export async function loadCloud() {
 export type SubscriptionInfo = {
   plan: string;
   status: string;
+  period_start: string | null;
   period_end: string | null;
+  bonus_voice_seconds?: number;
 };
 
 export async function loadSubscription(): Promise<SubscriptionInfo | null> {
   const rows = await request(
-    "/rest/v1/subscriptions?select=plan,status,period_end",
+    "/rest/v1/subscriptions?select=plan,status,period_start,period_end,bonus_voice_seconds",
     undefined,
     await cloudToken()
   );
