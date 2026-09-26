@@ -8952,3 +8952,20 @@ footer .footer-separator{
   background:#22332c !important;
   color:#c9ddd4 !important;
 }
+
+/* Native reminder date/time controls in dark mode */
+[data-theme="dark"] .date-chip input[type="date"],
+[data-theme="dark"] .date-chip input[type="time"]{
+  background:transparent !important;
+  color:#edf4ef !important;
+  color-scheme:dark;
+}
+[data-theme="dark"] .date-chip input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] .date-chip input[type="time"]::-webkit-calendar-picker-indicator{
+  filter:invert(82%) sepia(9%) saturate(420%) hue-rotate(104deg) brightness(92%);
+  opacity:.9;
+}
+[data-theme="dark"] .date-chip:focus-within{
+  background:#1b3027 !important;
+  border-color:#4e806d !important;
+}
