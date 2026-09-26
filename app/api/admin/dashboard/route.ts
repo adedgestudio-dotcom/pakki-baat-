@@ -11,6 +11,7 @@ const plans:Record<string,{days:number;voiceMinutes:number;customerLimit:number|
 function env(){return {base:process.env.NEXT_PUBLIC_SUPABASE_URL||"",service:process.env.SUPABASE_SERVICE_ROLE_KEY||""}}
 async function sb(path:string,init:RequestInit={}){const {base,service}=env();const r=await fetch(base+"/rest/v1/"+path,{...init,headers:{apikey:service,Authorization:"Bearer "+service,"Content-Type":"application/json",...(init.headers||{})},cache:"no-store"});const t=await r.text();if(!r.ok)throw new Error(t||"Database request failed");return t?JSON.parse(t):null}
 async function users(){const {base,service}=env();const r=await fetch(base+"/auth/v1/admin/users?per_page=1000",{headers:{apikey:service,Authorization:"Bearer "+service},cache:"no-store"});if(!r.ok)throw new Error("Could not load users");return (await r.json()).users||[]}
+async function deleteAuthUser(userId:string){const {base,service}=env();const r=await fetch(base+"/auth/v1/admin/users/"+encodeURIComponent(userId),{method:"DELETE",headers:{apikey:service,Authorization:"Bearer "+service},cache:"no-store"});if(!r.ok)throw new Error((await r.text())||"Could not delete user")}
 
 function customerCount(payload:any){
  const names:string[]=[];
@@ -69,6 +70,11 @@ export async function POST(req:NextRequest){
    await sb("subscriptions?owner_id=eq."+userId,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({status:b.status==="suspended"?"suspended":"active",updated_at:new Date().toISOString()})});
   }else if(action==="grant_trial"){
    const end=new Date(Date.now()+30*86400000);await sb("subscriptions?owner_id=eq."+userId,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({plan:"trial",status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0,updated_at:new Date().toISOString()})});
+  }else if(action==="delete_user"){
+   if(!userId)return NextResponse.json({error:"User is required"},{status:400});
+   const authUsers=await users();const target=authUsers.find((u:any)=>u.id===userId);if(!target)return NextResponse.json({error:"User not found"},{status:404});
+   if(String(target.email||"").toLowerCase()==="zorivoworks@gmail.com")return NextResponse.json({error:"The owner account cannot be deleted from Admin."},{status:400});
+   await deleteAuthUser(userId);
   }else return NextResponse.json({error:"Unknown action"},{status:400});
   return NextResponse.json({ok:true});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Admin action failed"},{status:500})}
