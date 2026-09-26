@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { cloudConfigured, currentSession, loadCloud, saveCloud, signInWithGoogle, signOut, watchSession } from "@/lib/cloud";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 
-export default function CloudSettings({ snapshot, onRestore, dark, onToggleTheme }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; dark: boolean; onToggleTheme: () => void }) {
+export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; dark?: boolean; onToggleTheme?: () => void }) {
   const [logged, setLogged] = useState(false);
   const [checking, setChecking] = useState(cloudConfigured);
   const [busy, setBusy] = useState(false);
@@ -31,10 +31,6 @@ export default function CloudSettings({ snapshot, onRestore, dark, onToggleTheme
   }
 
   return <div className="cloud-settings">
-    <div className="theme-control">
-      <div><strong>Appearance</strong><small>Choose the look that feels comfortable.</small></div>
-      <button type="button" className={dark ? "switch on" : "switch"} role="switch" aria-checked={dark} aria-label="Toggle dark mode" onClick={onToggleTheme}><span /></button>
-    </div>
     <h3>Keep your business with you</h3>
     <p>Sign in with Google to keep this workspace linked to your account and use AI voice transcription.</p>
     {!cloudConfigured
