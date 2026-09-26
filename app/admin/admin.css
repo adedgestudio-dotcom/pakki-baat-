@@ -59,3 +59,9 @@
 @media(max-width:820px){.user-grid{grid-template-columns:1fr}}@media(max-width:520px){.user-plan-row,.usage-grid{grid-template-columns:1fr 1fr}.usage-grid>div:last-child{grid-column:1/-1}}
 
 .danger-zone{margin-top:12px;padding-top:12px;border-top:1px solid #573f3d;display:flex;align-items:center;justify-content:space-between;gap:10px}.danger-zone small{font-size:8px;letter-spacing:.12em;color:#d88f89;font-weight:900}.danger-zone .delete-user{border:1px solid #754b48;background:#493331;color:#f2aaa5;border-radius:8px;padding:8px 10px;font-size:10px;font-weight:800;cursor:pointer}.danger-zone .delete-user:hover{background:#573937}.danger-zone .delete-user:disabled{opacity:.35;cursor:not-allowed}.dialog-actions .danger-confirm{background:#b6534d;border-color:#b6534d;color:white}.dialog-actions button:disabled{opacity:.4;cursor:not-allowed}
+
+/* Clean dropdown and Manage account arrows */
+.manage-panel select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238fd0bf' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:34px}
+.user-manage summary{display:flex;align-items:center;gap:7px;width:max-content}
+.user-manage summary:after{content:"";width:7px;height:7px;border-right:1.5px solid #8fd0bf;border-bottom:1.5px solid #8fd0bf;transform:rotate(45deg) translateY(-2px);margin:0;transition:transform .16s ease}
+.user-manage[open] summary:after{content:"";transform:rotate(225deg) translate(-1px,-1px)}
