@@ -8988,3 +8988,22 @@ footer .footer-separator{
 .workspace-boot-brand span{color:#d8ad6d}
 [data-theme="dark"] .workspace-boot-screen{background:#0d1914;color:#8fc4ae}
 .navigation-restoring{visibility:hidden !important}
+
+/* Account popover: keep it compact, readable and consistent in both themes */
+.top-account-popover{width:270px;padding:12px;border-radius:16px;color:var(--text);background:var(--panel,#fff)}
+.top-account-info{gap:11px;padding:5px 4px 12px}
+.top-account-info .avatar{width:42px;height:42px;min-width:42px}
+.top-account-info strong{display:block;font-size:12px;line-height:1.3;color:var(--text)}
+.top-account-info small{display:block;margin-top:3px;font-size:10px;line-height:1.3;color:var(--muted)}
+.top-account-popover>button{padding:11px 5px 5px;color:var(--muted);border-top-color:var(--line,#e5e7e2)}
+.top-account-popover>button:hover{color:var(--accent,#347b69)}
+[data-theme="dark"] .top-account-popover{background:#17211c;border-color:#304038;box-shadow:0 16px 38px rgba(0,0,0,.34)}
+[data-theme="dark"] .top-account-popover:before{background:#17211c;border-color:#304038}
+[data-theme="dark"] .top-account-info strong{color:#eef5f1}
+[data-theme="dark"] .top-account-info small{color:#9fb0a8}
+[data-theme="dark"] .top-account-popover>button{color:#b8c7c0;border-top-color:#304038}
+[data-theme="dark"] .top-account-popover>button:hover{color:#8fc4ae}
+@media(max-width:520px){
+  .top-account-popover{position:fixed;top:68px;right:12px;width:min(270px,calc(100vw - 24px));padding:12px}
+  .top-account-popover:before{right:17px}
+}
