@@ -2237,7 +2237,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   }, [reminders, ready, reminderAlertsEnabled, reminderSoundEnabled, reminderVibrationEnabled, notificationPermission]);
 
   return (
-    <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
+    <>
+      {!navigationReady && <div className="workspace-boot-screen" aria-label="Loading Pakki Baat"><span className="workspace-boot-brand">pakki baat<span>.</span></span></div>}
+      <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
       {!isOnline && (
         <div className="offline-banner" role="status">
           <span className="offline-dot" /> Offline · changes are saved on this device
@@ -3724,5 +3726,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         </div>
       )}
     </div>
+    </>
   );
 }
