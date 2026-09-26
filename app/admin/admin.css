@@ -65,3 +65,9 @@
 .user-manage summary{display:flex;align-items:center;gap:7px;width:max-content}
 .user-manage summary:after{content:"";width:7px;height:7px;border-right:1.5px solid #8fd0bf;border-bottom:1.5px solid #8fd0bf;transform:rotate(45deg) translateY(-2px);margin:0;transition:transform .16s ease}
 .user-manage[open] summary:after{content:"";transform:rotate(225deg) translate(-1px,-1px)}
+
+.admin-plan-apply-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin-top:6px}
+.admin-plan-apply-row select{width:100%}
+.admin-plan-apply-row button{white-space:nowrap;background:#2d8069;color:#fff;border-color:#2d8069}
+.admin-plan-apply-row button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:560px){.admin-plan-apply-row{grid-template-columns:1fr}.admin-plan-apply-row button{width:100%}}
