@@ -1,20 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
-const plans:any={trial:{days:30,voice:0},basic:{days:30,voice:0},smart:{days:30,voice:0},business:{days:30,voice:0}};
+
+const plans:Record<string,{days:number;voiceMinutes:number;customerLimit:number|null}>={
+ trial:{days:30,voiceMinutes:100,customerLimit:100},
+ basic:{days:30,voiceMinutes:100,customerLimit:100},
+ smart:{days:30,voiceMinutes:500,customerLimit:250},
+ business:{days:30,voiceMinutes:1000,customerLimit:null}
+};
+
 function env(){return {base:process.env.NEXT_PUBLIC_SUPABASE_URL||"",service:process.env.SUPABASE_SERVICE_ROLE_KEY||""}}
 async function sb(path:string,init:RequestInit={}){const {base,service}=env();const r=await fetch(base+"/rest/v1/"+path,{...init,headers:{apikey:service,Authorization:"Bearer "+service,"Content-Type":"application/json",...(init.headers||{})},cache:"no-store"});const t=await r.text();if(!r.ok)throw new Error(t||"Database request failed");return t?JSON.parse(t):null}
 async function users(){const {base,service}=env();const r=await fetch(base+"/auth/v1/admin/users?per_page=1000",{headers:{apikey:service,Authorization:"Bearer "+service},cache:"no-store"});if(!r.ok)throw new Error("Could not load users");return (await r.json()).users||[]}
+
+function customerCount(payload:any){
+ const names:string[]=[];
+ const add=(value:any)=>{if(typeof value==="string"&&value.trim())names.push(value.trim().toLowerCase())};
+ for(const x of payload?.jobs||[])add(x?.customer);
+ for(const x of payload?.payments||[])add(x?.customer);
+ for(const x of payload?.notes||[])add(x?.customer);
+ for(const x of payload?.reminders||[])add(x?.customer);
+ for(const key of Object.keys(payload?.customerPhones||{}))add(key);
+ return new Set(names).size;
+}
+
 export async function GET(req:NextRequest){
  if(!isAdmin(req))return NextResponse.json({error:"Unauthorized"},{status:401});
  try{
-  const [authUsers,subs,usage,payments,claims]=await Promise.all([users(),sb("subscriptions?select=*"),sb("ai_monthly_usage?select=owner_id,period_month,voice_seconds,ai_calls&order=period_month.desc"),sb("payment_requests?select=*&order=submitted_at.desc"),sb("trial_claims?select=first_owner_id,claimed_at")]);
-  const latest=new Map();for(const x of usage||[])if(!latest.has(x.owner_id))latest.set(x.owner_id,x);
+  const month=new Date().toISOString().slice(0,7)+"-01";
+  const [authUsers,subs,usage,payments,claims,workspaces]=await Promise.all([
+   users(),
+   sb("subscriptions?select=*"),
+   sb("ai_monthly_usage?select=owner_id,period_month,voice_seconds,ai_calls&period_month=eq."+month),
+   sb("payment_requests?select=*&order=submitted_at.desc"),
+   sb("trial_claims?select=first_owner_id,claimed_at"),
+   sb("workspaces?select=owner_id,payload")
+  ]);
+  const usageMap=new Map((usage||[]).map((x:any)=>[x.owner_id,x]));
   const subMap=new Map((subs||[]).map((x:any)=>[x.owner_id,x]));
   const claimMap=new Map((claims||[]).map((x:any)=>[x.first_owner_id,x]));
-  const list=authUsers.map((u:any)=>({id:u.id,email:u.email||"",created_at:u.created_at,last_sign_in_at:u.last_sign_in_at,...(subMap.get(u.id)||{}),usage:latest.get(u.id)||null,trial_claim:claimMap.get(u.id)||null}));
-  const now=Date.now();return NextResponse.json({users:list,payments,stats:{totalUsers:list.length,pendingPayments:(payments||[]).filter((p:any)=>p.status==="pending").length,activePlans:list.filter((u:any)=>u.plan&&u.plan!=="trial"&&u.status==="active"&&new Date(u.period_end).getTime()>now).length,voiceSeconds:[...latest.values()].reduce((n:any,x:any)=>n+(x.voice_seconds||0),0)}});
+  const workspaceMap=new Map((workspaces||[]).map((x:any)=>[x.owner_id,x.payload]));
+  const now=Date.now();
+  const list=authUsers.map((u:any)=>{
+   const sub:any=subMap.get(u.id)||{};
+   const entitlement=plans[sub.plan]||null;
+   const expired=!!sub.period_end&&new Date(sub.period_end).getTime()<=now;
+   return {id:u.id,email:u.email||"",created_at:u.created_at,last_sign_in_at:u.last_sign_in_at,...sub,display_status:expired&&sub.status==="active"?"expired":sub.status,usage:usageMap.get(u.id)||null,trial_claim:claimMap.get(u.id)||null,customer_count:customerCount(workspaceMap.get(u.id)),voice_limit_minutes:entitlement?.voiceMinutes??0,customer_limit:entitlement?.customerLimit??null};
+  });
+  return NextResponse.json({users:list,payments,stats:{totalUsers:list.length,pendingPayments:(payments||[]).filter((p:any)=>p.status==="pending").length,activePlans:list.filter((u:any)=>u.plan&&u.plan!=="trial"&&u.status==="active"&&new Date(u.period_end).getTime()>now).length,voiceSeconds:[...usageMap.values()].reduce((n:any,x:any)=>n+(x.voice_seconds||0),0),aiCalls:[...usageMap.values()].reduce((n:any,x:any)=>n+(x.ai_calls||0),0)}});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not load admin data"},{status:500})}
 }
+
 export async function POST(req:NextRequest){
  if(!isAdmin(req))return NextResponse.json({error:"Unauthorized"},{status:401});
  try{
