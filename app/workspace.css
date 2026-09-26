@@ -9021,3 +9021,7 @@ footer .footer-separator{
 [data-theme="dark"] .trial-welcome-card{background:#17211c;border-color:#304038}[data-theme="dark"] .trial-welcome-limits strong{background:#223a30;color:#a9d8c4}
 [data-theme="dark"] .trial-ending-banner{background:#302a1d;border-color:#655735;color:#f3e5b9}
 @media(max-width:600px){.trial-welcome-card{padding:22px 18px;border-radius:20px}.trial-welcome-card h2{font-size:24px}.trial-feature-list{grid-template-columns:1fr}.trial-ending-banner{margin:8px 12px 0;padding:10px 11px}.trial-ending-banner small{display:none}}
+
+.top-account-info .top-account-plan{display:inline-flex;width:max-content;margin-top:5px;padding:3px 7px;border-radius:999px;font-size:9px;font-style:normal;font-weight:800}
+.top-account-plan.active{background:#e4f3ec;color:#26705c}.top-account-plan.inactive{background:#f3eee5;color:#8a6841}
+[data-theme="dark"] .top-account-plan.active{background:#244438;color:#b9e4d1}[data-theme="dark"] .top-account-plan.inactive{background:#3a3024;color:#e0c69c}
