@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
     if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const deviceHash = createHash("sha256").update("pakki-baat-trial-v1:" + deviceId).digest("hex");
+    const existingRes = await fetch(base + "/rest/v1/subscriptions?owner_id=eq." + encodeURIComponent(user.id) + "&select=plan,status,period_end", { headers: { apikey: service, Authorization: "Bearer " + service }, cache: "no-store" });
+    const existingRows = existingRes.ok ? await existingRes.json() : [];
+    const hadSubscription = Array.isArray(existingRows) && existingRows.length > 0;
     const rpc = await fetch(base + "/rest/v1/rpc/claim_trial", {
       method: "POST",
       headers: { apikey: service, Authorization: "Bearer " + service, "Content-Type": "application/json" },
@@ -30,6 +33,17 @@ export async function POST(request: NextRequest) {
     const raw = await rpc.text();
     if (!rpc.ok) return NextResponse.json({ error: "Could not check free trial" }, { status: 500 });
     const result = raw ? JSON.parse(raw) : null;
+    if (result?.allowed && result?.reason === "trial_claimed" && !hadSubscription) {
+      const start = new Date();
+      const end = new Date(start.getTime() + 30 * 86400000);
+      const patch = await fetch(base + "/rest/v1/subscriptions?owner_id=eq." + encodeURIComponent(user.id), {
+        method: "PATCH",
+        headers: { apikey: service, Authorization: "Bearer " + service, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ plan: "trial", status: "active", period_start: start.toISOString(), period_end: end.toISOString(), bonus_voice_seconds: 0, updated_at: start.toISOString() }),
+        cache: "no-store",
+      });
+      if (!patch.ok) return NextResponse.json({ error: "Could not activate free trial" }, { status: 500 });
+    }
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "Could not check free trial" }, { status: 500 });
