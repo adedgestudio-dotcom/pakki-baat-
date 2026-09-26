@@ -625,7 +625,7 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!trialEndingSoon || !subscriptionPeriodEnd) return;
-    const key = "pakki-baat-trial-ending:" + subscriptionPeriodEnd.slice(0,10);
+    const key = "pakki-baat-trial-ending:" + subscriptionPeriodEnd.slice(0,10) + ":" + day();
     try {
       if (localStorage.getItem(key)) return;
       localStorage.setItem(key,"shown");
