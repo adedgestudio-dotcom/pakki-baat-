@@ -2596,9 +2596,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </section>
               </div>
               <footer>
-                Made with <span>♡</span> by Sarrah Aliasgar Bharmal
-                <span className="footer-separator">·</span>
-                <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">zorivo.in</a>
+                Pakki Baat <span className="footer-separator">·</span>
+                A product by <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>
               </footer>
             </>
           )}
@@ -3318,6 +3317,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   Download feedback
                 </button>
               </section>
+              {loggedIn && (
+                <section className="settings-signout">
+                  <div><strong>Signed in as</strong><small>{userEmail}</small></div>
+                  <button type="button" className="outline" onClick={()=>void handleSignOut()}><Icon name="arrow" size={17}/> Sign out</button>
+                </section>
+              )}
             </>
           )}
         </div>
