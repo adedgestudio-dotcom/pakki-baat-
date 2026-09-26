@@ -63,10 +63,10 @@ begin
   end if;
 
   voice_limit := case sub.plan
-    when 'trial' then 36000
-    when 'basic' then 7200
-    when 'smart' then 36000
-    when 'business' then 72000
+    when 'trial' then 6000
+    when 'basic' then 6000
+    when 'smart' then 30000
+    when 'business' then 60000
     else 0
   end;
   voice_limit := voice_limit + sub.bonus_voice_seconds;
