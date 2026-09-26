@@ -433,10 +433,7 @@ export default function Workspace() {
             setSubscriptionPeriodEnd(null);
           }
         }
-        try {
-          const guideKey = "pakki-baat-guide-v1:" + session.user.id;
-          if (!localStorage.getItem(guideKey)) setGuideOpen(true);
-        } catch {}
+        // The trial welcome is the first-run onboarding. The full guide remains available from Help.
       }
 
       if (!session) {
@@ -646,6 +643,7 @@ export default function Workspace() {
           : j.status === filter))
   );
   function go(t: Tab) {
+    if (loggedIn && !subscriptionPlan && !["Today","Subscription","Settings"].includes(t)) { setTrialOfferOpen(true); setToast("Start your free trial or choose a plan to continue."); return; }
     if (t === tab && !selectedCustomer && !customerChatOpen) return;
     if (t === "My assistant") setSelectedCustomer(null);
     window.history.pushState({ pakkiBaat: true, tab: t }, "");
@@ -1089,6 +1087,7 @@ export default function Workspace() {
     setMessage(seed);
   }
   function openNewEntry() {
+    if (loggedIn && !subscriptionPlan) { setTrialOfferOpen(true); setToast("Start your free trial or choose a plan to continue."); return; }
     setTab("Hisaab");
     setQuery("");
     setFilter("All");
