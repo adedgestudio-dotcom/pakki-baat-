@@ -204,6 +204,10 @@ export default function Workspace() {
     [feedback, setFeedback] = useState(""),
     [loggedIn, setLoggedIn] = useState(false),
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
+    [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null),
+    [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
+    [trialOfferOpen, setTrialOfferOpen] = useState(false),
+    [trialStarting, setTrialStarting] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
     [accountMenuOpen, setAccountMenuOpen] = useState(false),
@@ -312,6 +316,28 @@ export default function Workspace() {
     }
   }
 
+  async function startFreeTrial() {
+    if (!loggedIn) { setToast("Please sign in to start your free trial."); return; }
+    try {
+      setTrialStarting(true);
+      const trial = await claimFreeTrial();
+      if (!trial.allowed) {
+        setTrialOfferOpen(false);
+        setTab("Subscription");
+        setToast(trial.reason === "trial_already_used_on_device" ? "This device has already used its free trial. Choose a plan to continue." : "Free trial is not available for this account.");
+        return;
+      }
+      const subscription = await loadSubscription();
+      setSubscriptionPlan(subscription?.plan?.toLowerCase() || "trial");
+      setSubscriptionStatus(subscription?.status?.toLowerCase() || "active");
+      setSubscriptionPeriodEnd(subscription?.period_end || null);
+      setTrialOfferOpen(false);
+      setToast("Your 30-day free trial is active ✓");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not start your free trial.");
+    } finally { setTrialStarting(false); }
+  }
+
   function saveProfileDetails() {
     setOwner(profileOwnerDraft.trim());
     setBusiness(profileBusinessDraft.trim() || "My small business");
@@ -396,18 +422,16 @@ export default function Workspace() {
           const subscription = await loadSubscription();
           if (!cancelled && activeUserIdRef.current === session.user.id) {
             setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
+            setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
+            setSubscriptionPeriodEnd(subscription?.period_end || null);
+            setTrialOfferOpen(!subscription);
           }
         } catch {
-          if (!cancelled) setSubscriptionPlan(null);
-        }
-        try {
-          const trial = await claimFreeTrial();
-          if (!trial.allowed && trial.reason === "trial_already_used_on_device") {
-            setToast("This device has already used its 30-day free trial. Your account is safe — choose a plan to continue.");
-            setTab("Subscription");
+          if (!cancelled) {
+            setSubscriptionPlan(null);
+            setSubscriptionStatus(null);
+            setSubscriptionPeriodEnd(null);
           }
-        } catch {
-          // A temporary trial check failure must not block sign-in or access to existing data.
         }
         try {
           const guideKey = "pakki-baat-guide-v1:" + session.user.id;
@@ -417,6 +441,9 @@ export default function Workspace() {
 
       if (!session) {
         setSubscriptionPlan(null);
+        setSubscriptionStatus(null);
+        setSubscriptionPeriodEnd(null);
+        setTrialOfferOpen(false);
         cloudHydratedRef.current = false;
         const localSnapshot = readLocalWorkspace(LOCAL_WORKSPACE_ID);
         if (localSnapshot) restore(localSnapshot);
@@ -592,6 +619,12 @@ export default function Workspace() {
     ["Hisaab", "list"],
     ["Reminders", "bell"],
   ];
+  const subscriptionEndMs = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd).getTime() : 0;
+  const subscriptionExpired = Boolean(subscriptionPeriodEnd) && subscriptionEndMs <= Date.now();
+  const hasActiveSubscription = Boolean(subscriptionPlan && subscriptionStatus === "active" && !subscriptionExpired);
+  const trialDaysLeft = subscriptionPlan === "trial" && subscriptionPeriodEnd ? Math.max(0, Math.ceil((subscriptionEndMs - Date.now()) / 86400000)) : null;
+  const trialEndingSoon = hasActiveSubscription && subscriptionPlan === "trial" && trialDaysLeft !== null && trialDaysLeft <= 2;
+
   const open = jobs.filter((j) => j.status !== "Completed"),
     due = open.filter((j) => j.date && j.date <= day()),
     balance = jobs.reduce((a, j) => a + Math.max(0, j.total - j.paid), 0),
