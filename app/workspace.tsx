@@ -206,6 +206,7 @@ export default function Workspace() {
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
+    [accountMenuOpen, setAccountMenuOpen] = useState(false),
     [dark, setDark] = useState(false),
     [isOnline, setIsOnline] = useState(true),
     [syncPending, setSyncPending] = useState(false),
@@ -2357,9 +2358,34 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <Icon name="bell" />
               {activeReminders.length>0 && <span className="top-reminder-badge">{Math.min(99,activeReminders.length)}</span>}
             </button>
-            <span className="avatar small">
-              {displayName.charAt(0).toUpperCase()}
-            </span>
+            {loggedIn ? (
+              <div className="top-account-menu" onMouseLeave={()=>setAccountMenuOpen(false)}>
+                <button
+                  type="button"
+                  className="avatar small top-account-avatar"
+                  aria-label="Account menu"
+                  aria-expanded={accountMenuOpen}
+                  title={userEmail || "Account"}
+                  onMouseEnter={()=>setAccountMenuOpen(true)}
+                  onClick={()=>setAccountMenuOpen(v=>!v)}
+                >
+                  {displayName.charAt(0).toUpperCase()}
+                </button>
+                {accountMenuOpen && (
+                  <div className="top-account-popover">
+                    <div className="top-account-info">
+                      <span className="avatar">{displayName.charAt(0).toUpperCase()}</span>
+                      <span><strong>{displayName}</strong><small>{userEmail}</small></span>
+                    </div>
+                    <button type="button" onClick={()=>{setAccountMenuOpen(false);void handleSignOut();}}>
+                      <Icon name="arrow" size={17}/> Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="avatar small">{displayName.charAt(0).toUpperCase()}</span>
+            )}
           </div>
         </header>
         {todayReminderBanner && (
