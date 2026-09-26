@@ -8976,3 +8976,8 @@ footer .footer-separator{
 .reminder-time-chip.selected .reminder-time-period{background:rgba(255,255,255,.18);color:#fff}
 [data-theme="dark"] .reminder-time-period{background:#29453a;color:#bfe0d1}
 [data-theme="dark"] .reminder-time-chip.selected .reminder-time-period{background:rgba(255,255,255,.15);color:#fff}
+
+/* Reminder sheet: use phone clock AM/PM selection only; hide visual scrollbar */
+.reminder-sheet{scrollbar-width:none;-ms-overflow-style:none}
+.reminder-sheet::-webkit-scrollbar{display:none;width:0;height:0}
+.reminder-time-period{display:none !important}
