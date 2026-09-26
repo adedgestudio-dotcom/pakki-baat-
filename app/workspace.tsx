@@ -3144,6 +3144,13 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <span><strong>Subscription & usage</strong><small>See your plan, voice minutes and renewal details.</small></span>
                 <button type="button" className="outline" onClick={()=>go("Subscription")}>View plan</button>
               </section>
+              {userEmail?.trim().toLowerCase() === "zorivoworks@gmail.com" && (
+                <section className="settings-subscription-card settings-owner-admin">
+                  <span className="settings-subscription-icon"><Icon name="settings" size={20}/></span>
+                  <span><strong>Owner admin panel</strong><small>Manage users, plans, payments and usage.</small></span>
+                  <button type="button" className="outline" onClick={()=>{ window.location.href="/admin"; }}>Open admin</button>
+                </section>
+              )}
               <section className="settings-panel panel">
                 <label className="profile-name-setting">
                   Display name
