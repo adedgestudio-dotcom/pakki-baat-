@@ -9007,3 +9007,17 @@ footer .footer-separator{
   .top-account-popover{position:fixed;top:68px;right:12px;width:min(270px,calc(100vw - 24px));padding:12px}
   .top-account-popover:before{right:17px}
 }
+
+/* Trial onboarding and expiry */
+.trial-welcome-backdrop{position:fixed;inset:0;z-index:12000;display:grid;place-items:center;padding:18px;background:rgba(12,24,19,.62);backdrop-filter:blur(5px)}
+.trial-welcome-card{width:min(460px,100%);padding:28px;border-radius:24px;background:var(--panel,#fff);border:1px solid var(--line);box-shadow:0 24px 70px rgba(0,0,0,.24);text-align:left}
+.trial-welcome-card h2{margin:8px 0 8px;font-size:28px;line-height:1.12}.trial-welcome-card>p{margin:0 0 18px;color:var(--muted);line-height:1.55}
+.trial-feature-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}.trial-feature-list span{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700}.trial-feature-list svg{color:#2d8069}
+.trial-welcome-limits{display:flex;gap:8px;margin:16px 0}.trial-welcome-limits strong{flex:1;padding:10px 12px;border-radius:12px;background:#edf5f1;color:#276b59;font-size:11px;text-align:center}
+.trial-welcome-card>.primary{width:100%;margin-top:4px}.trial-welcome-card>.text-button{width:100%;justify-content:center;margin-top:8px}
+.trial-ending-banner{margin:10px 24px 0;padding:11px 14px;border:1px solid #e4c989;border-radius:14px;background:#fff8e7;display:flex;align-items:center;justify-content:space-between;gap:14px;color:#4f4325}
+.trial-ending-banner span{display:grid;gap:2px}.trial-ending-banner strong{font-size:12px}.trial-ending-banner small{font-size:10px;opacity:.75}.trial-ending-banner button{border:0;border-radius:10px;padding:8px 11px;background:#2d8069;color:white;font-weight:800;cursor:pointer}
+.subscription-expiry{display:block;margin-top:5px;color:var(--accent,#2d8069)}
+[data-theme="dark"] .trial-welcome-card{background:#17211c;border-color:#304038}[data-theme="dark"] .trial-welcome-limits strong{background:#223a30;color:#a9d8c4}
+[data-theme="dark"] .trial-ending-banner{background:#302a1d;border-color:#655735;color:#f3e5b9}
+@media(max-width:600px){.trial-welcome-card{padding:22px 18px;border-radius:20px}.trial-welcome-card h2{font-size:24px}.trial-feature-list{grid-template-columns:1fr}.trial-ending-banner{margin:8px 12px 0;padding:10px 11px}.trial-ending-banner small{display:none}}
