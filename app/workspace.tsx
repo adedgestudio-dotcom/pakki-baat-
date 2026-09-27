@@ -1649,6 +1649,9 @@ export default function Workspace() {
   function amountValue(value: number) {
     return value > 0 ? String(value) : "";
   }
+  function receivedAmountValue(value: number) {
+    return Number.isFinite(value) && value >= 0 ? String(value) : "0";
+  }
   function updatePendingAmount(field: "total" | "paid", raw: string) {
     if (!pendingJob) return;
     const value = raw === "" ? 0 : Number(raw);
@@ -3227,7 +3230,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           <label className="full">What’s the work? *<textarea autoFocus required maxLength={500} placeholder="e.g. 2 kg chocolate cake" value={pendingJob.work || ""} onChange={e=>setPendingJob({...pendingJob,work:e.target.value})}/></label>
                           <div className="inline-form-grid">
                             <label>Total amount (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="e.g. 2000" value={amountValue(pendingJob.total)} onChange={e=>updatePendingAmount("total",e.target.value)}/></label>
-                            <label>Amount received (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="e.g. 1000" value={amountValue(pendingJob.paid)} onChange={e=>updatePendingAmount("paid",e.target.value)}/></label>
+                            <label>Amount received (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0 if nothing received" value={receivedAmountValue(pendingJob.paid)} onChange={e=>updatePendingAmount("paid",e.target.value)}/></label>
                             <label>Due date <span>optional</span><input type="date" value={pendingJob.date || ""} onChange={e=>setPendingJob({...pendingJob,date:e.target.value})}/></label>
                             <label>Due time <span>optional</span><input type="time" value={pendingJob.time || ""} onChange={e=>setPendingJob({...pendingJob,time:e.target.value})}/></label>
                           </div>
@@ -3910,8 +3913,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     min="0"
                     max={draft.total}
                     step="0.01"
-                    value={amountValue(draft.paid)}
-                    placeholder="e.g. 1000"
+                    value={receivedAmountValue(draft.paid)}
+                    placeholder="0 if nothing received"
                     onChange={(e) =>
                       setDraft({ ...draft, paid: e.target.value === "" ? 0 : Number(e.target.value) })
                     }
