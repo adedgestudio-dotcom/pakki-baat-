@@ -115,3 +115,41 @@
 }
 .manage button{background:#ffffff;color:#365149;border-color:#cfdad5}
 .danger-zone{border-color:#ead8d6}
+
+
+/* Comfortable charcoal admin theme: softer than black, high readability */
+:root{
+  --green:#67c7af;
+  --ink:#edf3f0;
+  --muted:#aebbb6;
+  --line:#46504c;
+  --paper:#242927;
+  --card:#2d3330;
+}
+.admin-shell{background:#242927;color:#edf3f0}
+.admin-topbar{background:#292f2c;border-color:#414b47;color:#edf3f0}
+.admin-stats article,.admin-card,.admin-access-card,.user-card{
+  background:#2d3330;border-color:#46504c;color:#edf3f0
+}
+.admin-heading h1,.admin-card h2,.user-card strong,.user-card b,.user-card h2,.user-card h3{color:#f5f8f7}
+.admin-heading p,.admin-heading small,.admin-card small,.user-card small{color:#aebbb6}
+.user-plan-row,.usage-grid>div{background:#282e2b!important;border-color:#414b47!important;color:#edf3f0}
+.user-plan-row small,.usage-grid small{color:#9eaca6!important}
+.user-plan-row strong,.usage-grid strong{color:#f3f7f5!important}
+.manage select,.admin-plan-apply-row select,.admin-pin{
+  background:#353d39!important;color:#f1f5f3!important;border-color:#52605a!important
+}
+.manage label,.admin-plan-apply-row label{color:#b9c5c0}
+.manage button,.admin-top-actions button,.admin-topbar a,.admin-card-head button{
+  background:#37403c;color:#edf3f0;border-color:#53605b
+}
+.manage button:hover,.admin-top-actions button:hover{border-color:#67c7af;background:#3d4843}
+.admin-plan-apply-row button{
+  background:#397f6d;color:#fff;border-color:#397f6d
+}
+.admin-plan-apply-row button:disabled{
+  background:#39413e;border-color:#46504c;color:#7f8b86;opacity:1
+}
+.danger-zone{border-color:#604844}
+.danger-zone .delete-user{background:#563b38;color:#ffd0cb;border-color:#76514c}
+.admin-error{color:#ffaaa5}
