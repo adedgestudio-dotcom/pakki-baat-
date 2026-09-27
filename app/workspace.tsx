@@ -718,7 +718,13 @@ export default function Workspace() {
     if (loggedIn && !subscriptionPlan && !["Today","Subscription","Settings"].includes(t)) { setTrialOfferOpen(true); setToast("Start your free trial or choose a plan to continue."); return; }
     if (t === tab && !selectedCustomer && !customerChatOpen) return;
     if (t === "My assistant") setSelectedCustomer(null);
-    window.history.pushState({ pakkiBaat: true, tab: t }, "");
+    window.history.pushState({
+      pakkiBaat: true,
+      tab: t,
+      customer: t === "Hisaab" ? selectedCustomer || undefined : undefined,
+      customerChatOpen: t === "Hisaab" ? customerChatOpen : undefined,
+      entryMode: t === "Hisaab" ? entryMode : undefined,
+    }, "");
     setTab(t);
     setQuery("");
     setFilter("All");
@@ -799,11 +805,19 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!navigationRestoredRef.current) return;
+    const existingRaw = (() => {
+      try { return localStorage.getItem("pakki-baat-last-view"); } catch { return null; }
+    })();
+    let previousView: { customer?: string | null; customerChatOpen?: boolean; entryMode?: "quick"|"form" } | null = null;
+    try { previousView = existingRaw ? JSON.parse(existingRaw) : null; } catch {}
     const view = {
       tab,
-      customer: tab === "Hisaab" ? selectedCustomer : null,
-      customerChatOpen: tab === "Hisaab" && Boolean(selectedCustomer) && customerChatOpen,
-      entryMode,
+      // Keep the active Hisaab customer/form while the user temporarily visits another tab.
+      customer: tab === "Hisaab" ? selectedCustomer : previousView?.customer || null,
+      customerChatOpen: tab === "Hisaab"
+        ? Boolean(selectedCustomer) && customerChatOpen
+        : Boolean(previousView?.customerChatOpen),
+      entryMode: tab === "Hisaab" ? entryMode : previousView?.entryMode || entryMode,
     };
     try {
       localStorage.setItem("pakki-baat-last-tab", tab);
@@ -3033,7 +3047,25 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               )}
             </>
           )}
-          {tab === "Hisaab" && (
+          {tab === "Hisaab" && (() => {
+            // Restore an unfinished Hisaab form when returning from another app tab.
+            if (!selectedCustomer) {
+              try {
+                const userId = activeUserIdRef.current;
+                const raw = userId ? localStorage.getItem(entryDraftKey(userId)) : null;
+                const saved = raw ? JSON.parse(raw) as { customer?: string; pending?: Job; message?: string; entryMode?: "quick"|"form"; open?: boolean } : null;
+                if (saved?.open && saved.customer && saved.pending) {
+                  queueMicrotask(() => {
+                    setSelectedCustomer(saved.customer!);
+                    setPendingJob(saved.pending!);
+                    setMessage(saved.message || "");
+                    setEntryMode(saved.entryMode === "form" ? "form" : "quick");
+                    setCustomerChatOpen(true);
+                  });
+                }
+              } catch {}
+            }
+            return (
             <>
               {!selectedCustomer ? (
                 <>
@@ -3140,7 +3172,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </section>
               )}
             </>
-          )}
+            );
+          })()}
           {false && tab === "Customers" && (
             <>
               {!selectedCustomer ? (
