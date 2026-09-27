@@ -209,6 +209,7 @@ export default function Workspace() {
     [trialOfferOpen, setTrialOfferOpen] = useState(false),
     [trialStarting, setTrialStarting] = useState(false),
     [trialExpiryPromptOpen, setTrialExpiryPromptOpen] = useState(false),
+    [trialActivatedOpen, setTrialActivatedOpen] = useState(false),
     [userName, setUserName] = useState<string | null>(null),
     [userEmail, setUserEmail] = useState<string | null>(null),
     [accountMenuOpen, setAccountMenuOpen] = useState(false),
@@ -343,6 +344,8 @@ export default function Workspace() {
       setSubscriptionStatus(subscription?.status?.toLowerCase() || "active");
       setSubscriptionPeriodEnd(subscription?.period_end || null);
       setTrialOfferOpen(false);
+      setTrialActivatedOpen(true);
+      setTab("Today");
       setToast("Your 30-day free trial is active ✓");
     } catch (error) {
       setToast(error instanceof Error ? error.message : "Could not start your free trial.");
@@ -2530,6 +2533,13 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <p>Let’s make room for the work you love.</p>
                 </div>
               </div>
+              {hasActiveSubscription && subscriptionPlan && (
+                <button type="button" className="home-plan-chip" onClick={()=>go("Subscription")} title="View subscription">
+                  <Icon name="plan" size={14}/>
+                  <span>{subscriptionPlan === "trial" ? "Free Trial" : subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)} Plan</span>
+                  {subscriptionPlan === "trial" && trialDaysLeft !== null && <small>{trialDaysLeft} days left</small>}
+                </button>
+              )}
               <section className="hero">
                 <div className="hero-copy">
                   <span className="pill">YOUR BUSINESS, A LITTLE LIGHTER</span>
@@ -3441,6 +3451,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <button type="button" className="outline" onClick={()=>printReceipt(receiptJob)}>Print / Save PDF</button>
               <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send text on WhatsApp" : "WhatsApp needs internet"}</button>
             </div>
+          </section>
+        </div>
+      )}
+      {trialActivatedOpen && (
+        <div className="trial-welcome-backdrop" role="dialog" aria-modal="true" aria-label="Free trial activated">
+          <section className="trial-welcome-card trial-activated-card">
+            <span className="trial-activated-icon"><Icon name="check" size={26}/></span>
+            <span className="trial-value-kicker">YOU'RE ALL SET</span>
+            <h2>Welcome to Pakki Baat!</h2>
+            <p>Your <strong>30-day free trial is now active.</strong> You can start adding customers, keeping Hisaab, setting reminders and using AI voice.</p>
+            <div className="trial-welcome-limits"><strong>100 customers</strong><strong>100 voice minutes</strong></div>
+            <button type="button" className="primary" onClick={()=>setTrialActivatedOpen(false)}>Start using Pakki Baat</button>
           </section>
         </div>
       )}
