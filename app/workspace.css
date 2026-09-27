@@ -9025,3 +9025,16 @@ footer .footer-separator{
 .top-account-info .top-account-plan{display:inline-flex;width:max-content;margin-top:5px;padding:3px 7px;border-radius:999px;font-size:9px;font-style:normal;font-weight:800}
 .top-account-plan.active{background:#e4f3ec;color:#26705c}.top-account-plan.inactive{background:#f3eee5;color:#8a6841}
 [data-theme="dark"] .top-account-plan.active{background:#244438;color:#b9e4d1}[data-theme="dark"] .top-account-plan.inactive{background:#3a3024;color:#e0c69c}
+
+/* Active plan visibility */
+.home-plan-chip{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:7px 10px;border:1px solid #cfe4da;border-radius:999px;background:#edf7f2;color:#286c5a;font:inherit;font-size:10px;font-weight:850;cursor:pointer}
+.home-plan-chip small{padding-left:6px;border-left:1px solid #c6ddd2;color:#5e7c70;font-size:9px;font-weight:750}
+.trial-activated-card{text-align:center}
+.trial-activated-icon{width:54px;height:54px;margin:0 auto 10px;border-radius:50%;display:grid;place-items:center;background:#e5f5ed;color:#28735f}
+.trial-activated-card .trial-value-kicker{display:block}
+.trial-activated-card>p strong{color:#28735f}
+[data-theme="dark"] .home-plan-chip{background:#20372e;border-color:#315547;color:#b9e4d1}
+[data-theme="dark"] .home-plan-chip small{border-left-color:#416457;color:#9fc4b4}
+[data-theme="dark"] .trial-activated-icon{background:#244438;color:#b9e4d1}
+[data-theme="dark"] .trial-activated-card>p strong{color:#b9e4d1}
+@media(max-width:600px){.home-plan-chip{margin-bottom:10px}}
