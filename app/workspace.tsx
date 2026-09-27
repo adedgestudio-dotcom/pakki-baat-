@@ -266,6 +266,17 @@ export default function Workspace() {
   const firedReminderKeysRef = useRef(new Set<string>());
   const navigationRestoredRef = useRef(false);
   const entryDraftRestoredForUserRef = useRef<string | null>(null);
+  const pendingJobRef = useRef<Job | null>(null);
+  const selectedCustomerRef = useRef<string | null>(null);
+  const customerChatOpenRef = useRef(false);
+  const messageRef = useRef("");
+  const entryModeRef = useRef<"quick"|"form">("quick");
+
+  useEffect(() => { pendingJobRef.current = pendingJob; }, [pendingJob]);
+  useEffect(() => { selectedCustomerRef.current = selectedCustomer; }, [selectedCustomer]);
+  useEffect(() => { customerChatOpenRef.current = customerChatOpen; }, [customerChatOpen]);
+  useEffect(() => { messageRef.current = message; }, [message]);
+  useEffect(() => { entryModeRef.current = entryMode; }, [entryMode]);
 
   function entryDraftKey(userId: string) {
     return "pakki-baat-entry-draft:" + userId;
@@ -562,6 +573,58 @@ export default function Workspace() {
       // Keep the in-memory form usable even when browser storage is unavailable.
     }
   }, [customerChatOpen, selectedCustomer, pendingJob, message, entryMode]);
+
+  useEffect(() => {
+    function persistCurrentEntryDraft() {
+      const userId = activeUserIdRef.current;
+      const currentPending = pendingJobRef.current;
+      const currentCustomer = selectedCustomerRef.current;
+      if (!userId || !customerChatOpenRef.current || !currentCustomer || !currentPending) return;
+      try {
+        localStorage.setItem(entryDraftKey(userId), JSON.stringify({
+          customer: currentCustomer,
+          pending: currentPending,
+          message: messageRef.current,
+          entryMode: entryModeRef.current,
+          open: true,
+        }));
+      } catch {}
+    }
+    function restoreCurrentEntryDraft() {
+      const userId = activeUserIdRef.current;
+      if (!userId) return;
+      try {
+        const raw = localStorage.getItem(entryDraftKey(userId));
+        if (!raw) return;
+        const saved = JSON.parse(raw) as { customer?: string; pending?: Job; message?: string; entryMode?: "quick"|"form"; open?: boolean };
+        if (!saved.open || !saved.customer || !saved.pending) return;
+        // On mobile the PWA can be suspended and the auth/workspace listener may
+        // rehydrate saved data. Always put the unfinished entry back on top.
+        setSelectedCustomer(saved.customer);
+        setPendingJob(saved.pending);
+        setMessage(saved.message || "");
+        setEntryMode(saved.entryMode === "form" ? "form" : "quick");
+        setCustomerChatOpen(true);
+      } catch {}
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") persistCurrentEntryDraft();
+      else restoreCurrentEntryDraft();
+    };
+    const onPageHide = () => persistCurrentEntryDraft();
+    const onPageShow = () => restoreCurrentEntryDraft();
+    const onFocus = () => restoreCurrentEntryDraft();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
@@ -2169,8 +2232,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setOwner(s.owner);
     setBusiness(s.business);
     setChatTurns([]);
-    setPendingJob(null);
-    setChatStep("customer");
+    // Do not wipe an unfinished Hisaab entry when the workspace rehydrates
+    // after the phone backgrounds and resumes the PWA.
+    if (!pendingJobRef.current || !customerChatOpenRef.current) {
+      setPendingJob(null);
+      setChatStep("customer");
+    }
     setReady(true);
     setToast("Workspace restored on this device.");
   }
