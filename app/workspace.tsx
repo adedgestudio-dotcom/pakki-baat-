@@ -256,7 +256,8 @@ export default function Workspace() {
     [navigationReady, setNavigationReady] = useState(false),
     [pushDiagnostic, setPushDiagnostic] = useState(""),
     [pushDiagnosticBusy, setPushDiagnosticBusy] = useState(false),
-    [entryMode, setEntryMode] = useState<"quick"|"form">("quick");
+    [entryMode, setEntryMode] = useState<"quick"|"form">("quick"),
+    [receivedAmountTouched, setReceivedAmountTouched] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -1643,6 +1644,7 @@ export default function Workspace() {
     if (!selectedCustomer || !requireLoginForSaving()) return;
     setEntryMode(mode);
     setMessage("");
+    setReceivedAmountTouched(false);
     setPendingJob(mode === "form" ? { ...blank(), id: crypto.randomUUID(), customer: selectedCustomer, status: "Confirmed" } : null);
     setCustomerChatOpen(true);
   }
@@ -3227,7 +3229,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           <label className="full">What’s the work? *<textarea autoFocus required maxLength={500} placeholder="e.g. 2 kg chocolate cake" value={pendingJob.work || ""} onChange={e=>setPendingJob({...pendingJob,work:e.target.value})}/></label>
                           <div className="inline-form-grid">
                             <label>Total amount (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="e.g. 2000" value={amountValue(pendingJob.total)} onChange={e=>updatePendingAmount("total",e.target.value)}/></label>
-                            <label>Amount received (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0 if nothing received" value={amountValue(pendingJob.paid)} onChange={e=>updatePendingAmount("paid",e.target.value)}/></label>
+                            <label>Amount received (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0 if nothing received" value={pendingJob.paid === 0 && receivedAmountTouched ? "0" : amountValue(pendingJob.paid)} onChange={e=>{setReceivedAmountTouched(e.target.value !== "");updatePendingAmount("paid",e.target.value);}}/></label>
                             <label>Due date <span>optional</span><input type="date" value={pendingJob.date || ""} onChange={e=>setPendingJob({...pendingJob,date:e.target.value})}/></label>
                             <label>Due time <span>optional</span><input type="time" value={pendingJob.time || ""} onChange={e=>setPendingJob({...pendingJob,time:e.target.value})}/></label>
                           </div>
@@ -3910,11 +3912,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     min="0"
                     max={draft.total}
                     step="0.01"
-                    value={amountValue(draft.paid)}
+                    value={draft.paid === 0 && receivedAmountTouched ? "0" : amountValue(draft.paid)}
                     placeholder="0 if nothing received"
-                    onChange={(e) =>
-                      setDraft({ ...draft, paid: e.target.value === "" ? 0 : Number(e.target.value) })
-                    }
+                    onChange={(e) => {
+                      setReceivedAmountTouched(e.target.value !== "");
+                      setDraft({ ...draft, paid: e.target.value === "" ? 0 : Number(e.target.value) });
+                    }}
                   />
                 </label>
                 <label>
