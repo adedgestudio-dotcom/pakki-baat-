@@ -777,6 +777,16 @@ export default function Workspace() {
           ? j.status !== "Completed" && Boolean(j.date) && j.date <= day()
           : j.status === filter))
   );
+  function openMainTab(t: Tab) {
+    if (t === "Hisaab") {
+      // Main Hisaab navigation always means the customer list. An unfinished
+      // entry stays saved and can be resumed by opening that customer again.
+      setSelectedCustomer(null);
+      setCustomerChatOpen(false);
+      setNewCustomerOpen(false);
+    }
+    go(t);
+  }
   function go(t: Tab) {
     if (loggedIn && !subscriptionPlan && !["Today","Subscription","Settings"].includes(t)) { setTrialOfferOpen(true); setToast("Start your free trial or choose a plan to continue."); return; }
     if (t === tab && !selectedCustomer && !customerChatOpen) return;
@@ -2455,7 +2465,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <button
               key={t}
               className={tab === t ? "active" : ""}
-              onClick={() => go(t)}
+              onClick={() => openMainTab(t)}
             >
               <Icon name={i} />
               {t}
@@ -3458,7 +3468,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <button
               aria-label={t}
               className={tab === t ? "active mobile-nav-item" : "mobile-nav-item"}
-              onClick={() => go(t)}
+              onClick={() => openMainTab(t)}
             >
               <span className="mobile-nav-icon-wrap">
                 <Icon name={i} size={23} />
