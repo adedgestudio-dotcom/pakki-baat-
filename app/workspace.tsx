@@ -264,6 +264,16 @@ export default function Workspace() {
   const cloudHydratedRef = useRef(false);
   const firedReminderKeysRef = useRef(new Set<string>());
   const navigationRestoredRef = useRef(false);
+  const entryDraftRestoredForUserRef = useRef<string | null>(null);
+
+  function entryDraftKey(userId: string) {
+    return "pakki-baat-entry-draft:" + userId;
+  }
+  function clearEntryDraft() {
+    const userId = activeUserIdRef.current;
+    if (!userId) return;
+    try { localStorage.removeItem(entryDraftKey(userId)); } catch {}
+  }
 
   // Display name priority: custom name → Google/account name → email name → "there"
   const displayName = owner?.trim() || userName || "there";
@@ -418,6 +428,37 @@ export default function Workspace() {
       setUserName(accountNameFromEmail(session));
       activeUserIdRef.current = session?.user.id || null;
 
+      if (session && entryDraftRestoredForUserRef.current !== session.user.id) {
+        entryDraftRestoredForUserRef.current = session.user.id;
+        try {
+          const rawEntryDraft = localStorage.getItem(entryDraftKey(session.user.id));
+          if (rawEntryDraft) {
+            const savedEntryDraft = JSON.parse(rawEntryDraft) as {
+              customer?: string;
+              pending?: Job | null;
+              message?: string;
+              entryMode?: "quick" | "form";
+              open?: boolean;
+            };
+            if (
+              savedEntryDraft.open &&
+              typeof savedEntryDraft.customer === "string" &&
+              savedEntryDraft.customer.trim() &&
+              savedEntryDraft.pending &&
+              typeof savedEntryDraft.pending === "object"
+            ) {
+              setSelectedCustomer(savedEntryDraft.customer);
+              setPendingJob(savedEntryDraft.pending);
+              setMessage(typeof savedEntryDraft.message === "string" ? savedEntryDraft.message : "");
+              setEntryMode(savedEntryDraft.entryMode === "form" ? "form" : "quick");
+              setCustomerChatOpen(true);
+            }
+          }
+        } catch {
+          // Ignore an invalid local entry draft and keep the normal workspace state.
+        }
+      }
+
       if (session) {
         try {
           const subscription = await loadSubscription();
@@ -503,6 +544,22 @@ export default function Workspace() {
       stopWatching();
     };
   }, []);
+  useEffect(() => {
+    const userId = activeUserIdRef.current;
+    if (!userId || !customerChatOpen || !selectedCustomer || !pendingJob) return;
+    try {
+      localStorage.setItem(entryDraftKey(userId), JSON.stringify({
+        customer: selectedCustomer,
+        pending: pendingJob,
+        message,
+        entryMode,
+        open: true,
+      }));
+    } catch {
+      // Keep the in-memory form usable even when browser storage is unavailable.
+    }
+  }, [customerChatOpen, selectedCustomer, pendingJob, message, entryMode]);
+
   useEffect(() => {
     if (!ready) return;
     const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
@@ -1534,6 +1591,7 @@ export default function Workspace() {
     setChatStep("customer");
     setMessage("");
     setCustomerChatOpen(false);
+    clearEntryDraft();
     setChatTurns(turns => turns.filter(turn => turn.customer !== selectedCustomer));
     setToast("Saved in " + selectedCustomer + "'s hisaab.");
   }
@@ -3027,7 +3085,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <section className="smart-entry-panel">
                       <div className="smart-entry-head">
                         <div><span className="eyebrow">NEW ENTRY</span><h2>{entryMode==="quick" ? `Tell me what happened with ${selectedCustomer}` : `Add details for ${selectedCustomer}`}</h2><p>{entryMode==="quick" ? "Type or speak naturally. Pakki Baat will fill the details for you." : "Fill only what you know. Date and time are optional."}</p></div>
-                        <button className="icon-button" aria-label="Close entry" onClick={()=>{setCustomerChatOpen(false);setPendingJob(null);setMessage("");}}><Icon name="close"/></button>
+                        <button className="icon-button" aria-label="Close entry" onClick={()=>{setCustomerChatOpen(false);setPendingJob(null);setMessage("");clearEntryDraft();}}><Icon name="close"/></button>
                       </div>
                       <div className="entry-mode-tabs" role="tablist" aria-label="Entry method">
                         <button type="button" className={entryMode==="quick"?"active":""} onClick={()=>startEntry("quick")}>✨ Quick entry</button>
