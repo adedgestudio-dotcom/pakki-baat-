@@ -78,3 +78,40 @@
   .admin-wrap{max-width:none;width:100%;margin:0;padding:34px clamp(24px,3vw,52px)}
   .admin-topbar{padding-left:clamp(24px,3vw,52px);padding-right:clamp(24px,3vw,52px)}
 }
+
+
+/* Light admin theme + clearly usable Apply plan action */
+:root{
+  --green:#2d7667;
+  --ink:#24322d;
+  --muted:#718079;
+  --line:#d9e3de;
+  --paper:#f6f7f4;
+  --card:#ffffff;
+}
+.admin-shell{background:var(--paper);color:var(--ink)}
+.admin-topbar{background:#ffffff;border-color:var(--line)}
+.admin-stats article,.admin-card,.admin-access-card,.user-card{background:#ffffff;border-color:var(--line);color:var(--ink)}
+.admin-pin,.manage select,.admin-plan-apply-row select{background:#ffffff!important;color:var(--ink)!important;border-color:#cfdad5!important}
+.admin-top-actions button,.admin-topbar a,.admin-card-head button{background:#ffffff;color:var(--green);border-color:#cfdad5}
+.user-plan-row,.usage-grid>div{background:#f8faf8!important;border-color:#dce5e1!important}
+.admin-plan-apply-row button{
+  min-width:92px;
+  min-height:42px;
+  padding:0 16px;
+  border:1px solid #2d7667;
+  border-radius:10px;
+  background:#2d7667;
+  color:#ffffff;
+  font-weight:800;
+  opacity:1;
+}
+.admin-plan-apply-row button:disabled{
+  background:#e2e8e5;
+  border-color:#d5ddda;
+  color:#89958f;
+  opacity:1;
+  cursor:not-allowed;
+}
+.manage button{background:#ffffff;color:#365149;border-color:#cfdad5}
+.danger-zone{border-color:#ead8d6}
