@@ -368,6 +368,7 @@ export default function Workspace() {
   }
 
   function saveProfileDetails() {
+    if (!requireActiveSubscriptionForSaving()) return;
     setOwner(profileOwnerDraft.trim());
     setBusiness(profileBusinessDraft.trim() || "My small business");
     setToast("Name and business saved ✓");
@@ -1213,6 +1214,7 @@ export default function Workspace() {
     }
   }
   function deleteReminder(id: string) {
+    if (!requireActiveSubscriptionForSaving()) return;
     const reminder = reminders.find(r => r.id === id);
     if (!reminder) return;
     rememberUndo("Reminder deleted");
@@ -1222,7 +1224,7 @@ export default function Workspace() {
   }
 
   function openNewReminder() {
-    if (!requireLoginForSaving()) return;
+    if (!requireActiveSubscriptionForSaving()) return;
     setReminderJob(null);
     setDirectReminderOpen(true);
     setReminderCustomer(selectedCustomer || "");
@@ -1253,7 +1255,7 @@ export default function Workspace() {
     setMessage(seed);
   }
   function openNewEntry() {
-    if (loggedIn && !subscriptionPlan) { setTrialOfferOpen(true); setToast("Start your free trial or choose a plan to continue."); return; }
+    if (!requireActiveSubscriptionForSaving()) return;
     setTab("Hisaab");
     setQuery("");
     setFilter("All");
@@ -1277,6 +1279,7 @@ export default function Workspace() {
     );
   }
   async function sendVoice(file: File, duration: number, transcript: string) {
+    if (!requireActiveSubscriptionForSaving()) return;
     const id = crypto.randomUUID();
     const url = URL.createObjectURL(file);
     voiceUrlsRef.current[id] = url;
@@ -1467,6 +1470,7 @@ export default function Workspace() {
     message: string,
     source: "text" | "voice"
   ) {
+    if (!requireActiveSubscriptionForSaving()) return;
     try {
       if (!navigator.onLine) {
         const offlineDraft: Job = {
@@ -1628,7 +1632,7 @@ export default function Workspace() {
   }
 
   function savePendingEntry(item: Job) {
-    if (!selectedCustomer) return;
+    if (!selectedCustomer || !requireActiveSubscriptionForSaving()) return;
     const saved = { ...item, customer: selectedCustomer };
     setJobs(items => [saved, ...items.filter(j => j.id !== saved.id)]);
     if (saved.paid > 0 && !payments.some(p => p.jobId === saved.id)) {
@@ -1645,9 +1649,21 @@ export default function Workspace() {
     setSaveLoginPromptOpen(true);
     return false;
   }
+  function requireActiveSubscriptionForSaving() {
+    if (!requireLoginForSaving()) return false;
+    if (hasActiveSubscription) return true;
+    if (!subscriptionPlan) {
+      setTrialOfferOpen(true);
+      setToast("Start your free trial or choose a plan to continue.");
+    } else {
+      setTab("Subscription");
+      setToast("Your plan has expired or is inactive. Your existing data is safe — choose a plan to continue editing.");
+    }
+    return false;
+  }
 
   function startEntry(mode: "quick" | "form") {
-    if (!selectedCustomer || !requireLoginForSaving()) return;
+    if (!selectedCustomer || !requireActiveSubscriptionForSaving()) return;
     setEntryMode(mode);
     setMessage("");
     setReceivedAmountTouched(false);
@@ -1674,7 +1690,7 @@ export default function Workspace() {
 
   function finishCustomerChat() {
     if (!selectedCustomer || voiceBusy) return;
-    if (!requireLoginForSaving()) return;
+    if (!requireActiveSubscriptionForSaving()) return;
     if (!pendingJob || !pendingJob.work?.trim()) {
       setToast("Add the entry details first, then tap Save.");
       return;
@@ -1704,7 +1720,7 @@ export default function Workspace() {
   }
   function save() {
     if (!draft || !draft.customer.trim() || !draft.work.trim()) return;
-    if (!requireLoginForSaving()) return;
+    if (!requireActiveSubscriptionForSaving()) return;
     if (
       !Number.isFinite(draft.total) ||
       !Number.isFinite(draft.paid) ||
@@ -2019,7 +2035,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setLastUndo({ message, snapshot: currentSnapshot() });
   }
   function undoLastAction() {
-    if (!lastUndo) return;
+    if (!lastUndo || !requireActiveSubscriptionForSaving()) return;
     const s = lastUndo.snapshot;
     setJobs(s.jobs);
     setReminders(s.reminders || []);
@@ -2046,7 +2062,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       return;
     }
     const text = whatsappMessage.trim() || replyText(whatsappJob);
-    if (saveWhatsappNumber) {
+    if (saveWhatsappNumber && hasActiveSubscription) {
       setCustomerPhones(items => ({ ...items, [whatsappJob.customer]: digits }));
     }
     const url =
@@ -2064,7 +2080,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setPhoneEditorValue(customerPhones[customer] || "");
   }
   function saveCustomerPhone() {
-    if (!phoneEditorCustomer) return;
+    if (!phoneEditorCustomer || !requireActiveSubscriptionForSaving()) return;
     let digits = phoneEditorValue.replace(/\D/g, "");
     if (digits.length === 10) digits = "91" + digits;
     if (digits && (digits.length < 8 || digits.length > 15)) {
@@ -2111,7 +2127,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function openPayment(job: Job) {
-    if (!requireLoginForSaving()) return;
+    if (!requireActiveSubscriptionForSaving()) return;
     if (job.total <= job.paid) {
       setToast("This entry is already fully paid.");
       return;
@@ -2120,7 +2136,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setPaymentAmount("");
   }
   function saveQuickPayment() {
-    if (!paymentJob) return;
+    if (!paymentJob || !requireActiveSubscriptionForSaving()) return;
     const amount = Number(paymentAmount);
     const baki = Math.max(0, paymentJob.total - paymentJob.paid);
     if (!(amount > 0) || amount > baki) {
@@ -2144,7 +2160,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setToast(message);
   }
   function updateJobStatus(job: Job, status: "Waiting"|"Confirmed"|"Completed") {
-    if (job.status === status) return;
+    if (job.status === status || !requireActiveSubscriptionForSaving()) return;
     const message = status === "Completed" ? "Marked done ✓" : status === "Confirmed" ? "Marked in progress ✓" : "Marked pending ✓";
     rememberUndo(message);
     setJobs(items => items.map(item => item.id === job.id ? { ...item, status } : item));
@@ -2154,7 +2170,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setDeleteJob(job);
   }
   function confirmDeleteCustomer() {
-    if (!deleteCustomer) return;
+    if (!deleteCustomer || !requireActiveSubscriptionForSaving()) return;
     const name = deleteCustomer;
     rememberUndo("Customer deleted");
     const jobIds = new Set(jobs.filter(j => j.customer === name).map(j => j.id));
@@ -2173,7 +2189,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setToast(name + " deleted from Hisaab");
   }
   function confirmDeleteEntry() {
-    if (!deleteJob) return;
+    if (!deleteJob || !requireActiveSubscriptionForSaving()) return;
     const job = deleteJob;
     const message = "Entry deleted";
     rememberUndo(message);
@@ -2215,6 +2231,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     URL.revokeObjectURL(u);
   }
   function sample() {
+    if (!requireActiveSubscriptionForSaving()) return;
     setJobs([
       {
         ...blank(),
@@ -3830,6 +3847,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               e.preventDefault();
               const customer=newCustomerName.trim();
               if(!customer)return;
+              if(!requireActiveSubscriptionForSaving())return;
               if(!canAddCustomer(customer))return;
               setNotes(items=>items.some(n=>n.customer===customer)?items:[{id:crypto.randomUUID(),customer,text:"Customer created",createdAt:new Date().toISOString()},...items]);
               setSelectedCustomer(customer);
@@ -3973,6 +3991,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     type="button"
                     className="text-button danger"
                     onClick={() => {
+                      if (!requireActiveSubscriptionForSaving()) return;
                       if (
                         confirm(
                           "Delete this commitment? This cannot be undone."
