@@ -2810,7 +2810,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               </div>
               <footer>
                 Pakki Baat <span className="footer-separator">·</span>
-                A product by <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>
+                by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)
               </footer>
             </>
           )}
