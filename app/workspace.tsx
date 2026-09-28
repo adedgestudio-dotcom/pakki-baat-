@@ -12,6 +12,7 @@ import {
   claimFreeTrial,
   currentSession,
   loadSubscription,
+  loadServerTime,
   loadCloud,
   saveCloud,
   signInWithGoogle,
@@ -206,6 +207,7 @@ export default function Workspace() {
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
     [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null),
     [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
+    [serverNowMs, setServerNowMs] = useState<number | null>(null),
     [trialOfferOpen, setTrialOfferOpen] = useState(false),
     [trialStarting, setTrialStarting] = useState(false),
     [trialExpiryPromptOpen, setTrialExpiryPromptOpen] = useState(false),
@@ -351,7 +353,8 @@ export default function Workspace() {
         setToast(trial.reason === "trial_already_used_on_device" ? "This device has already used its free trial. Choose a plan to continue." : "Free trial is not available for this account.");
         return;
       }
-      const subscription = await loadSubscription();
+      const [subscription, serverTime] = await Promise.all([loadSubscription(), loadServerTime()]);
+      setServerNowMs(serverTime);
       setSubscriptionPlan(subscription?.plan?.toLowerCase() || "trial");
       setSubscriptionStatus(subscription?.status?.toLowerCase() || "active");
       setSubscriptionPeriodEnd(subscription?.period_end || null);
@@ -476,8 +479,9 @@ export default function Workspace() {
 
       if (session) {
         try {
-          const subscription = await loadSubscription();
+          const [subscription, serverTime] = await Promise.all([loadSubscription(), loadServerTime()]);
           if (!cancelled && activeUserIdRef.current === session.user.id) {
+            setServerNowMs(serverTime);
             setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
             setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
             setSubscriptionPeriodEnd(subscription?.period_end || null);
@@ -497,6 +501,7 @@ export default function Workspace() {
         setSubscriptionPlan(null);
         setSubscriptionStatus(null);
         setSubscriptionPeriodEnd(null);
+        setServerNowMs(null);
         setTrialOfferOpen(false);
         cloudHydratedRef.current = false;
         const localSnapshot = readLocalWorkspace(LOCAL_WORKSPACE_ID);
@@ -742,9 +747,10 @@ export default function Workspace() {
     ["Reminders", "bell"],
   ];
   const subscriptionEndMs = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd).getTime() : 0;
-  const subscriptionExpired = Boolean(subscriptionPeriodEnd) && subscriptionEndMs <= Date.now();
-  const hasActiveSubscription = Boolean(subscriptionPlan && subscriptionStatus === "active" && !subscriptionExpired);
-  const trialDaysLeft = subscriptionPlan === "trial" && subscriptionPeriodEnd ? Math.max(0, Math.ceil((subscriptionEndMs - Date.now()) / 86400000)) : null;
+  const trustedNowMs = serverNowMs;
+  const subscriptionExpired = Boolean(subscriptionPeriodEnd) && trustedNowMs !== null && subscriptionEndMs <= trustedNowMs;
+  const hasActiveSubscription = Boolean(subscriptionPlan && subscriptionStatus === "active" && trustedNowMs !== null && !subscriptionExpired);
+  const trialDaysLeft = subscriptionPlan === "trial" && subscriptionPeriodEnd && trustedNowMs !== null ? Math.max(0, Math.ceil((subscriptionEndMs - trustedNowMs) / 86400000)) : null;
   const trialEndingSoon = hasActiveSubscription && subscriptionPlan === "trial" && trialDaysLeft !== null && trialDaysLeft <= 2;
 
   useEffect(() => {
