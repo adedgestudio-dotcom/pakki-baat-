@@ -93,9 +93,15 @@ export async function POST(req:NextRequest){
    const days=Math.max(1,Math.min(3650,Math.round(Number(b.days)||30)));
    await sb("rpc/extend_subscription",{method:"POST",body:JSON.stringify({target_user_id:userId,extension_days:days})});
   }else if(action==="status"){
-   const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=owner_id,period_end");if(!rows?.length)return NextResponse.json({error:"This user has no subscription to suspend or reactivate."},{status:400});
-   if(b.status!=="suspended"&&new Date(rows[0]?.period_end||0).getTime()<=Date.now())return NextResponse.json({error:"This plan has expired. Extend it or apply a paid plan before reactivating."},{status:400});
-   await upsertSubscription(userId,{status:b.status==="suspended"?"suspended":"active"});
+   const targetStatus=b.status==="suspended"?"suspended":"active";
+   try{
+    await sb("rpc/set_subscription_status",{method:"POST",body:JSON.stringify({target_user_id:userId,target_status:targetStatus})});
+   }catch(error){
+    const message=error instanceof Error?error.message:"";
+    if(message.includes("SUBSCRIPTION_NOT_FOUND"))return NextResponse.json({error:"This user has no subscription to suspend or reactivate."},{status:400});
+    if(message.includes("SUBSCRIPTION_EXPIRED"))return NextResponse.json({error:"This plan has expired. Extend it or apply a paid plan before reactivating."},{status:400});
+    throw error;
+   }
   }else if(action==="grant_trial"){
    const end=new Date(Date.now()+30*86400000);await upsertSubscription(userId,{plan:"trial",status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0});
   }else if(action==="delete_user"){
