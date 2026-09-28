@@ -764,7 +764,7 @@ export default function Workspace() {
 
   function applyTrustedServerTime(serverTime: number) {
     trustedClockRef.current = { serverEpochMs: serverTime, performanceMs: performance.now() };
-    applyTrustedServerTime(serverTime);
+    setServerNowMs(serverTime);
     setTrustedClockTick((tick) => tick + 1);
   }
 
