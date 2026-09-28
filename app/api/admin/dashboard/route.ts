@@ -75,12 +75,13 @@ export async function POST(req:NextRequest){
   if(action==="review_payment"){
    const rows=await sb("payment_requests?id=eq."+encodeURIComponent(String(b.paymentId))+"&select=*");const p=rows?.[0];if(!p||p.status!=="pending")return NextResponse.json({error:"Payment is no longer pending."},{status:400});
    const status=b.decision==="approve"?"approved":"rejected";
-   await sb("payment_requests?id=eq."+p.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({status,reviewed_at:new Date().toISOString()})});
    if(status==="approved"){
     if(!plans[p.plan]||p.plan==="trial")return NextResponse.json({error:"Payment has an invalid plan."},{status:400});
-    const current=await sb("subscriptions?owner_id=eq."+encodeURIComponent(p.owner_id)+"&select=plan,status,period_end");
-    const sameActivePlan=current?.[0]?.plan===p.plan&&current?.[0]?.status==="active"&&new Date(current[0].period_end||0).getTime()>Date.now();
-    await activatePaidPlan(p.owner_id,p.plan,sameActivePlan?"renewal":"purchase");
+    // Activate access first. If activation fails, the payment remains pending and can be retried safely.
+    await activatePaidPlan(p.owner_id,p.plan,"renewal");
+    await sb("payment_requests?id=eq."+p.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({status:"approved",reviewed_at:new Date().toISOString()})});
+   }else{
+    await sb("payment_requests?id=eq."+p.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({status:"rejected",reviewed_at:new Date().toISOString()})});
    }
   }else if(action==="change_plan"){
    if(!plans[b.plan]||b.plan==="trial")return NextResponse.json({error:"Invalid paid plan"},{status:400});
