@@ -103,7 +103,7 @@ export async function POST(req:NextRequest){
     throw error;
    }
   }else if(action==="grant_trial"){
-   const end=new Date(Date.now()+30*86400000);await upsertSubscription(userId,{plan:"trial",status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0});
+   await sb("rpc/admin_grant_trial",{method:"POST",body:JSON.stringify({target_user_id:userId})});
   }else if(action==="delete_user"){
    if(!userId)return NextResponse.json({error:"User is required"},{status:400});
    const authUsers=await users();const target=authUsers.find((u:any)=>u.id===userId);if(!target)return NextResponse.json({error:"User not found"},{status:404});
