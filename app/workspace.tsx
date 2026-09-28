@@ -637,6 +637,9 @@ export default function Workspace() {
     if (!ready) return;
     const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
+    // Signed-in expired/inactive accounts are read-only. Do not persist accidental
+    // client-side mutations locally when the backend would reject the cloud save.
+    if (loggedIn && !hasActiveSubscription) return;
     writeLocalWorkspace(storageUserId, snapshot);
 
     if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
@@ -2341,6 +2344,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setReminderDate(dateForOffset(kind === "tomorrow" ? 1 : 0));
   }
   async function saveReminder() {
+    if (!requireActiveSubscriptionForSaving()) return;
     if ((!reminderJob && !directReminderOpen) || !reminderDate || !reminderText.trim()) return;
     const customer = reminderJob?.customer || reminderCustomer.trim() || undefined;
     const reminder: Reminder = {
@@ -2392,6 +2396,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setToast("Reminder saved.");
   }
   function completeReminder(id:string) {
+    if (!requireActiveSubscriptionForSaving()) return;
     const message = "Reminder updated ✓";
     rememberUndo(message);
     setReminders(items=>items.map(r=>{
@@ -2407,6 +2412,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setToast(message);
   }
   function snoozeReminder(id:string) {
+    if (!requireActiveSubscriptionForSaving()) return;
     const message = "Reminder moved to tomorrow ✓";
     rememberUndo(message);
     setReminders(items=>items.map(r=>{
