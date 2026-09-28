@@ -21,10 +21,13 @@ export async function POST(request: NextRequest) {
     if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const deviceHash = createHash("sha256").update("pakki-baat-trial-v1:" + deviceId).digest("hex");
+    const normalizedEmail = String(user.email || "").trim().toLowerCase();
+    if (!normalizedEmail) return NextResponse.json({ error: "Your account has no email address." }, { status: 400 });
+    const emailHash = createHash("sha256").update("pakki-baat-trial-email-v1:" + normalizedEmail).digest("hex");
     const rpc = await fetch(base + "/rest/v1/rpc/claim_trial", {
       method: "POST",
       headers: { apikey: service, Authorization: "Bearer " + service, "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: user.id, supplied_device_hash: deviceHash }),
+      body: JSON.stringify({ user_id: user.id, supplied_device_hash: deviceHash, supplied_email_hash: emailHash }),
       cache: "no-store",
     });
     const raw = await rpc.text();
