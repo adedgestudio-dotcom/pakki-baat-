@@ -153,3 +153,9 @@
 .danger-zone{border-color:#604844}
 .danger-zone .delete-user{background:#563b38;color:#ffd0cb;border-color:#76514c}
 .admin-error{color:#ffaaa5}
+
+.admin-email-line{display:flex;align-items:center;gap:7px;min-width:0}
+.admin-email-line strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-email-eye{width:30px!important;height:30px!important;min-width:30px;padding:6px!important;border-radius:9px!important;display:grid;place-items:center}
+.admin-email-eye svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8}
+.admin-email-eye:disabled{opacity:.45;cursor:default}
