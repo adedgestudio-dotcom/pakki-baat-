@@ -24,6 +24,12 @@ async function upsertSubscription(userId:string,values:Record<string,any>){
  }
 }
 
+async function activatePaidPlan(userId:string,plan:string,mode:"purchase"|"renewal"="purchase"){
+ await ensureAuthUser(userId);
+ const result=await sb("rpc/activate_paid_plan",{method:"POST",body:JSON.stringify({target_user_id:userId,target_plan:plan,activation_mode:mode})});
+ return result;
+}
+
 function customerCount(payload:any){
  const names:string[]=[];
  const add=(value:any)=>{if(typeof value==="string"&&value.trim())names.push(value.trim().toLowerCase())};
@@ -70,15 +76,23 @@ export async function POST(req:NextRequest){
    const rows=await sb("payment_requests?id=eq."+encodeURIComponent(String(b.paymentId))+"&select=*");const p=rows?.[0];if(!p||p.status!=="pending")return NextResponse.json({error:"Payment is no longer pending."},{status:400});
    const status=b.decision==="approve"?"approved":"rejected";
    await sb("payment_requests?id=eq."+p.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({status,reviewed_at:new Date().toISOString()})});
-   if(status==="approved"){if(!plans[p.plan])return NextResponse.json({error:"Payment has an invalid plan."},{status:400});const end=new Date();end.setDate(end.getDate()+plans[p.plan].days);await upsertSubscription(p.owner_id,{plan:p.plan,status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0})}
+   if(status==="approved"){
+    if(!plans[p.plan]||p.plan==="trial")return NextResponse.json({error:"Payment has an invalid plan."},{status:400});
+    const current=await sb("subscriptions?owner_id=eq."+encodeURIComponent(p.owner_id)+"&select=plan,status,period_end");
+    const sameActivePlan=current?.[0]?.plan===p.plan&&current?.[0]?.status==="active"&&new Date(current[0].period_end||0).getTime()>Date.now();
+    await activatePaidPlan(p.owner_id,p.plan,sameActivePlan?"renewal":"purchase");
+   }
   }else if(action==="change_plan"){
-   if(!plans[b.plan])return NextResponse.json({error:"Invalid plan"},{status:400});const end=new Date();end.setDate(end.getDate()+plans[b.plan].days);await upsertSubscription(userId,{plan:b.plan,status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0});
+   if(!plans[b.plan]||b.plan==="trial")return NextResponse.json({error:"Invalid paid plan"},{status:400});
+   await activatePaidPlan(userId,b.plan,"purchase");
   }else if(action==="add_voice"){
    const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=bonus_voice_seconds,plan,status,period_start,period_end");if(!rows?.length)return NextResponse.json({error:"Assign a plan before adding bonus voice."},{status:400});const cur=rows[0]?.bonus_voice_seconds||0;const minutes=Math.max(0,Number(b.minutes)||0);await upsertSubscription(userId,{bonus_voice_seconds:cur+Math.round(minutes*60)});
   }else if(action==="extend"){
    const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=period_end,plan");if(!rows?.length||!plans[rows[0]?.plan])return NextResponse.json({error:"Assign a plan before extending access."},{status:400});const currentEnd=new Date(rows[0]?.period_end||0).getTime();const start=Number.isFinite(currentEnd)?Math.max(Date.now(),currentEnd):Date.now();const end=new Date(start+(Math.max(1,Number(b.days)||30)*86400000));await upsertSubscription(userId,{period_end:end.toISOString(),status:"active"});
   }else if(action==="status"){
-   const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=owner_id");if(!rows?.length)return NextResponse.json({error:"This user has no subscription to suspend or reactivate."},{status:400});await upsertSubscription(userId,{status:b.status==="suspended"?"suspended":"active"});
+   const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=owner_id,period_end");if(!rows?.length)return NextResponse.json({error:"This user has no subscription to suspend or reactivate."},{status:400});
+   if(b.status!=="suspended"&&new Date(rows[0]?.period_end||0).getTime()<=Date.now())return NextResponse.json({error:"This plan has expired. Extend it or apply a paid plan before reactivating."},{status:400});
+   await upsertSubscription(userId,{status:b.status==="suspended"?"suspended":"active"});
   }else if(action==="grant_trial"){
    const end=new Date(Date.now()+30*86400000);await upsertSubscription(userId,{plan:"trial",status:"active",period_start:new Date().toISOString(),period_end:end.toISOString(),bonus_voice_seconds:0});
   }else if(action==="delete_user"){
