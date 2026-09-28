@@ -101,6 +101,19 @@ export type SubscriptionInfo = {
   bonus_voice_seconds?: number;
 };
 
+export async function loadServerTime(): Promise<number> {
+  const token = await cloudToken();
+  const response = await fetch("/api/server-time", {
+    headers: { Authorization: "Bearer " + token },
+    cache: "no-store",
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result?.serverNow) throw new Error(result?.error || "Could not load server time.");
+  const serverMs = new Date(result.serverNow).getTime();
+  if (!Number.isFinite(serverMs)) throw new Error("Invalid server time.");
+  return serverMs;
+}
+
 export async function loadSubscription(): Promise<SubscriptionInfo | null> {
   const rows = await request(
     "/rest/v1/subscriptions?select=plan,status,period_start,period_end,bonus_voice_seconds",
