@@ -89,7 +89,9 @@ export async function POST(req:NextRequest){
   }else if(action==="add_voice"){
    const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=bonus_voice_seconds,plan,status,period_start,period_end");if(!rows?.length)return NextResponse.json({error:"Assign a plan before adding bonus voice."},{status:400});const cur=rows[0]?.bonus_voice_seconds||0;const minutes=Math.max(0,Number(b.minutes)||0);await upsertSubscription(userId,{bonus_voice_seconds:cur+Math.round(minutes*60)});
   }else if(action==="extend"){
-   const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=period_end,plan");if(!rows?.length||!plans[rows[0]?.plan])return NextResponse.json({error:"Assign a plan before extending access."},{status:400});const currentEnd=new Date(rows[0]?.period_end||0).getTime();const start=Number.isFinite(currentEnd)?Math.max(Date.now(),currentEnd):Date.now();const end=new Date(start+(Math.max(1,Number(b.days)||30)*86400000));await upsertSubscription(userId,{period_end:end.toISOString(),status:"active"});
+   const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=plan");if(!rows?.length||!plans[rows[0]?.plan])return NextResponse.json({error:"Assign a plan before extending access."},{status:400});
+   const days=Math.max(1,Math.min(3650,Math.round(Number(b.days)||30)));
+   await sb("rpc/extend_subscription",{method:"POST",body:JSON.stringify({target_user_id:userId,extension_days:days})});
   }else if(action==="status"){
    const rows=await sb("subscriptions?owner_id=eq."+userId+"&select=owner_id,period_end");if(!rows?.length)return NextResponse.json({error:"This user has no subscription to suspend or reactivate."},{status:400});
    if(b.status!=="suspended"&&new Date(rows[0]?.period_end||0).getTime()<=Date.now())return NextResponse.json({error:"This plan has expired. Extend it or apply a paid plan before reactivating."},{status:400});
