@@ -208,6 +208,7 @@ export default function Workspace() {
     [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null),
     [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
     [serverNowMs, setServerNowMs] = useState<number | null>(null),
+    [trustedClockTick, setTrustedClockTick] = useState(0),
     [trialOfferOpen, setTrialOfferOpen] = useState(false),
     [trialStarting, setTrialStarting] = useState(false),
     [trialExpiryPromptOpen, setTrialExpiryPromptOpen] = useState(false),
@@ -354,7 +355,7 @@ export default function Workspace() {
         return;
       }
       const [subscription, serverTime] = await Promise.all([loadSubscription(), loadServerTime()]);
-      setServerNowMs(serverTime);
+      applyTrustedServerTime(serverTime);
       setSubscriptionPlan(subscription?.plan?.toLowerCase() || "trial");
       setSubscriptionStatus(subscription?.status?.toLowerCase() || "active");
       setSubscriptionPeriodEnd(subscription?.period_end || null);
@@ -482,7 +483,7 @@ export default function Workspace() {
         try {
           const [subscription, serverTime] = await Promise.all([loadSubscription(), loadServerTime()]);
           if (!cancelled && activeUserIdRef.current === session.user.id) {
-            setServerNowMs(serverTime);
+            applyTrustedServerTime(serverTime);
             setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
             setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
             setSubscriptionPeriodEnd(subscription?.period_end || null);
@@ -502,6 +503,7 @@ export default function Workspace() {
         setSubscriptionPlan(null);
         setSubscriptionStatus(null);
         setSubscriptionPeriodEnd(null);
+        trustedClockRef.current = null;
         setServerNowMs(null);
         setTrialOfferOpen(false);
         cloudHydratedRef.current = false;
@@ -750,12 +752,47 @@ export default function Workspace() {
     ["Hisaab", "list"],
     ["Reminders", "bell"],
   ];
+  const trustedClockRef = useRef<{ serverEpochMs: number; performanceMs: number } | null>(null);
   const subscriptionEndMs = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd).getTime() : 0;
-  const trustedNowMs = serverNowMs;
+  const trustedNowMs = trustedClockRef.current
+    ? trustedClockRef.current.serverEpochMs + (performance.now() - trustedClockRef.current.performanceMs)
+    : serverNowMs;
   const subscriptionExpired = Boolean(subscriptionPeriodEnd) && trustedNowMs !== null && subscriptionEndMs <= trustedNowMs;
   const hasActiveSubscription = Boolean(subscriptionPlan && subscriptionStatus === "active" && trustedNowMs !== null && !subscriptionExpired);
   const trialDaysLeft = subscriptionPlan === "trial" && subscriptionPeriodEnd && trustedNowMs !== null ? Math.max(0, Math.ceil((subscriptionEndMs - trustedNowMs) / 86400000)) : null;
   const trialEndingSoon = hasActiveSubscription && subscriptionPlan === "trial" && trialDaysLeft !== null && trialDaysLeft <= 2;
+
+  function applyTrustedServerTime(serverTime: number) {
+    trustedClockRef.current = { serverEpochMs: serverTime, performanceMs: performance.now() };
+    applyTrustedServerTime(serverTime);
+    setTrustedClockTick((tick) => tick + 1);
+  }
+
+  useEffect(() => {
+    if (!loggedIn || serverNowMs === null) return;
+    const timer = window.setInterval(() => setTrustedClockTick((tick) => tick + 1), 30000);
+    return () => window.clearInterval(timer);
+  }, [loggedIn, serverNowMs]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    let cancelled = false;
+    const resync = async () => {
+      try {
+        const serverTime = await loadServerTime();
+        if (!cancelled) applyTrustedServerTime(serverTime);
+      } catch {}
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") void resync(); };
+    const onOnline = () => void resync();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [loggedIn]);
 
   useEffect(() => {
     if (!trialEndingSoon || !subscriptionPeriodEnd) return;
