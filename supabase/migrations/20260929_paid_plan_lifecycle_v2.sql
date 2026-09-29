@@ -5,11 +5,19 @@ alter table public.subscriptions
   add column if not exists pending_plan text
     check (pending_plan is null or pending_plan in ('basic','smart','business'));
 
-alter table public.ai_monthly_usage
-  add column if not exists subscription_period_start timestamptz;
-
-create index if not exists ai_monthly_usage_owner_subscription_period_idx
-  on public.ai_monthly_usage(owner_id, subscription_period_start);
+create table if not exists public.ai_period_usage (
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  period_start timestamptz not null,
+  voice_seconds integer not null default 0,
+  ai_calls integer not null default 0,
+  primary key(owner_id, period_start)
+);
+alter table public.ai_period_usage enable row level security;
+revoke all on public.ai_period_usage from anon,authenticated;
+grant select on public.ai_period_usage to authenticated;
+drop policy if exists "Read own AI period usage" on public.ai_period_usage;
+create policy "Read own AI period usage" on public.ai_period_usage
+  for select to authenticated using (auth.uid()=owner_id);
 
 create or replace function public.activate_paid_plan(
   target_user_id uuid,
@@ -132,9 +140,10 @@ set search_path=public
 as $$
 declare
   sub public.subscriptions%rowtype;
-  used_voice integer:=0;
-  used_calls integer:=0;
+  used public.ai_period_usage%rowtype;
   voice_limit integer;
+  cycle_start timestamptz;
+  elapsed_cycles integer;
 begin
   insert into public.profiles(owner_id) values(user_id) on conflict(owner_id) do nothing;
 
@@ -148,36 +157,32 @@ begin
     when 'business' then 60000 else 0 end;
   voice_limit := voice_limit+sub.bonus_voice_seconds;
 
-  -- Usage is keyed to the subscription cycle start, not the calendar month.
-  select coalesce(sum(voice_seconds),0),coalesce(sum(ai_calls),0)
-    into used_voice,used_calls
-  from public.ai_monthly_usage
-  where owner_id=user_id and subscription_period_start=sub.period_start;
+  -- Each entitlement cycle is anchored to period_start. Early renewals extend
+  -- period_end but do not cause an early voice reset.
+  elapsed_cycles := greatest(0, floor(extract(epoch from (now()-sub.period_start))/2592000)::integer);
+  cycle_start := sub.period_start + (elapsed_cycles * interval '30 days');
 
-  if voice_seconds_to_add>0 and used_voice+greatest(0,voice_seconds_to_add)>voice_limit then
+  insert into public.ai_period_usage(owner_id,period_start,voice_seconds,ai_calls)
+    values(user_id,cycle_start,0,0)
+    on conflict(owner_id,period_start) do nothing;
+
+  select * into used from public.ai_period_usage
+    where owner_id=user_id and period_start=cycle_start for update;
+
+  if voice_seconds_to_add>0 and used.voice_seconds+greatest(0,voice_seconds_to_add)>voice_limit then
     return jsonb_build_object('allowed',false,'reason','voice_limit',
-      'voice_seconds',used_voice,'voice_limit',voice_limit);
+      'voice_seconds',used.voice_seconds,'voice_limit',voice_limit);
   end if;
 
-  insert into public.ai_monthly_usage(
-    owner_id,period_month,subscription_period_start,voice_seconds,ai_calls
-  ) values(
-    user_id,date_trunc('month',current_date)::date,sub.period_start,
-    greatest(0,voice_seconds_to_add),greatest(0,ai_calls_to_add)
-  )
-  on conflict(owner_id,period_month) do update
-    set subscription_period_start=excluded.subscription_period_start,
-        voice_seconds=case
-          when ai_monthly_usage.subscription_period_start=excluded.subscription_period_start
-          then ai_monthly_usage.voice_seconds+excluded.voice_seconds else excluded.voice_seconds end,
-        ai_calls=case
-          when ai_monthly_usage.subscription_period_start=excluded.subscription_period_start
-          then ai_monthly_usage.ai_calls+excluded.ai_calls else excluded.ai_calls end
-  returning voice_seconds,ai_calls into used_voice,used_calls;
+  update public.ai_period_usage
+    set voice_seconds=voice_seconds+greatest(0,voice_seconds_to_add),
+        ai_calls=ai_calls+greatest(0,ai_calls_to_add)
+    where owner_id=user_id and period_start=cycle_start
+    returning * into used;
 
   return jsonb_build_object('allowed',true,'plan',sub.plan,
-    'voice_seconds',used_voice,'voice_limit',voice_limit,'ai_calls',used_calls,
-    'period_start',sub.period_start,'period_end',sub.period_end);
+    'voice_seconds',used.voice_seconds,'voice_limit',voice_limit,'ai_calls',used.ai_calls,
+    'usage_period_start',cycle_start,'period_start',sub.period_start,'period_end',sub.period_end);
 end;
 $$;
 revoke all on function public.consume_ai_usage(uuid,integer,integer) from public,anon,authenticated;
