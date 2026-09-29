@@ -44,16 +44,16 @@ function customerCount(payload:any){
 export async function GET(req:NextRequest){
  if(!isAdmin(req))return NextResponse.json({error:"Unauthorized"},{status:401});
  try{
-  const month=new Date().toISOString().slice(0,7)+"-01";
   const [authUsers,subs,usage,payments,claims,workspaces]=await Promise.all([
    users(),
    sb("subscriptions?select=*"),
-   sb("ai_monthly_usage?select=owner_id,period_month,voice_seconds,ai_calls&period_month=eq."+month),
+   sb("ai_period_usage?select=owner_id,period_start,voice_seconds,ai_calls&order=period_start.desc"),
    sb("payment_requests?select=*&order=submitted_at.desc"),
    sb("trial_claims?select=first_owner_id,claimed_at"),
    sb("workspaces?select=owner_id,payload")
   ]);
-  const usageMap=new Map((usage||[]).map((x:any)=>[x.owner_id,x]));
+  const usageMap=new Map();
+  for(const x of usage||[]){if(!usageMap.has(x.owner_id))usageMap.set(x.owner_id,x);}
   const subMap=new Map((subs||[]).map((x:any)=>[x.owner_id,x]));
   const claimMap=new Map((claims||[]).map((x:any)=>[x.first_owner_id,x]));
   const workspaceMap=new Map((workspaces||[]).map((x:any)=>[x.owner_id,x.payload]));
