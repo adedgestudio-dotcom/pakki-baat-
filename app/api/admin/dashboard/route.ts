@@ -54,7 +54,6 @@ export async function GET(req:NextRequest){
   ]);
   const usageMap=new Map();
   for(const x of usage||[]){if(!usageMap.has(x.owner_id))usageMap.set(x.owner_id,x);}
-  const subMap=new Map((subs||[]).map((x:any)=>[x.owner_id,x]));
   const claimMap=new Map((claims||[]).map((x:any)=>[x.first_owner_id,x]));
   const workspaceMap=new Map((workspaces||[]).map((x:any)=>[x.owner_id,x.payload]));
   const now=Date.now();
