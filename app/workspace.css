@@ -9038,3 +9038,20 @@ footer .footer-separator{
 [data-theme="dark"] .trial-activated-icon{background:#244438;color:#b9e4d1}
 [data-theme="dark"] .trial-activated-card>p strong{color:#b9e4d1}
 @media(max-width:600px){.home-plan-chip{margin-bottom:10px}}
+
+
+/* Payment confirmation: replace the browser-native file control with a clean upload card. */
+.payment-done-title{display:flex;flex-direction:column;gap:3px;margin-bottom:2px}
+.payment-done-title strong{font-size:15px;color:var(--text)}
+.payment-done-title small{font-size:11px;font-weight:500;color:var(--muted);line-height:1.45}
+.payment-proof-upload{position:relative;display:block !important;padding:0 !important;border:0 !important;cursor:pointer}
+.payment-proof-upload input[type="file"]{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.payment-proof-upload>span{min-height:62px;display:flex;align-items:center;justify-content:center;gap:9px;padding:14px;border:1px dashed var(--line);border-radius:14px;background:var(--surface);color:var(--text);transition:border-color .18s ease,background .18s ease,transform .18s ease}
+.payment-proof-upload:hover>span{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+.payment-proof-upload>span b{font-size:13px;font-weight:750}
+.payment-proof-upload>small{display:block;margin-top:5px;text-align:center;color:var(--muted);font-size:10px;font-weight:500;overflow-wrap:anywhere}
+.payment-or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.payment-or::before,.payment-or::after{content:"";height:1px;flex:1;background:var(--line)}
+.payment-ref-label>span{font-size:11px;color:var(--muted);font-weight:700}
+.payment-ref-label input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
+.payment-review-note{line-height:1.45}
