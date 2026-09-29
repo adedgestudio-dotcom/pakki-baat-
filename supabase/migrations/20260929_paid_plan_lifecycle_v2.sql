@@ -19,6 +19,16 @@ drop policy if exists "Read own AI period usage" on public.ai_period_usage;
 create policy "Read own AI period usage" on public.ai_period_usage
   for select to authenticated using (auth.uid()=owner_id);
 
+-- Carry the current calendar-month counters into the active subscription cycle so
+-- deploying this migration does not give existing users an accidental fresh quota.
+insert into public.ai_period_usage(owner_id,period_start,voice_seconds,ai_calls)
+select m.owner_id,s.period_start,m.voice_seconds,m.ai_calls
+from public.ai_monthly_usage m
+join public.subscriptions s on s.owner_id=m.owner_id
+where m.period_month=date_trunc('month',current_date)::date
+  and s.status='active' and s.period_end>now()
+on conflict(owner_id,period_start) do nothing;
+
 create or replace function public.activate_paid_plan(
   target_user_id uuid,
   target_plan text,
