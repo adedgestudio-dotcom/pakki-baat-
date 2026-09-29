@@ -111,32 +111,8 @@ $$;
 revoke all on function public.activate_paid_plan(uuid,text,text) from public,anon,authenticated;
 grant execute on function public.activate_paid_plan(uuid,text,text) to service_role;
 
-create or replace function public.apply_pending_plan(target_user_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path=public
-as $$
-declare sub public.subscriptions%rowtype; next_plan text;
-begin
-  select * into sub from public.subscriptions where owner_id=target_user_id for update;
-  if not found then raise exception 'SUBSCRIPTION_NOT_FOUND'; end if;
-  if sub.pending_plan is null then
-    return jsonb_build_object('ok',true,'changed',false,'plan',sub.plan);
-  end if;
-  if sub.period_end>now() then
-    return jsonb_build_object('ok',true,'changed',false,'plan',sub.plan,'pending_plan',sub.pending_plan);
-  end if;
-  next_plan:=sub.pending_plan;
-  update public.subscriptions
-    set plan=next_plan,pending_plan=null,status='active',
-        period_start=now(),period_end=now()+interval '30 days',updated_at=now()
-    where owner_id=target_user_id;
-  return jsonb_build_object('ok',true,'changed',true,'plan',next_plan);
-end;
-$$;
-revoke all on function public.apply_pending_plan(uuid) from public,anon,authenticated;
-grant execute on function public.apply_pending_plan(uuid) to service_role;
+-- pending_plan records the user's next intended lower tier. It does not grant a
+-- new paid period by itself; the next approved payment activates that plan.
 
 create or replace function public.consume_ai_usage(
   user_id uuid,
