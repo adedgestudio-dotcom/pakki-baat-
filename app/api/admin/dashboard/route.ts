@@ -54,12 +54,11 @@ export async function GET(req:NextRequest){
   ]);
   const usageMap=new Map();
   for(const x of usage||[]){if(!usageMap.has(x.owner_id))usageMap.set(x.owner_id,x);}
-  const subMap=new Map((subs||[]).map((x:any)=>[x.owner_id,x]));
   const claimMap=new Map((claims||[]).map((x:any)=>[x.first_owner_id,x]));
   const workspaceMap=new Map((workspaces||[]).map((x:any)=>[x.owner_id,x.payload]));
   const now=Date.now();
-  const list=authUsers.map((u:any)=>{
-   const sub:any=subMap.get(u.id)||{};
+  // Activate any already-paid pending downgrade whose previous period has ended before rendering Admin state.\n  await Promise.all((subs||[]).filter((s:any)=>s.pending_plan&&s.pending_period_end&&new Date(s.period_end).getTime()<=Date.now()).map((s:any)=>sb("rpc/apply_due_pending_plan",{method:"POST",body:JSON.stringify({target_user_id:s.owner_id})})));\n  const refreshedSubs=await sb("subscriptions?select=*");\n  const refreshedSubMap=new Map((refreshedSubs||[]).map((x:any)=>[x.owner_id,x]));\n  const list=authUsers.map((u:any)=>{
+   const sub:any=refreshedSubMap.get(u.id)||{};
    const entitlement=plans[sub.plan]||null;
    const expired=!!sub.period_end&&new Date(sub.period_end).getTime()<=now;
    return {id:u.id,email:u.email||"",created_at:u.created_at,last_sign_in_at:u.last_sign_in_at,...sub,display_status:expired&&sub.status==="active"?"expired":sub.status,usage:usageMap.get(u.id)||null,trial_claim:claimMap.get(u.id)||null,customer_count:customerCount(workspaceMap.get(u.id)),voice_limit_minutes:entitlement?.voiceMinutes??0,customer_limit:entitlement?.customerLimit??null,has_subscription:Boolean(sub.owner_id),has_entitlement:Boolean(entitlement)};
