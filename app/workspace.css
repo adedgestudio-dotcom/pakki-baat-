@@ -9055,3 +9055,12 @@ footer .footer-separator{
 .payment-ref-label>span{font-size:11px;color:var(--muted);font-weight:700}
 .payment-ref-label input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 12%,transparent)}
 .payment-review-note{line-height:1.45}
+
+/* Free-trial offer close control */
+.trial-welcome-card { position: relative; }
+.trial-welcome-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+}
