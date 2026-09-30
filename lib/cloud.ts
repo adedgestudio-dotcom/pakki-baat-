@@ -46,6 +46,15 @@ export async function signInWithGoogle() {
   if (error) throw error;
 }
 
+export async function signInWithPassword(email: string, password: string) {
+  const { data, error } = await (await configuredClient()).auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  });
+  if (error) throw error;
+  return data.session;
+}
+
 export async function currentSession() {
   const ready = await loadRuntimeConfig();
   if (!ready) return null;
