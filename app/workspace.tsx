@@ -3658,6 +3658,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       {loggedIn && trialOfferOpen && (
         <div className="trial-welcome-backdrop" role="dialog" aria-modal="true" aria-label="Start your free trial">
           <section className="trial-welcome-card">
+            <button type="button" className="icon-button trial-welcome-close" aria-label="Close free trial offer" onClick={()=>setTrialOfferOpen(false)}><Icon name="close" size={18}/></button>
             <span className="trial-value-kicker">WELCOME TO PAKKI BAAT</span>
             <h2>Try everything free for 30 days</h2>
             <p>No payment needed. Use Pakki Baat with your real business before choosing a plan.</p>
