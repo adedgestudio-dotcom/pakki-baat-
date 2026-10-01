@@ -51,6 +51,7 @@ export default function SimpleVoiceButton({
   const liveTranscriptRef = useRef("");
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
   const discardRef = useRef(false);
+  const previewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -59,13 +60,13 @@ export default function SimpleVoiceButton({
       recognitionRef.current?.abort();
       recognitionRef.current = null;
       const recorder = recorderRef.current;
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       if (recorder && recorder.state !== "inactive") {
         recorder.onstop = null;
         recorder.stop();
       }
     };
-  }, [previewUrl]);
+  }, []);
 
   function pickMimeType() {
     const types = [
@@ -80,7 +81,8 @@ export default function SimpleVoiceButton({
 
   function clearPreview() {
     audioPreviewRef.current?.pause();
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = null;
     setPreviewUrl(null);
     setPreviewBlob(null);
     setPreviewDuration(0);
@@ -216,6 +218,7 @@ export default function SimpleVoiceButton({
 
         // Keep the recording as a preview first, so the user can listen before sending it.
         const url = URL.createObjectURL(audioBlob);
+        previewUrlRef.current = url;
         setPreviewUrl(url);
         setPreviewBlob(audioBlob);
         setPreviewDuration(recordedSeconds);
