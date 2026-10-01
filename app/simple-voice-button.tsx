@@ -35,11 +35,6 @@ export default function SimpleVoiceButton({
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
-  const [previewDuration, setPreviewDuration] = useState(0);
-  const [previewTranscript, setPreviewTranscript] = useState("");
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -49,9 +44,7 @@ export default function SimpleVoiceButton({
   const timerRef = useRef<number | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const liveTranscriptRef = useRef("");
-  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
   const discardRef = useRef(false);
-  const previewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -60,7 +53,6 @@ export default function SimpleVoiceButton({
       recognitionRef.current?.abort();
       recognitionRef.current = null;
       const recorder = recorderRef.current;
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       if (recorder && recorder.state !== "inactive") {
         recorder.onstop = null;
         recorder.stop();
@@ -79,23 +71,12 @@ export default function SimpleVoiceButton({
     return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
   }
 
-  function clearPreview() {
-    audioPreviewRef.current?.pause();
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    previewUrlRef.current = null;
-    setPreviewUrl(null);
-    setPreviewBlob(null);
-    setPreviewDuration(0);
-    setPreviewTranscript("");
-    setIsPreviewPlaying(false);
-  }
-
   function cancelRecording() {
     const recorder = recorderRef.current;
     discardRef.current = true;
     recognitionRef.current?.abort();
     if (recorder && recorder.state !== "inactive") recorder.stop();
-    else clearPreview();
+    else discardRef.current = false;
   }
 
   function stopRecording() {
@@ -137,7 +118,6 @@ export default function SimpleVoiceButton({
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      clearPreview();
       discardRef.current = false;
       liveTranscriptRef.current = "";
       const speechWindow = window as typeof window & {
@@ -216,13 +196,15 @@ export default function SimpleVoiceButton({
           return;
         }
 
-        // Keep the recording as a preview first, so the user can listen before sending it.
-        const url = URL.createObjectURL(audioBlob);
-        previewUrlRef.current = url;
-        setPreviewUrl(url);
-        setPreviewBlob(audioBlob);
-        setPreviewDuration(recordedSeconds);
-        setPreviewTranscript(liveTranscriptRef.current.trim());
+        // Stop/send is the handoff point: immediately pass the captured audio
+        // into the existing transcription -> extraction -> pending-entry flow.
+        window.setTimeout(() => {
+          onRecordingComplete(
+            audioBlob,
+            recordedSeconds,
+            liveTranscriptRef.current.trim()
+          );
+        }, 220);
       };
 
       mediaRecorder.onerror = () => {
@@ -245,24 +227,6 @@ export default function SimpleVoiceButton({
       }
       onError(err instanceof Error ? err.message : "Failed to access microphone");
     }
-  }
-
-  function sendPreview() {
-    if (!previewBlob) return;
-    const blob = previewBlob;
-    const seconds = previewDuration;
-    const transcript = previewTranscript;
-    // Do not revoke/clear the preview blob before the parent has received it.
-    // The parent starts transcription/extraction from this exact recording.
-    onRecordingComplete(blob, seconds, transcript);
-    clearPreview();
-  }
-
-  function togglePreviewPlayback() {
-    const audio = audioPreviewRef.current;
-    if (!audio) return;
-    if (audio.paused) void audio.play();
-    else audio.pause();
   }
 
   const handleClick = async () => {
@@ -303,28 +267,6 @@ export default function SimpleVoiceButton({
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
             )}
           </button>
-        </div>
-      )}
-      {!isRecording && previewUrl && (
-        <div className="voice-preview-pill">
-          <button type="button" className="voice-preview-play" onClick={togglePreviewPlayback} aria-label={isPreviewPlaying ? "Pause voice preview" : "Play voice preview"}>
-            {isPreviewPlaying ? (
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-            ) : (
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            )}
-          </button>
-          <span className={isPreviewPlaying ? "recording-wave-line preview-wave playing" : "recording-wave-line preview-wave"} aria-hidden="true">
-            {Array.from({ length: 12 }).map((_, index) => <span key={index} style={{ animationDelay: `${index * 0.06}s` }} />)}
-          </span>
-          <span className="recording-strip-time">{Math.floor(previewDuration / 60)}:{String(previewDuration % 60).padStart(2, "0")}</span>
-          <button type="button" className="voice-cancel-button" onClick={clearPreview} aria-label="Delete voice preview" title="Delete">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18 M8 6V4h8v2 M19 6l-1 14H6L5 6 M10 10v6 M14 10v6"/></svg>
-          </button>
-          <button type="button" className="voice-preview-send" onClick={sendPreview} aria-label="Send voice note" title="Send voice note">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z M22 2 11 13"/></svg>
-          </button>
-          <audio ref={audioPreviewRef} src={previewUrl} onPlay={()=>setIsPreviewPlaying(true)} onPause={()=>setIsPreviewPlaying(false)} onEnded={()=>setIsPreviewPlaying(false)} />
         </div>
       )}
       <button
