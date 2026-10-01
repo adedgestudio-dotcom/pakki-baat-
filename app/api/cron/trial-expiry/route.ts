@@ -18,13 +18,22 @@ export async function GET(req:NextRequest){
     const users=await authUsers();const emailMap=new Map(users.map((u:any)=>[u.id,u.email]));
     let sent=0;
     for(const sub of trials||[]){
-      const prior=await sb("trial_expiry_email_log?owner_id=eq."+sub.owner_id+"&period_end=eq."+encodeURIComponent(sub.period_end)+"&select=owner_id");
-      if(prior?.length)continue;
-      const to=emailMap.get(sub.owner_id);if(!to)continue;
+      // Reserve this reminder atomically before sending. The (owner_id, period_end)
+      // primary key makes concurrent cron runs race-safe: only one gets the row.
+      const reserved=await sb("trial_expiry_email_log?on_conflict=owner_id,period_end",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({owner_id:sub.owner_id,period_end:sub.period_end})});
+      if(!reserved?.length)continue;
+      const to=emailMap.get(sub.owner_id);
+      if(!to){
+        await sb("trial_expiry_email_log?owner_id=eq."+sub.owner_id+"&period_end=eq."+encodeURIComponent(sub.period_end),{method:"DELETE"});
+        continue;
+      }
       const endDate=new Date(sub.period_end).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Kolkata"});
       const mail=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:"Bearer "+resend,"Content-Type":"application/json"},body:JSON.stringify({from,to:[to],subject:"Your Pakki Baat free trial ends in 2 days",html:'<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#17352c"><h2>Your free trial ends soon</h2><p>Your 30-day Pakki Baat trial ends on <strong>'+endDate+'</strong>.</p><p>Your Hisaab and customer data will stay safe. Choose a plan to keep adding customers and using voice/AI without interruption.</p><p><a href="'+appUrl+'" style="display:inline-block;background:#2d8069;color:#fff;padding:11px 16px;border-radius:9px;text-decoration:none;font-weight:700">View plans</a></p><p style="color:#708078;font-size:12px">Pakki Baat · by Sarrah Bharmal (Zorivo)</p></div>'})});
-      if(!mail.ok)continue;
-      await sb("trial_expiry_email_log",{method:"POST",headers:{Prefer:"return=minimal"},body:JSON.stringify({owner_id:sub.owner_id,period_end:sub.period_end})});
+      if(!mail.ok){
+        // Release the reservation so a later cron run can retry a failed delivery.
+        await sb("trial_expiry_email_log?owner_id=eq."+sub.owner_id+"&period_end=eq."+encodeURIComponent(sub.period_end),{method:"DELETE"});
+        continue;
+      }
       sent++;
     }
     return NextResponse.json({ok:true,sent});
