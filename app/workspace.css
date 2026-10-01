@@ -9069,3 +9069,9 @@ footer .footer-separator{
 /* Trial CTA: align with the full width of both limit cards */
 .trial-value-banner>div:first-child{flex:1;min-width:0}
 .trial-value-banner>div:first-child>.primary{display:block;width:100%;margin-top:12px}
+
+
+/* Compact PWA install shortcut in the top bar */
+.top-install-button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.top-install-button:hover{background:var(--surface-2)}
+@media (max-width:640px){.top-install-button{width:36px;height:36px;min-height:36px;padding:0;justify-content:center;border-radius:10px}.top-install-button span{display:none}}
