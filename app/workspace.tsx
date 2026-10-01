@@ -2363,8 +2363,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   const customerOpenJob = customerJobs.find(j=>j.paid<j.total && j.status!=="Completed") || customerJobs.find(j=>j.paid<j.total) || customerJobs[0];
   const recentCustomers = customerNames.slice(0,4);
   const todayReminderBanners = reminders
-    .filter(r => !r.done && r.date === day() && !dismissedTodayReminderIds.includes(r.id))
-    .sort((a,b)=>(a.time || "23:59").localeCompare(b.time || "23:59"));
+    // Home should surface every unfinished reminder that is due today or overdue.
+    .filter(r => !r.done && Boolean(r.date) && r.date <= day() && !dismissedTodayReminderIds.includes(r.id))
+    .sort((a,b)=>`${a.date}T${a.time || "23:59"}`.localeCompare(`${b.date}T${b.time || "23:59"}`));
   const todayReminderBanner = todayReminderBanners[0] || null;
   function openReminder(job: Job) {
     const tomorrow = new Date();
