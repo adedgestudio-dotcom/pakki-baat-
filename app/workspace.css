@@ -9071,7 +9071,7 @@ footer .footer-separator{
 .trial-value-banner>div:first-child>.primary{display:block;width:100%;margin-top:12px}
 
 
-/* Compact PWA install shortcut in the top bar */
-.top-install-button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
-.top-install-button:hover{background:var(--surface-2)}
-@media (max-width:640px){.top-install-button{width:36px;height:36px;min-height:36px;padding:0;justify-content:center;border-radius:10px}.top-install-button span{display:none}}
+/* Quiet PWA install shortcut in the top bar */
+.top-install-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-height:36px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer}
+.top-install-button:hover{background:var(--surface-2);color:var(--text)}
+@media (max-width:640px){.top-install-button{width:34px;height:34px;min-height:34px}}
