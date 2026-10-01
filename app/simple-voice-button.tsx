@@ -249,8 +249,10 @@ export default function SimpleVoiceButton({
     const blob = previewBlob;
     const seconds = previewDuration;
     const transcript = previewTranscript;
-    clearPreview();
+    // Do not revoke/clear the preview blob before the parent has received it.
+    // The parent starts transcription/extraction from this exact recording.
     onRecordingComplete(blob, seconds, transcript);
+    clearPreview();
   }
 
   function togglePreviewPlayback() {
