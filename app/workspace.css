@@ -9075,3 +9075,9 @@ footer .footer-separator{
 .top-install-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-height:36px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer}
 .top-install-button:hover{background:var(--surface-2);color:var(--text)}
 @media (max-width:640px){.top-install-button{width:34px;height:34px;min-height:34px}}
+
+/* Voice pause/resume: compact control inside the existing recording strip */
+.voice-pause-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;min-width:28px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
+.voice-pause-button:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
+.voice-recording-pill.is-paused .recording-wave-line span{animation-play-state:paused}
+.voice-recording-pill.is-paused .recording-live-dot{animation:none;opacity:.55}
