@@ -275,6 +275,7 @@ export default function Workspace() {
   const firedReminderKeysRef = useRef(new Set<string>());
   const navigationRestoredRef = useRef(false);
   const entryDraftRestoredForUserRef = useRef<string | null>(null);
+  const chatHistoryHydratedForUserRef = useRef<string | null>(null);
   const pendingJobRef = useRef<Job | null>(null);
   const selectedCustomerRef = useRef<string | null>(null);
   const customerChatOpenRef = useRef(false);
@@ -321,6 +322,9 @@ export default function Workspace() {
 
   function entryDraftKey(userId: string) {
     return "pakki-baat-entry-draft:" + userId;
+  }
+  function chatHistoryKey(userId: string) {
+    return "pakki-baat-chat-history:" + userId;
   }
   function clearEntryDraft() {
     const userId = activeUserIdRef.current;
@@ -484,6 +488,18 @@ export default function Workspace() {
       setUserEmail(session?.user.email || null);
       setUserName(accountNameFromEmail(session));
       activeUserIdRef.current = session?.user.id || null;
+
+      if (session && chatHistoryHydratedForUserRef.current !== session.user.id) {
+        chatHistoryHydratedForUserRef.current = session.user.id;
+        try {
+          const rawHistory = localStorage.getItem(chatHistoryKey(session.user.id));
+          if (rawHistory) {
+            const turns = JSON.parse(rawHistory);
+            const state = { turns, pending: null, step: "customer" as ChatStep };
+            if (isChatState(state)) setChatTurns(state.turns);
+          }
+        } catch {}
+      }
 
       if (session) {
         try {
@@ -724,6 +740,14 @@ export default function Workspace() {
     }, 500);
     return () => window.clearTimeout(timer);
   }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn, isOnline]);
+
+  useEffect(() => {
+    const userId = activeUserIdRef.current;
+    if (!userId || chatHistoryHydratedForUserRef.current !== userId) return;
+    try {
+      localStorage.setItem(chatHistoryKey(userId), JSON.stringify(chatTurns.slice(-80)));
+    } catch {}
+  }, [chatTurns]);
 
   useEffect(() => {
     for (const turn of chatTurns) {
@@ -1796,7 +1820,6 @@ export default function Workspace() {
     setMessage("");
     setCustomerChatOpen(false);
     clearEntryDraft();
-    setChatTurns(turns => turns.filter(turn => turn.customer !== selectedCustomer));
     setToast("Saved in " + selectedCustomer + "'s hisaab.");
   }
 
