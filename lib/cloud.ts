@@ -101,7 +101,6 @@ export async function loadCloud() {
   return rows[0]?.payload || null;
 }
 
-
 export type SubscriptionInfo = {
   plan: string;
   status: string;
@@ -129,8 +128,23 @@ export async function loadSubscription(): Promise<SubscriptionInfo | null> {
     undefined,
     await cloudToken()
   );
-
   return rows[0] || null;
+}
+
+function trialDeviceSignature() {
+  const nav = navigator;
+  const screenInfo = window.screen;
+  return [
+    nav.userAgent,
+    nav.platform || "",
+    nav.language || "",
+    String(nav.hardwareConcurrency || ""),
+    String(nav.maxTouchPoints || ""),
+    String(screenInfo?.width || ""),
+    String(screenInfo?.height || ""),
+    String(screenInfo?.colorDepth || ""),
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+  ].join("|");
 }
 
 export async function claimFreeTrial() {
@@ -147,7 +161,7 @@ export async function claimFreeTrial() {
   const response = await fetch("/api/trial/claim", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-    body: JSON.stringify({ deviceId }),
+    body: JSON.stringify({ deviceId, deviceSignature: trialDeviceSignature() }),
   });
   const result = await response.json().catch(() => null);
   if (!response.ok) throw new Error(result?.error || "Could not check free trial.");
