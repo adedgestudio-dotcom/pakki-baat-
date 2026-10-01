@@ -1415,17 +1415,13 @@ export default function Workspace() {
       ].slice(-80)
     );
 
-    if (transcript) {
-      setMessage("");
-      setVoiceBusy(true);
-      try {
-        await processAssistantMessage(transcript, "voice");
-      } finally {
-        setVoiceBusy(false);
-      }
-    } else {
-      await transcribeSentVoice(file, id, duration);
-    }
+    // Always send recorded audio through the server transcription path.
+    // Besides producing the canonical transcript, that path is where
+    // consume_ai_usage records the recording duration against the plan's
+    // voice-seconds allowance. Using the browser live transcript directly
+    // skipped that metering, so the 6,000-second / 100-minute usage did not move.
+    setMessage("");
+    await transcribeSentVoice(file, id, duration);
 
     try {
       await saveVoice(id, file);
