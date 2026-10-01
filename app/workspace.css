@@ -9064,3 +9064,8 @@ footer .footer-separator{
   right: 12px;
   z-index: 2;
 }
+
+
+/* Trial CTA: align with the full width of both limit cards */
+.trial-value-banner>div:first-child{flex:1;min-width:0}
+.trial-value-banner>div:first-child>.primary{display:block;width:100%;margin-top:12px}
