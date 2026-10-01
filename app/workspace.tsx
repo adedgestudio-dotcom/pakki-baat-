@@ -2621,6 +2621,11 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <button type="button" className={tab === "Subscription" ? "subscription-nav-button active" : "subscription-nav-button"} onClick={()=>go("Subscription")} title="Subscription & usage">
               <Icon name="plan" size={18}/><span>Plan</span>
             </button>
+            {!appInstalled && (
+              <button type="button" className="top-install-button" onClick={()=>void installPakkiBaat()} title="Install Pakki Baat" aria-label="Install Pakki Baat">
+                <Icon name="download" size={17}/><span>Install</span>
+              </button>
+            )}
             {!loggedIn && (
               <button
                 type="button"
