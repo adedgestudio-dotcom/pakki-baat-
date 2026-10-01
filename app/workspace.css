@@ -9089,3 +9089,28 @@ footer .footer-separator{
 .voice-preview-pill .preview-wave{flex:1;min-width:42px}
 .voice-preview-pill .preview-wave span{animation-play-state:paused;opacity:.55}
 .voice-preview-pill .preview-wave.playing span{animation-play-state:running;opacity:1}
+
+/* Voice controls mobile hotfix: keep recorder/preview on their own bottom row; never overlap placeholder text */
+@media(max-width:800px){
+  .smart-compose-field:has(.voice-recording-pill) textarea,
+  .smart-compose-field:has(.voice-preview-pill) textarea{padding-bottom:66px !important}
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill{
+    left:58px !important;right:58px !important;bottom:8px !important;height:42px !important;
+    padding:0 7px !important;gap:5px !important;overflow:hidden !important
+  }
+  .smart-compose-field:has(.voice-recording-pill) .voice-pause-button,
+  .smart-compose-field:has(.voice-recording-pill) .voice-cancel-button{width:28px !important;height:28px !important;min-width:28px !important;flex:0 0 28px !important}
+  .smart-compose-field:has(.voice-recording-pill) .recording-wave-line{min-width:30px !important;flex:1 1 auto !important}
+  .smart-compose-field:has(.voice-recording-pill) .smart-compose-tool.left{z-index:14 !important}
+  .smart-compose-field:has(.voice-preview-pill) .voice-preview-pill{
+    position:absolute !important;left:8px !important;right:8px !important;bottom:8px !important;
+    width:auto !important;height:44px !important;min-width:0 !important;box-sizing:border-box !important;
+    z-index:14 !important;padding:0 7px !important;gap:5px !important;background:#edf7f2 !important;
+    border-color:rgba(45,128,111,.28) !important;color:#245f50 !important
+  }
+  .smart-compose-field:has(.voice-preview-pill) > .smart-compose-tool.left,
+  .smart-compose-field:has(.voice-preview-pill) > .smart-compose-tool.right{display:none !important}
+  .voice-preview-pill .voice-preview-play,.voice-preview-pill .voice-cancel-button,.voice-preview-pill .voice-preview-send{flex:0 0 30px !important;width:30px !important;height:30px !important;min-width:30px !important}
+  .voice-preview-pill .preview-wave{min-width:32px !important;flex:1 1 auto !important}
+  [data-theme="dark"] .smart-compose-field:has(.voice-preview-pill) .voice-preview-pill{background:#173a31 !important;border-color:#326b5b !important;color:#eaf7f1 !important}
+}
