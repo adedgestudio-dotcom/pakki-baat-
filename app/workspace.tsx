@@ -41,6 +41,7 @@ type ChatTurn = {
 };
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
+type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }> };
 function isRealDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, date] = value.split("-").map(Number);
@@ -160,6 +161,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     sun: "M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4 M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0",
     moon: "M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z",
     plan: "M4 7h16v12H4Z M4 10h16 M8 15h4",
+    download: "M12 3v12 m-5-5 5 5 5-5 M5 21h14",
     shield: "M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3Z M9 12l2 2 4-5",
   };
   return (
@@ -260,7 +262,9 @@ export default function Workspace() {
     [pushDiagnostic, setPushDiagnostic] = useState(""),
     [pushDiagnosticBusy, setPushDiagnosticBusy] = useState(false),
     [entryMode, setEntryMode] = useState<"quick"|"form">("quick"),
-    [receivedAmountTouched, setReceivedAmountTouched] = useState(false);
+    [receivedAmountTouched, setReceivedAmountTouched] = useState(false),
+    [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null),
+    [appInstalled, setAppInstalled] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -281,6 +285,38 @@ export default function Workspace() {
   useEffect(() => { customerChatOpenRef.current = customerChatOpen; }, [customerChatOpen]);
   useEffect(() => { messageRef.current = message; }, [message]);
   useEffect(() => { entryModeRef.current = entryMode; }, [entryMode]);
+
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setAppInstalled(standalone);
+    const onInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setAppInstalled(true);
+      setInstallPrompt(null);
+      setToast("Pakki Baat installed ✓");
+    };
+    window.addEventListener("beforeinstallprompt", onInstallPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onInstallPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  async function installPakkiBaat() {
+    if (appInstalled) { setToast("Pakki Baat is already installed on this device."); return; }
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === "accepted") setInstallPrompt(null);
+      return;
+    }
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    setToast(isIos ? "On iPhone: tap Share, then Add to Home Screen." : "Open your browser menu and choose Install app or Add to Home screen.");
+  }
 
   function entryDraftKey(userId: string) {
     return "pakki-baat-entry-draft:" + userId;
@@ -3464,6 +3500,13 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </div>
               <div className="settings-top-cards">
+                {!appInstalled && (
+                  <section className="settings-subscription-card settings-install-card">
+                    <span className="settings-subscription-icon"><Icon name="download" size={20}/></span>
+                    <span><strong>Install Pakki Baat</strong><small>Keep it on your home screen and open it like an app.</small></span>
+                    <button type="button" className="primary" onClick={()=>void installPakkiBaat()}>Install app</button>
+                  </section>
+                )}
                 <section className="settings-subscription-card">
                   <span className="settings-subscription-icon"><Icon name="plan" size={20}/></span>
                   <span><strong>Subscription & usage</strong><small>Your plan, voice minutes and renewal.</small></span>
