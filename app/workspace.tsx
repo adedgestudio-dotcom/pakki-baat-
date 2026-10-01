@@ -264,7 +264,8 @@ export default function Workspace() {
     [entryMode, setEntryMode] = useState<"quick"|"form">("quick"),
     [receivedAmountTouched, setReceivedAmountTouched] = useState(false),
     [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null),
-    [appInstalled, setAppInstalled] = useState(false);
+    [appInstalled, setAppInstalled] = useState(false),
+    [installWelcomeOpen, setInstallWelcomeOpen] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -483,6 +484,19 @@ export default function Workspace() {
       setUserEmail(session?.user.email || null);
       setUserName(accountNameFromEmail(session));
       activeUserIdRef.current = session?.user.id || null;
+
+      if (session) {
+        try {
+          const key = "pakki-baat-install-prompt-seen:" + session.user.id;
+          const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+          if (!standalone && !localStorage.getItem(key)) {
+            localStorage.setItem(key, "1");
+            setInstallWelcomeOpen(true);
+          }
+        } catch {}
+      } else {
+        setInstallWelcomeOpen(false);
+      }
 
       if (session && entryDraftRestoredForUserRef.current !== session.user.id) {
         entryDraftRestoredForUserRef.current = session.user.id;
@@ -3904,6 +3918,19 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <Icon name="chat" size={18}/> Open WhatsApp
               </button>
             </form>
+          </section>
+        </div>
+      )}
+      {installWelcomeOpen && !appInstalled && (
+        <div className="modal-backdrop" onClick={()=>setInstallWelcomeOpen(false)}>
+          <section className="save-login-modal install-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="install-welcome-title" onClick={e=>e.stopPropagation()}>
+            <button className="icon-button save-login-close" aria-label="Close" onClick={()=>setInstallWelcomeOpen(false)}><Icon name="close"/></button>
+            <span className="save-login-icon"><Icon name="download" size={24}/></span>
+            <span className="eyebrow">QUICK ACCESS</span>
+            <h2 id="install-welcome-title">Install Pakki Baat?</h2>
+            <p>Add Pakki Baat to your home screen and open it like a regular app whenever you need your Hisaab.</p>
+            <button type="button" className="primary save-login-google" onClick={()=>{setInstallWelcomeOpen(false);void installPakkiBaat();}}><Icon name="download" size={18}/> Install Pakki Baat</button>
+            <button type="button" className="save-login-later" onClick={()=>setInstallWelcomeOpen(false)}>Not now</button>
           </section>
         </div>
       )}
