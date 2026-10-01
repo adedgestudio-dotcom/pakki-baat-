@@ -2604,6 +2604,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <span className="learn-pakki-icon">?</span>
             Learn Pakki Baat
           </button>
+          {!appInstalled && (
+            <button className="settings-button sidebar-install-button" onClick={()=>void installPakkiBaat()}>
+              <Icon name="download" />
+              Install Pakki Baat
+            </button>
+          )}
           <button className="settings-button" onClick={() => go("Settings")}>
             <Icon name="settings" />
             Settings & feedback
@@ -2635,11 +2641,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <button type="button" className={tab === "Subscription" ? "subscription-nav-button active" : "subscription-nav-button"} onClick={()=>go("Subscription")} title="Subscription & usage">
               <Icon name="plan" size={18}/><span>Plan</span>
             </button>
-            {!appInstalled && (
-              <button type="button" className="top-install-button" onClick={()=>void installPakkiBaat()} title="Install Pakki Baat" aria-label="Install Pakki Baat">
-                <Icon name="download" size={18}/>
-              </button>
-            )}
             {!loggedIn && (
               <button
                 type="button"
