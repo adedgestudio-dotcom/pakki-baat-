@@ -8,7 +8,9 @@ export async function POST(request: NextRequest) {
     const token = auth.slice(7);
     const body = await request.json();
     const deviceId = String(body?.deviceId || "").trim();
+    const deviceSignature = String(body?.deviceSignature || "").trim();
     if (deviceId.length < 20 || deviceId.length > 200) return NextResponse.json({ error: "Invalid device" }, { status: 400 });
+    if (deviceSignature.length < 20 || deviceSignature.length > 2000) return NextResponse.json({ error: "Invalid device signature" }, { status: 400 });
 
     const base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
     const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -21,13 +23,19 @@ export async function POST(request: NextRequest) {
     if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const deviceHash = createHash("sha256").update("pakki-baat-trial-v1:" + deviceId).digest("hex");
+    const signatureHash = createHash("sha256").update("pakki-baat-trial-signature-v1:" + deviceSignature).digest("hex");
     const normalizedEmail = String(user.email || "").trim().toLowerCase();
     if (!normalizedEmail) return NextResponse.json({ error: "Your account has no email address." }, { status: 400 });
     const emailHash = createHash("sha256").update("pakki-baat-trial-email-v1:" + normalizedEmail).digest("hex");
     const rpc = await fetch(base + "/rest/v1/rpc/claim_trial", {
       method: "POST",
       headers: { apikey: service, Authorization: "Bearer " + service, "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: user.id, supplied_device_hash: deviceHash, supplied_email_hash: emailHash }),
+      body: JSON.stringify({
+        user_id: user.id,
+        supplied_device_hash: deviceHash,
+        supplied_email_hash: emailHash,
+        supplied_signature_hash: signatureHash,
+      }),
       cache: "no-store",
     });
     const raw = await rpc.text();
