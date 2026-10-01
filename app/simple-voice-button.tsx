@@ -33,11 +33,14 @@ export default function SimpleVoiceButton({
   onError,
 }: SimpleVoiceButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const startedAtRef = useRef(0);
+  const pausedAtRef = useRef(0);
+  const totalPausedMsRef = useRef(0);
   const timerRef = useRef<number | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const liveTranscriptRef = useRef("");
@@ -73,6 +76,26 @@ export default function SimpleVoiceButton({
 
     recognitionRef.current?.stop();
     recorder.stop();
+  }
+
+  function togglePause() {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    if (recorder.state === "recording") {
+      recorder.pause();
+      recognitionRef.current?.stop();
+      pausedAtRef.current = Date.now();
+      setIsPaused(true);
+      return;
+    }
+
+    if (recorder.state === "paused") {
+      if (pausedAtRef.current) totalPausedMsRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = 0;
+      recorder.resume();
+      setIsPaused(false);
+    }
   }
 
   async function startRecording() {
@@ -126,7 +149,10 @@ export default function SimpleVoiceButton({
       streamRef.current = stream;
       recorderRef.current = mediaRecorder;
       startedAtRef.current = Date.now();
+      pausedAtRef.current = 0;
+      totalPausedMsRef.current = 0;
       setDuration(0);
+      setIsPaused(false);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
@@ -142,8 +168,10 @@ export default function SimpleVoiceButton({
         streamRef.current = null;
         recorderRef.current = null;
         setIsRecording(false);
+        setIsPaused(false);
 
-        const recordedSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+        const finalPausedMs = totalPausedMsRef.current + (pausedAtRef.current ? Date.now() - pausedAtRef.current : 0);
+        const recordedSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current - finalPausedMs) / 1000));
         const type = mediaRecorder.mimeType || "audio/webm";
         const audioBlob = new Blob(chunksRef.current, { type });
         chunksRef.current = [];
@@ -171,7 +199,7 @@ export default function SimpleVoiceButton({
       mediaRecorder.start();
       setIsRecording(true);
       timerRef.current = window.setInterval(() => {
-        setDuration(Math.round((Date.now() - startedAtRef.current) / 1000));
+        if (!pausedAtRef.current) setDuration(Math.round((Date.now() - startedAtRef.current - totalPausedMsRef.current) / 1000));
       }, 250);
     } catch (err) {
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -199,7 +227,7 @@ export default function SimpleVoiceButton({
   return (
     <>
       {isRecording && (
-        <div className="voice-recording-pill" role="status" aria-live="polite">
+        <div className={isPaused ? "voice-recording-pill is-paused" : "voice-recording-pill"} role="status" aria-live="polite">
           <span className="recording-live-dot" />
           <span className="recording-strip-time">{formattedDuration}</span>
           <span className="recording-wave-line" aria-hidden="true">
@@ -207,6 +235,19 @@ export default function SimpleVoiceButton({
               <span key={index} style={{ animationDelay: `${index * 0.06}s` }} />
             ))}
           </span>
+          <button
+            type="button"
+            className="voice-pause-button"
+            onClick={togglePause}
+            aria-label={isPaused ? "Resume recording" : "Pause recording"}
+            title={isPaused ? "Resume recording" : "Pause recording"}
+          >
+            {isPaused ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            )}
+          </button>
         </div>
       )}
       <button
