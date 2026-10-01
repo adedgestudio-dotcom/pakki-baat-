@@ -9081,3 +9081,11 @@ footer .footer-separator{
 .voice-pause-button:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
 .voice-recording-pill.is-paused .recording-wave-line span{animation-play-state:paused}
 .voice-recording-pill.is-paused .recording-live-dot{animation:none;opacity:.55}
+
+/* Voice recording controls + listen-before-send preview */
+.voice-cancel-button,.voice-preview-play,.voice-preview-send{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;min-width:28px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
+.voice-cancel-button:hover,.voice-preview-play:hover,.voice-preview-send:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
+.voice-preview-pill{display:flex;align-items:center;gap:7px;min-width:0;flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:999px;background:var(--surface)}
+.voice-preview-pill .preview-wave{flex:1;min-width:42px}
+.voice-preview-pill .preview-wave span{animation-play-state:paused;opacity:.55}
+.voice-preview-pill .preview-wave.playing span{animation-play-state:running;opacity:1}
