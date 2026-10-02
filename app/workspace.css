@@ -9164,3 +9164,33 @@ footer .footer-separator{
     z-index:15 !important;
   }
 }
+
+
+/* Desktop recorder stop button: align exactly with the recording strip. */
+@media(min-width:801px){
+  .smart-compose-field:has(.voice-recording-pill) > .smart-compose-tool.right{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+  }
+  .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording{
+    position:absolute !important;
+    inset:0 !important;
+    width:42px !important;
+    height:42px !important;
+    min-width:42px !important;
+    min-height:42px !important;
+    padding:0 !important;
+    display:grid !important;
+    place-items:center !important;
+    box-sizing:border-box !important;
+    border-radius:13px !important;
+    transform:none !important;
+  }
+  .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording svg{
+    display:block !important;
+    width:18px !important;
+    height:18px !important;
+    margin:0 !important;
+  }
+}
