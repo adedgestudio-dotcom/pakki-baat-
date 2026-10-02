@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { consumeAiUsage } from "@/lib/ai-usage";
 
 export const dynamic = "force-dynamic";
 
@@ -18,19 +19,29 @@ export async function GET(req: NextRequest) {
   if (!userResponse.ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = await userResponse.json();
 
-  const month = new Date().toISOString().slice(0, 7) + "-01";
-  const usageResponse = await fetch(
-    base + "/rest/v1/ai_monthly_usage?select=voice_seconds&period_month=eq." + month + "&owner_id=eq." + encodeURIComponent(user.id),
-    {
-      headers: { apikey: service, Authorization: "Bearer " + service },
-      cache: "no-store",
-    }
-  );
-  if (!usageResponse.ok) return NextResponse.json({ error: "Could not load voice usage." }, { status: 503 });
-  const rows = await usageResponse.json();
+  // Use the same database RPC/bucket as transcription itself. Passing zero
+  // seconds is a read-only usage snapshot, so reopen/reload can never disagree
+  // with the counter that meters recordings.
+  const usageResult = await consumeAiUsage({
+    baseUrl: base,
+    serviceRoleKey: service,
+    userId: user.id,
+    voiceSeconds: 0,
+    aiCalls: 0,
+    source: "voice-usage:read",
+  });
+  if (!usageResult.ok) return NextResponse.json({ error: "Could not load voice usage." }, { status: 503 });
+
+  const usage = usageResult.usage;
+  if (!usage.allowed && usage.reason === "subscription_inactive") {
+    return NextResponse.json({ error: "Your Pakki Baat subscription is not active." }, { status: 403 });
+  }
 
   return NextResponse.json(
-    { voice_seconds: Math.max(0, Number(rows?.[0]?.voice_seconds || 0)) },
+    {
+      voice_seconds: Math.max(0, Number(usage.voice_seconds || 0)),
+      voice_limit: Math.max(0, Number(usage.voice_limit || 0)),
+    },
     { headers: { "Cache-Control": "private, no-store, max-age=0" } }
   );
 }
