@@ -46,6 +46,7 @@ export default function SimpleVoiceButton({
   const pausedAtRef = useRef(0);
   const totalPausedMsRef = useRef(0);
   const timerRef = useRef<number | null>(null);
+  const autoStopRef = useRef<number | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const liveTranscriptRef = useRef("");
   const discardRef = useRef(false);
@@ -53,6 +54,7 @@ export default function SimpleVoiceButton({
   useEffect(() => {
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
+      if (autoStopRef.current) window.clearTimeout(autoStopRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       recognitionRef.current?.abort();
       recognitionRef.current = null;
@@ -99,6 +101,10 @@ export default function SimpleVoiceButton({
       recorder.pause();
       recognitionRef.current?.stop();
       pausedAtRef.current = Date.now();
+      if (autoStopRef.current) {
+        window.clearTimeout(autoStopRef.current);
+        autoStopRef.current = null;
+      }
       setIsPaused(true);
       return;
     }
@@ -107,6 +113,11 @@ export default function SimpleVoiceButton({
       if (pausedAtRef.current) totalPausedMsRef.current += Date.now() - pausedAtRef.current;
       pausedAtRef.current = 0;
       recorder.resume();
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAtRef.current - totalPausedMsRef.current) / 1000));
+      autoStopRef.current = window.setTimeout(() => {
+        const current = recorderRef.current;
+        if (current?.state === "recording") stopRecording();
+      }, Math.max(1, remainingSeconds - elapsed) * 1000);
       setIsPaused(false);
     }
   }
@@ -182,6 +193,10 @@ export default function SimpleVoiceButton({
           window.clearInterval(timerRef.current);
           timerRef.current = null;
         }
+        if (autoStopRef.current) {
+          window.clearTimeout(autoStopRef.current);
+          autoStopRef.current = null;
+        }
 
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -221,14 +236,20 @@ export default function SimpleVoiceButton({
         stopRecording();
       };
 
-      mediaRecorder.start();
+      // Ask MediaRecorder to flush audio chunks periodically. This keeps the
+      // final mobile WebM/MP4 blob complete even when the allowance countdown
+      // stops the recorder programmatically.
+      mediaRecorder.start(1000);
       setIsRecording(true);
+      autoStopRef.current = window.setTimeout(() => {
+        const recorder = recorderRef.current;
+        if (recorder?.state === "recording") stopRecording();
+      }, Math.max(1, remainingSeconds) * 1000);
       timerRef.current = window.setInterval(() => {
         if (!pausedAtRef.current) {
-          const elapsed = Math.max(0, Math.round((Date.now() - startedAtRef.current - totalPausedMsRef.current) / 1000));
+          const elapsed = Math.max(0, Math.floor((Date.now() - startedAtRef.current - totalPausedMsRef.current) / 1000));
           setDuration(elapsed);
           onDurationChange?.(elapsed);
-          if (elapsed >= remainingSeconds) stopRecording();
         }
       }, 250);
     } catch (err) {
