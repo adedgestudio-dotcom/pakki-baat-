@@ -1467,16 +1467,15 @@ export default function Workspace() {
       if (!response.ok)
         throw new Error(result.error || "Transcription failed.");
 
-      // Advance the allowance immediately so the next mic tap starts from
-      // the just-used balance, then reconcile with the server-authoritative row.
-      setVoiceSecondsUsed((current) =>
-        Math.min(voiceLimitSeconds, current + Math.max(1, Math.ceil(duration)))
-      );
-      try {
+      // The same atomic RPC that accepted this recording returns the exact
+      // post-recording usage. Use it immediately; only fall back to a fresh
+      // authenticated server read if the response is from an older deployment.
+      const authoritativeUsed = Number(result.usage?.voice_seconds);
+      if (Number.isFinite(authoritativeUsed)) {
+        setVoiceSecondsUsed(Math.max(0, authoritativeUsed));
+      } else {
         const usage = await loadVoiceUsage();
         setVoiceSecondsUsed(usage.voice_seconds);
-      } catch {
-        // Keep the locally advanced value until the next successful refresh.
       }
 
       const transcript = String(result.text || "")
