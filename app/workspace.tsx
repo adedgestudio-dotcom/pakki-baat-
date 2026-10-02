@@ -3183,6 +3183,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     onDraft={receiveAiDraft}
                     onSendVoice={sendVoice}
                     voiceBusy={voiceBusy}
+                    voiceSecondsRemaining={voiceSecondsRemaining}
                   />
                 </div>
                 <aside className="capture-help">
@@ -3372,7 +3373,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       </div>
                       {entryMode==="quick" ? (
                         <>
-                          <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy}/>
+                          <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy} voiceSecondsRemaining={voiceSecondsRemaining}/>
                           <p className="smart-example">Try: “2 kg chocolate cake, ₹5,000 total, ₹2,000 received, Sunday 5 PM.”</p>
                           {pendingJob?.work?.trim() && (
                             <article className="smart-preview-card">
