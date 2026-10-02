@@ -9114,3 +9114,33 @@ footer .footer-separator{
   .voice-preview-pill .preview-wave{min-width:32px !important;flex:1 1 auto !important}
   [data-theme="dark"] .smart-compose-field:has(.voice-preview-pill) .voice-preview-pill{background:#173a31 !important;border-color:#326b5b !important;color:#eaf7f1 !important}
 }
+
+
+/* Desktop voice recorder alignment: keep recording controls inside the composer. */
+@media(min-width:801px){
+  .smart-compose-field:has(.voice-recording-pill) textarea{
+    padding-bottom:70px !important;
+  }
+  .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill{
+    position:absolute !important;
+    left:12px !important;
+    right:64px !important;
+    bottom:10px !important;
+    width:auto !important;
+    max-width:none !important;
+    min-width:0 !important;
+    box-sizing:border-box !important;
+    z-index:12 !important;
+    overflow:hidden !important;
+  }
+  .smart-compose-field:has(.voice-recording-pill) .smart-compose-tool.right{
+    right:10px !important;
+    bottom:10px !important;
+    z-index:14 !important;
+  }
+  .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording{
+    position:static !important;
+    transform:none !important;
+    margin:0 !important;
+  }
+}
