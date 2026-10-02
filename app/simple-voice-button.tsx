@@ -213,6 +213,8 @@ export default function SimpleVoiceButton({
         if (discardRef.current) {
           discardRef.current = false;
           chunksRef.current = [];
+          setDuration(0);
+          onDurationChange?.(0);
           return;
         }
         if (!audioBlob.size) {
