@@ -12,6 +12,7 @@ import {
   claimFreeTrial,
   currentSession,
   loadSubscription,
+  loadVoiceUsage,
   loadServerTime,
   loadCloud,
   saveCloud,
@@ -209,6 +210,7 @@ export default function Workspace() {
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
     [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null),
     [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
+    [voiceSecondsUsed, setVoiceSecondsUsed] = useState(0),
     [serverNowMs, setServerNowMs] = useState<number | null>(null),
     [trustedClockTick, setTrustedClockTick] = useState(0),
     [trialOfferOpen, setTrialOfferOpen] = useState(false),
@@ -547,12 +549,13 @@ export default function Workspace() {
 
       if (session) {
         try {
-          const [subscription, serverTime] = await Promise.all([loadSubscription(), loadServerTime()]);
+          const [subscription, serverTime, voiceUsage] = await Promise.all([loadSubscription(), loadServerTime(), loadVoiceUsage()]);
           if (!cancelled && activeUserIdRef.current === session.user.id) {
             applyTrustedServerTime(serverTime);
             setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
             setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
             setSubscriptionPeriodEnd(subscription?.period_end || null);
+            setVoiceSecondsUsed(voiceUsage.voice_seconds);
             setTrialOfferOpen(!subscription);
           }
         } catch {
@@ -827,6 +830,9 @@ export default function Workspace() {
     ["Reminders", "bell"],
   ];
   const trustedClockRef = useRef<{ serverEpochMs: number; performanceMs: number } | null>(null);
+  const baseVoiceLimit = subscriptionPlan === "business" ? 60000 : subscriptionPlan === "smart" ? 30000 : 6000;
+  const voiceLimitSeconds = baseVoiceLimit;
+  const voiceSecondsRemaining = Math.max(0, voiceLimitSeconds - voiceSecondsUsed);
   const subscriptionEndMs = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd).getTime() : 0;
   const trustedNowMs = trustedClockRef.current
     ? trustedClockRef.current.serverEpochMs + (performance.now() - trustedClockRef.current.performanceMs)
@@ -1458,6 +1464,16 @@ export default function Workspace() {
       const result = await response.json();
       if (!response.ok)
         throw new Error(result.error || "Transcription failed.");
+
+      // The server has just consumed this recording's duration. Refresh the
+      // authoritative monthly usage immediately so the user sees what was used
+      // and what remains without reloading the app.
+      try {
+        const usage = await loadVoiceUsage();
+        setVoiceSecondsUsed(usage.voice_seconds);
+      } catch {
+        // Transcription can continue even if the usage display refresh fails.
+      }
 
       const transcript = String(result.text || "")
         .trim()
@@ -3469,9 +3485,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <div><small>CURRENT PLAN</small><h2>{!subscriptionPlan?"No active plan":subscriptionPlan==="trial"?"30-Day Free Trial":subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)}</h2><p>{!subscriptionPlan?"Start free or choose a plan to continue.":subscriptionPlan==="business"?"Unlimited customers · 1,000 shared voice minutes":subscriptionPlan==="smart"?"250 customers · 500 voice minutes":"100 customers · 100 voice minutes"}</p>{subscriptionPeriodEnd&&<small className="subscription-expiry">{subscriptionExpired?"Expired":"Active"} · {subscriptionExpired?"Ended":"Ends"} {new Date(subscriptionPeriodEnd).toLocaleDateString("en-IN")}{trialDaysLeft!==null&&!subscriptionExpired?" · "+trialDaysLeft+" days left":""}</small>}</div>
                 </div>
                 <div className="subscription-summary-usage">
-                  <div><span>Status</span><strong>{hasActiveSubscription?"Active":subscriptionPlan?(subscriptionExpired?"Expired":subscriptionStatus||"Inactive"):"Choose a plan"}</strong></div>
-                  <div className="usage-track"><span style={{width:hasActiveSubscription?"100%":"0%"}}/></div>
-                  <small>{hasActiveSubscription?"Your plan is active on this account.":"Your existing data stays safe. Start free or choose a plan to continue."}</small>
+                  <div><span>Voice usage</span><strong>{hasActiveSubscription?`${voiceSecondsUsed.toLocaleString("en-IN")} / ${voiceLimitSeconds.toLocaleString("en-IN")} sec used`:"—"}</strong></div>
+                  <div className="usage-track"><span style={{width:hasActiveSubscription?Math.min(100,(voiceSecondsUsed/Math.max(1,voiceLimitSeconds))*100)+"%":"0%"}}/></div>
+                  <small>{hasActiveSubscription?`${voiceSecondsRemaining.toLocaleString("en-IN")} sec remaining`:"Your existing data stays safe. Start free or choose a plan to continue."}</small>
                 </div>
               </section>
               {!subscriptionPlan&&<section className="trial-value-banner">
