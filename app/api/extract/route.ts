@@ -133,14 +133,17 @@ export async function POST(req: NextRequest) {
     const user = await userResponse.json();
     let transcribeUsage: { voice_seconds?: number; voice_limit?: number } | null = null;
 
+    // For transcription, first perform a zero-cost entitlement/limit check.
+    // Voice seconds are committed only after Groq returns a non-empty transcript,
+    // so failed/empty transcription does not consume the user's allowance.
     if (mode === "transcribe") {
       const usageResult = await consumeAiUsage({
         baseUrl: base as string,
         serviceRoleKey: service as string,
         userId: user.id,
-        voiceSeconds: Math.max(1, duration),
+        voiceSeconds: 0,
         aiCalls: 0,
-        source: "extract:transcribe",
+        source: "extract:transcribe-check",
       });
       if (!usageResult.ok) {
         return Response.json(
@@ -155,6 +158,13 @@ export async function POST(req: NextRequest) {
           ? "You have used this plan's voice minutes. You can still type entries."
           : "Your Pakki Baat subscription is not active.";
         return Response.json({ error, usage }, { status: 403 });
+      }
+      const remaining = Math.max(0, Number(usage.voice_limit || 0) - Number(usage.voice_seconds || 0));
+      if (Math.max(1, duration) > remaining) {
+        return Response.json(
+          { error: "This recording is longer than your remaining voice allowance. You can still type entries.", usage: { ...usage, allowed: false, reason: "voice_limit" } },
+          { status: 403 }
+        );
       }
     }
 
@@ -214,12 +224,39 @@ export async function POST(req: NextRequest) {
       console.log("âœ… Transcribed:", transcript.substring(0, 100));
 
       if (mode === "transcribe") {
-        return transcript
-          ? Response.json({ text: transcript.slice(0, 6000), usage: transcribeUsage }, { headers: { "Cache-Control": "no-store" } })
-          : Response.json(
-              { error: "No speech was detected. Try recording again." },
-              { status: 422 }
-            );
+        if (!transcript) {
+          return Response.json(
+            { error: "No speech was detected. Try recording again." },
+            { status: 422 }
+          );
+        }
+
+        const commitUsage = await consumeAiUsage({
+          baseUrl: base as string,
+          serviceRoleKey: service as string,
+          userId: user.id,
+          voiceSeconds: Math.max(1, duration),
+          aiCalls: 0,
+          source: "extract:transcribe-commit",
+        });
+        if (!commitUsage.ok) {
+          return Response.json(
+            { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
+            { status: 503 }
+          );
+        }
+        transcribeUsage = commitUsage.usage;
+        if (!transcribeUsage?.allowed) {
+          const error = transcribeUsage?.reason === "voice_limit"
+            ? "You have used this plan's voice minutes. You can still type entries."
+            : "Your Pakki Baat subscription is not active.";
+          return Response.json({ error, usage: transcribeUsage }, { status: 403 });
+        }
+
+        return Response.json(
+          { text: transcript.slice(0, 6000), usage: transcribeUsage },
+          { headers: { "Cache-Control": "no-store" } }
+        );
       }
     }
 
