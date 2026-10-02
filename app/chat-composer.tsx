@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SimpleVoiceButton from "./simple-voice-button";
 import type { Job } from "@/lib/data";
 
