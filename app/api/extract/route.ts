@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Your sign-in expired. Please sign in again." }, { status: 401 });
     }
     const user = await userResponse.json();
+    let transcribeUsage: { voice_seconds?: number; voice_limit?: number } | null = null;
 
     if (mode === "transcribe") {
       const usageResult = await consumeAiUsage({
@@ -179,7 +180,6 @@ export async function POST(req: NextRequest) {
     }
 
     let transcript = text;
-    let transcribeUsage: { voice_seconds?: number; voice_limit?: number } | null = null;
 
     // Transcribe audio if provided
     if (file instanceof File && !file.type.startsWith("image/")) {
