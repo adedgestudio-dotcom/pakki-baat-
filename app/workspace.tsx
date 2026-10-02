@@ -210,6 +210,7 @@ export default function Workspace() {
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
     [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null),
     [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
+    [subscriptionBonusVoiceSeconds, setSubscriptionBonusVoiceSeconds] = useState(0),
     [voiceSecondsUsed, setVoiceSecondsUsed] = useState(0),
     [serverNowMs, setServerNowMs] = useState<number | null>(null),
     [trustedClockTick, setTrustedClockTick] = useState(0),
@@ -556,6 +557,7 @@ export default function Workspace() {
             setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
             setSubscriptionPeriodEnd(subscription?.period_end || null);
             setVoiceSecondsUsed(voiceUsage.voice_seconds);
+            setSubscriptionBonusVoiceSeconds(Math.max(0, Number(subscription?.bonus_voice_seconds || 0)));
             setTrialOfferOpen(!subscription);
           }
         } catch {
@@ -831,7 +833,7 @@ export default function Workspace() {
   ];
   const trustedClockRef = useRef<{ serverEpochMs: number; performanceMs: number } | null>(null);
   const baseVoiceLimit = subscriptionPlan === "business" ? 60000 : subscriptionPlan === "smart" ? 30000 : 6000;
-  const voiceLimitSeconds = baseVoiceLimit;
+  const voiceLimitSeconds = baseVoiceLimit + subscriptionBonusVoiceSeconds;
   const voiceSecondsRemaining = Math.max(0, voiceLimitSeconds - voiceSecondsUsed);
   const subscriptionEndMs = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd).getTime() : 0;
   const trustedNowMs = trustedClockRef.current
@@ -1465,14 +1467,16 @@ export default function Workspace() {
       if (!response.ok)
         throw new Error(result.error || "Transcription failed.");
 
-      // The server has just consumed this recording's duration. Refresh the
-      // authoritative monthly usage immediately so the user sees what was used
-      // and what remains without reloading the app.
+      // Advance the allowance immediately so the next mic tap starts from
+      // the just-used balance, then reconcile with the server-authoritative row.
+      setVoiceSecondsUsed((current) =>
+        Math.min(voiceLimitSeconds, current + Math.max(1, Math.ceil(duration)))
+      );
       try {
         const usage = await loadVoiceUsage();
         setVoiceSecondsUsed(usage.voice_seconds);
       } catch {
-        // Transcription can continue even if the usage display refresh fails.
+        // Keep the locally advanced value until the next successful refresh.
       }
 
       const transcript = String(result.text || "")
