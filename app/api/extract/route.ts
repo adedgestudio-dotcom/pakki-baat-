@@ -148,6 +148,7 @@ export async function POST(req: NextRequest) {
         );
       }
       const usage = usageResult.usage;
+      transcribeUsage = usage;
       if (!usage?.allowed) {
         const error = usage?.reason === "voice_limit"
           ? "You have used this plan's voice minutes. You can still type entries."
@@ -178,6 +179,7 @@ export async function POST(req: NextRequest) {
     }
 
     let transcript = text;
+    let transcribeUsage: { voice_seconds?: number; voice_limit?: number } | null = null;
 
     // Transcribe audio if provided
     if (file instanceof File && !file.type.startsWith("image/")) {
@@ -213,7 +215,7 @@ export async function POST(req: NextRequest) {
 
       if (mode === "transcribe") {
         return transcript
-          ? Response.json({ text: transcript.slice(0, 6000) })
+          ? Response.json({ text: transcript.slice(0, 6000), usage: transcribeUsage }, { headers: { "Cache-Control": "no-store" } })
           : Response.json(
               { error: "No speech was detected. Try recording again." },
               { status: 422 }
