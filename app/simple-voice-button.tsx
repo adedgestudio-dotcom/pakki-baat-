@@ -26,11 +26,15 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 interface SimpleVoiceButtonProps {
   onRecordingComplete: (audioBlob: Blob, duration: number, transcript?: string) => void;
   onError: (error: string) => void;
+  remainingSeconds: number;
+  onDurationChange?: (duration: number) => void;
 }
 
 export default function SimpleVoiceButton({
   onRecordingComplete,
   onError,
+  remainingSeconds,
+  onDurationChange,
 }: SimpleVoiceButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -109,6 +113,10 @@ export default function SimpleVoiceButton({
 
   async function startRecording() {
     try {
+      if (remainingSeconds <= 0) {
+        onError("Your voice allowance is finished. You can still type entries.");
+        return;
+      }
       if (!window.isSecureContext) {
         throw new Error("Voice needs a secure HTTPS page on phone. Open the Vercel app instead of the local 192.168… address.");
       }
@@ -162,6 +170,7 @@ export default function SimpleVoiceButton({
       pausedAtRef.current = 0;
       totalPausedMsRef.current = 0;
       setDuration(0);
+      onDurationChange?.(0);
       setIsPaused(false);
 
       mediaRecorder.ondataavailable = (event) => {
@@ -215,7 +224,12 @@ export default function SimpleVoiceButton({
       mediaRecorder.start();
       setIsRecording(true);
       timerRef.current = window.setInterval(() => {
-        if (!pausedAtRef.current) setDuration(Math.round((Date.now() - startedAtRef.current - totalPausedMsRef.current) / 1000));
+        if (!pausedAtRef.current) {
+          const elapsed = Math.max(0, Math.round((Date.now() - startedAtRef.current - totalPausedMsRef.current) / 1000));
+          setDuration(elapsed);
+          onDurationChange?.(elapsed);
+          if (elapsed >= remainingSeconds) stopRecording();
+        }
       }, 250);
     } catch (err) {
       streamRef.current?.getTracks().forEach((track) => track.stop());
