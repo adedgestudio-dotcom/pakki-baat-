@@ -3381,7 +3381,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           <p className="smart-example">Try: “2 kg chocolate cake, ₹5,000 total, ₹2,000 received, Sunday 5 PM.”</p>
                           {pendingJob?.work?.trim() && (
                             <article className="smart-preview-card">
-                              <div className="smart-preview-title"><div><span className="eyebrow">PAKKI BAAT FILLED THIS</span><h3>{pendingJob.work}</h3></div><button type="button" onClick={()=>setEntryMode("form")}>Edit</button></div>
+                              <div className="smart-preview-title"><div><span className="eyebrow">PAKKI BAAT FILLED THIS</span><h3>{pendingJob.work}</h3></div><div className="smart-preview-actions"><button type="button" onClick={()=>setEntryMode("form")}>Edit</button><button type="button" className="smart-preview-discard" aria-label="Discard transcription" title="Discard transcription" onClick={()=>{setPendingJob(null);setPendingReminderText("");setChatStep("customer");setReceivedAmountTouched(false);}}>×</button></div></div>
                               <dl><div><dt>Total</dt><dd>{money(pendingJob.total)}</dd></div><div><dt>Received</dt><dd>{money(pendingJob.paid)}</dd></div><div className="baki"><dt>Baki</dt><dd>{money(Math.max(0,pendingJob.total-pendingJob.paid))}</dd></div><div><dt>Due</dt><dd>{pendingJob.date || "Optional"}</dd></div><div><dt>Time</dt><dd>{pendingJob.time || "Optional"}</dd></div></dl>
                               <button type="button" className="primary smart-save" onClick={finishCustomerChat}>Save to {selectedCustomer} <Icon name="check" size={17}/></button>
                             </article>
