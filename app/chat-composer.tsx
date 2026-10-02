@@ -34,6 +34,18 @@ export default function ChatComposer({
   voiceSecondsRemaining,
 }: Props) {
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingStartRemaining, setRecordingStartRemaining] = useState<number | null>(null);
+  const previousDurationRef = useRef(0);
+
+  useEffect(() => {
+    if (recordingDuration > 0 && previousDurationRef.current === 0) {
+      setRecordingStartRemaining(voiceSecondsRemaining);
+    }
+    if (recordingDuration === 0) {
+      setRecordingStartRemaining(null);
+    }
+    previousDurationRef.current = recordingDuration;
+  }, [recordingDuration, voiceSecondsRemaining]);
   const [processingMessageIndex, setProcessingMessageIndex] = useState(0);
     useEffect(() => {
     if (!voiceBusy) {
@@ -188,7 +200,10 @@ export default function ChatComposer({
                     onRecordingComplete={handleVoiceRecordingComplete}
                     onError={handleVoiceError}
                     remainingSeconds={voiceSecondsRemaining}
-                    onDurationChange={setRecordingDuration}
+                    onDurationChange={(duration) => {
+                      if (duration === 0) setRecordingStartRemaining(voiceSecondsRemaining);
+                      setRecordingDuration(duration);
+                    }}
                   />
                 )}
               </div>
@@ -196,7 +211,7 @@ export default function ChatComposer({
 
             <div className="smart-input-footer">
               <span>Pakki Baat will organise the details for you.</span>
-              <span>{message.trim() ? `${message.length}/6000` : `${Math.max(0, voiceSecondsRemaining - recordingDuration).toLocaleString("en-IN")} sec voice left`}</span>
+              <span>{message.trim() ? `${message.length}/6000` : `${Math.max(0, (recordingStartRemaining ?? voiceSecondsRemaining) - recordingDuration).toLocaleString("en-IN")} sec voice left`}</span>
             </div>
           </>
         )}
