@@ -119,6 +119,8 @@ For a CUSTOMER NOTE when customerContext is present, return ONLY JSON:
 
 For a reminder, return ONLY JSON: {"intent":"reminder","reminder":{"text":"what to remember","date":"YYYY-MM-DD","time":"HH:MM or empty","customer":"optional name","repeat":"none|daily|weekly|monthly"},"nextQuestion":"only if date is missing, otherwise null"}. Resolve relative dates using today. If user says morning use 09:00, afternoon 15:00, evening 19:00.\n\nFor a commitment, set intent to commitment and follow these rules.\n\nExtract commitment details from natural conversation.
 
+The user may speak or dictate in English, Hindi, Hinglish, Gujarati, or another supported language. Understand the meaning regardless of the input language, but ALL user-facing text you return must be in English using Latin script only. Translate/transliterate customer names and work descriptions into English/Latin script. Never return Arabic/Urdu, Devanagari, Gujarati, or any other non-Latin script in customer, work, note text, reminder text, or nextQuestion. Preserve numbers, amounts, dates, and times exactly in meaning.
+
 Extract information from the user's message and update the commitment. Return ONLY a JSON object.
 
 Rules:
