@@ -556,7 +556,7 @@ export default function Workspace() {
             setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
             setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
             setSubscriptionPeriodEnd(subscription?.period_end || null);
-            setVoiceSecondsUsed(voiceUsage.voice_seconds);
+            setVoiceSecondsUsed((current) => Math.max(current, voiceUsage.voice_seconds));
             setSubscriptionBonusVoiceSeconds(Math.max(0, Number(subscription?.bonus_voice_seconds || 0)));
             setTrialOfferOpen(!subscription);
           }
@@ -1472,10 +1472,10 @@ export default function Workspace() {
       // authenticated server read if the response is from an older deployment.
       const authoritativeUsed = Number(result.usage?.voice_seconds);
       if (Number.isFinite(authoritativeUsed)) {
-        setVoiceSecondsUsed(Math.max(0, authoritativeUsed));
+        setVoiceSecondsUsed((current) => Math.max(current, Math.max(0, authoritativeUsed)));
       } else {
         const usage = await loadVoiceUsage();
-        setVoiceSecondsUsed(usage.voice_seconds);
+        setVoiceSecondsUsed((current) => Math.max(current, usage.voice_seconds));
       }
 
       const transcript = String(result.text || "")
