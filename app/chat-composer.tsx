@@ -201,7 +201,15 @@ export default function ChatComposer({
                     onError={handleVoiceError}
                     remainingSeconds={voiceSecondsRemaining}
                     onDurationChange={(duration) => {
-                      if (duration === 0) setRecordingStartRemaining(voiceSecondsRemaining);
+                      if (duration === 0) {
+                        setRecordingDuration(0);
+                        setRecordingStartRemaining(null);
+                        previousDurationRef.current = 0;
+                        return;
+                      }
+                      if (previousDurationRef.current === 0) {
+                        setRecordingStartRemaining(voiceSecondsRemaining);
+                      }
                       setRecordingDuration(duration);
                     }}
                   />
