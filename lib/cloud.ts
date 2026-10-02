@@ -131,6 +131,20 @@ export async function loadSubscription(): Promise<SubscriptionInfo | null> {
   return rows[0] || null;
 }
 
+export type VoiceUsageInfo = {
+  voice_seconds: number;
+};
+
+export async function loadVoiceUsage(): Promise<VoiceUsageInfo> {
+  const month = new Date().toISOString().slice(0, 7) + "-01";
+  const rows = await request(
+    "/rest/v1/ai_monthly_usage?select=voice_seconds&period_month=eq." + month,
+    undefined,
+    await cloudToken()
+  );
+  return { voice_seconds: Math.max(0, Number(rows?.[0]?.voice_seconds || 0)) };
+}
+
 function trialDeviceSignature() {
   const nav = navigator;
   const screenInfo = window.screen;
