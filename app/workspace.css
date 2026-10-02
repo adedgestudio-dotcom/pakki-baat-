@@ -9116,31 +9116,51 @@ footer .footer-separator{
 }
 
 
-/* Desktop voice recorder alignment: keep recording controls inside the composer. */
+/* Desktop voice recorder: SimpleVoiceButton is rendered inside the right tool wrapper.
+   Position the pill relative to that wrapper, then expand it left across the composer. */
 @media(min-width:801px){
   .smart-compose-field:has(.voice-recording-pill) textarea{
-    padding-bottom:70px !important;
+    padding-bottom:66px !important;
+  }
+  .smart-compose-field:has(.voice-recording-pill) > .smart-compose-tool.right{
+    position:absolute !important;
+    right:10px !important;
+    bottom:10px !important;
+    width:42px !important;
+    height:42px !important;
+    display:block !important;
+    overflow:visible !important;
+    z-index:14 !important;
   }
   .smart-compose-field:has(.voice-recording-pill) .voice-recording-pill{
     position:absolute !important;
-    left:12px !important;
-    right:64px !important;
-    bottom:10px !important;
-    width:auto !important;
-    max-width:none !important;
-    min-width:0 !important;
+    right:52px !important;
+    left:auto !important;
+    bottom:0 !important;
+    width:min(330px, calc(100vw - 360px)) !important;
+    min-width:220px !important;
+    height:42px !important;
+    min-height:42px !important;
+    margin:0 !important;
+    padding:0 10px !important;
+    display:flex !important;
+    align-items:center !important;
+    gap:8px !important;
     box-sizing:border-box !important;
-    z-index:12 !important;
     overflow:hidden !important;
-  }
-  .smart-compose-field:has(.voice-recording-pill) .smart-compose-tool.right{
-    right:10px !important;
-    bottom:10px !important;
-    z-index:14 !important;
+    z-index:12 !important;
   }
   .smart-compose-field:has(.voice-recording-pill) .whatsapp-mic-button.recording{
-    position:static !important;
-    transform:none !important;
+    position:absolute !important;
+    right:0 !important;
+    bottom:0 !important;
+    width:42px !important;
+    min-width:42px !important;
+    height:42px !important;
+    min-height:42px !important;
     margin:0 !important;
+    transform:none !important;
+    border-radius:13px !important;
+    z-index:15 !important;
   }
 }
