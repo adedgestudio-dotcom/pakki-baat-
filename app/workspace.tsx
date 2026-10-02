@@ -91,6 +91,7 @@ const blank = (): Job => ({
   time: "",
   status: "Waiting",
   source: "",
+  createdAt: new Date().toISOString(),
 });
 const money = (n: number) =>
   new Intl.NumberFormat("en-IN", {
