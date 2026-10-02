@@ -21,6 +21,7 @@ type Props = {
     transcript: string
   ) => Promise<void>;
   voiceBusy: boolean;
+  voiceSecondsRemaining: number;
 };
 
 export default function ChatComposer({
@@ -30,7 +31,9 @@ export default function ChatComposer({
   onToast,
   onSendVoice,
   voiceBusy,
+  voiceSecondsRemaining,
 }: Props) {
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const [processingMessageIndex, setProcessingMessageIndex] = useState(0);
     useEffect(() => {
     if (!voiceBusy) {
@@ -184,6 +187,8 @@ export default function ChatComposer({
                   <SimpleVoiceButton
                     onRecordingComplete={handleVoiceRecordingComplete}
                     onError={handleVoiceError}
+                    remainingSeconds={voiceSecondsRemaining}
+                    onDurationChange={setRecordingDuration}
                   />
                 )}
               </div>
@@ -191,7 +196,7 @@ export default function ChatComposer({
 
             <div className="smart-input-footer">
               <span>Pakki Baat will organise the details for you.</span>
-              <span>{message.length}/6000</span>
+              <span>{message.trim() ? `${message.length}/6000` : `${Math.max(0, voiceSecondsRemaining - recordingDuration).toLocaleString("en-IN")} sec voice left`}</span>
             </div>
           </>
         )}
