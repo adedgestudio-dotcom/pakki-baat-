@@ -1,4 +1,4 @@
-export type Job = { id:string; customer:string; work:string; total:number; paid:number; date:string; time:string; status:string; source:string };
+export type Job = { id:string; customer:string; work:string; total:number; paid:number; date:string; time:string; status:string; source:string; createdAt?:string };
 export type Reminder = { id:string; text:string; date:string; time:string; customer?:string; jobId?:string; repeat?:"none"|"daily"|"weekly"|"monthly"; done:boolean; createdAt:string };
 export type Payment = { id:string; customer:string; jobId?:string; amount:number; date:string; note?:string; createdAt:string };
 export type CustomerNote = { id:string; customer:string; text:string; createdAt:string };
