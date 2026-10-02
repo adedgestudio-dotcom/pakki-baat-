@@ -1511,20 +1511,7 @@ export default function Workspace() {
 
   async function retryVoice(id: string) {
     if (voiceBusy) return;
-    try {
-      const file = voiceFilesRef.current[id] || (await loadVoice(id));
-      if (!file)
-        throw new Error("This recording is no longer stored on this device.");
-      voiceFilesRef.current[id] = file;
-      const savedTurn = chatTurns.find(turn => turn.voiceId === id);
-      await transcribeSentVoice(file, id, Math.max(1, savedTurn?.duration || 1));
-    } catch (cause) {
-      setToast(
-        cause instanceof Error
-          ? cause.message
-          : "Could not retry the voice note."
-      );
-    }
+    setToast("Retrying a sent voice note would charge its duration again. Please record a fresh voice note instead.");
   }
   async function startGoogleSignIn() {
     try {
