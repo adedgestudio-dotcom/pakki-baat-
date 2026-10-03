@@ -7244,6 +7244,15 @@ footer .footer-separator{
   color:rgba(244,251,247,.78) !important;
   stroke:currentColor;
 }
+/* Reminder date/time controls: Icon component paths use currentColor via stroke,
+   so force the selected control icon itself and its paths to a visible soft mint. */
+.reminder-sheet .date-chip.selected > svg,
+.reminder-sheet .date-chip.selected > svg *,
+.reminder-sheet .reminder-time-chip.selected > svg,
+.reminder-sheet .reminder-time-chip.selected > svg *{
+  color:#dcebe4 !important;
+  stroke:#dcebe4 !important;
+}
 [data-theme="dark"] .reminder-chips>button.selected,
 [data-theme="dark"] .date-chip.selected{
   background:#33806b !important;
