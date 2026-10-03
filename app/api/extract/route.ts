@@ -205,6 +205,9 @@ export async function POST(req: NextRequest) {
         "model",
         process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo"
       );
+      // Ask Groq for server-derived audio metadata. Never meter a voice note
+      // from the client-reported duration alone.
+      audio.set("response_format", "verbose_json");
 
       const trans = await fetch(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -226,6 +229,7 @@ export async function POST(req: NextRequest) {
 
       const transcriptResult = await trans.json();
       transcript = String(transcriptResult.text || "").trim();
+      const groqDuration = Number(transcriptResult.duration);
       console.log("âœ… Transcribed:", transcript.substring(0, 100));
 
       if (mode === "transcribe") {
@@ -236,11 +240,21 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        // Groq's verbose response supplies the decoded audio duration.
+        // Fail closed if that metadata is unavailable instead of trusting a
+        // caller-controlled multipart duration value.
+        if (!Number.isFinite(groqDuration) || groqDuration <= 0 || groqDuration > 600) {
+          return Response.json(
+            { error: "Could not verify this recording's duration. Please record it again." },
+            { status: 422 }
+          );
+        }
+        const verifiedDuration = Math.max(1, Math.ceil(groqDuration));
         const commitUsage = await consumeAiUsage({
           baseUrl: base as string,
           serviceRoleKey: service as string,
           userId: user.id,
-          voiceSeconds: Math.max(1, duration),
+          voiceSeconds: verifiedDuration,
           aiCalls: 0,
           source: "extract:transcribe-commit",
         });
