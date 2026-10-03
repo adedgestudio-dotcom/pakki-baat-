@@ -9212,3 +9212,24 @@ footer .footer-separator{
     margin:0 !important;
   }
 }
+
+/* Customer follow-up actions shown when a reminder is due */
+.reminder-followup-card{
+  display:grid;gap:5px;margin:14px 0;padding:13px;border:1px solid #d8e7df;
+  border-radius:15px;background:#f5faf7;text-align:left
+}
+.reminder-followup-card>strong{font-size:13px;color:#173e31}
+.reminder-followup-card>small{font-size:11px;color:#718078;line-height:1.4}
+.reminder-followup-card>div{display:grid;grid-template-columns:1.35fr 1fr;gap:8px;margin-top:6px}
+.reminder-followup-card button{min-height:42px;border-radius:11px;font:inherit;font-weight:750;cursor:pointer}
+.reminder-whatsapp-action{display:flex;align-items:center;justify-content:center;gap:7px;border:0;background:#245746;color:#fff}
+.reminder-call-action{border:1px solid #cbd9d2;background:#fff;color:#245746}
+.reminder-list-whatsapp,.reminder-list-call{display:inline-flex!important;align-items:center;gap:5px}
+[data-theme="dark"] .reminder-followup-card{background:#1d3128;border-color:#355347}
+[data-theme="dark"] .reminder-followup-card>strong{color:#edf6f1}
+[data-theme="dark"] .reminder-followup-card>small{color:#a9bbb2}
+[data-theme="dark"] .reminder-call-action{background:#263d33;border-color:#476457;color:#d8e9e1}
+@media(max-width:600px){
+  .reminder-page-actions{flex-wrap:wrap}
+  .reminder-list-whatsapp,.reminder-list-call{flex:1 1 auto;justify-content:center}
+}
