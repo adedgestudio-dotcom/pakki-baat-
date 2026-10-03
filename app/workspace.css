@@ -8963,6 +8963,14 @@ footer .footer-separator{
   color:#c9ddd4 !important;
 }
 
+/* Native Android/WebView date/time picker indicators stay black unless filtered.
+   Make them light on the selected green reminder controls in light mode too. */
+.reminder-sheet .date-chip.selected input[type="date"]::-webkit-calendar-picker-indicator,
+.reminder-sheet .date-chip.selected input[type="time"]::-webkit-calendar-picker-indicator{
+  filter:invert(96%) sepia(8%) saturate(250%) hue-rotate(95deg) brightness(105%) contrast(90%) !important;
+  opacity:.82 !important;
+}
+
 /* Native reminder date/time controls in dark mode */
 [data-theme="dark"] .date-chip input[type="date"],
 [data-theme="dark"] .date-chip input[type="time"]{
