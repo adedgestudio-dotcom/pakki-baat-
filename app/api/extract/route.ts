@@ -131,7 +131,12 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Your sign-in expired. Please sign in again." }, { status: 401 });
     }
     const user = await userResponse.json();
-    let transcribeUsage: { voice_seconds?: number; voice_limit?: number } | null = null;
+    let transcribeUsage: {
+      allowed: boolean;
+      reason?: string;
+      voice_seconds?: number;
+      voice_limit?: number;
+    } | null = null;
 
     // For transcription, first perform a zero-cost entitlement/limit check.
     // Voice seconds are committed only after Groq returns a non-empty transcript,
