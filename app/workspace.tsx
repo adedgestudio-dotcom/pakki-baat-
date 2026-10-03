@@ -2525,6 +2525,52 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     }));
     setToast(message);
   }
+  function reminderLinkedJob(reminder: Reminder) {
+    if (reminder.jobId) {
+      const linked = jobs.find(job => job.id === reminder.jobId);
+      if (linked) return linked;
+    }
+    if (!reminder.customer) return null;
+    return jobs.find(job => job.customer === reminder.customer && job.total > job.paid)
+      || jobs.find(job => job.customer === reminder.customer)
+      || null;
+  }
+  function reminderFollowUpText(reminder: Reminder) {
+    const job = reminderLinkedJob(reminder);
+    const customer = reminder.customer || job?.customer || "there";
+    const baki = job ? Math.max(0, job.total - job.paid) : 0;
+    if (job && baki > 0) {
+      return `Hi ${customer}, a gentle reminder regarding ${job.work}. ₹${baki.toLocaleString("en-IN")} is pending. Thank you.`;
+    }
+    return `Hi ${customer}, a gentle reminder regarding: ${reminder.text}`;
+  }
+  function followUpReminderOnWhatsApp(reminder: Reminder) {
+    if (!reminder.customer) {
+      setToast("Link this reminder to a customer to use WhatsApp follow-up.");
+      return;
+    }
+    let digits = (customerPhones[reminder.customer] || "").replace(/\D/g, "");
+    if (digits.length === 10) digits = "91" + digits;
+    if (digits.length < 8 || digits.length > 15) {
+      setToast(`Add ${reminder.customer}'s WhatsApp number in their Hisaab first.`);
+      return;
+    }
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(reminderFollowUpText(reminder))}`, "_blank", "noopener,noreferrer");
+  }
+  function callReminderCustomer(reminder: Reminder) {
+    if (!reminder.customer) {
+      setToast("Link this reminder to a customer to call them.");
+      return;
+    }
+    let digits = (customerPhones[reminder.customer] || "").replace(/\D/g, "");
+    if (digits.length === 10) digits = "91" + digits;
+    if (digits.length < 8 || digits.length > 15) {
+      setToast(`Add ${reminder.customer}'s mobile number in their Hisaab first.`);
+      return;
+    }
+    window.location.href = `tel:+${digits}`;
+  }
+
   function snoozeReminder(id:string) {
     if (!requireActiveSubscriptionForSaving()) return;
     const message = "Reminder moved to tomorrow ✓";
@@ -3244,6 +3290,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           <small>{r.date}{r.time ? " · "+r.time : ""}{r.repeat && r.repeat!=="none" ? " · "+r.repeat : ""}</small>
                         </div>
                         <div className="reminder-page-actions">
+                          {r.customer && <button type="button" className="outline mini reminder-list-whatsapp" onClick={()=>followUpReminderOnWhatsApp(r)}><Icon name="chat" size={14}/> WhatsApp</button>}
+                          {r.customer && <button type="button" className="outline mini reminder-list-call" onClick={()=>callReminderCustomer(r)}>☎ Call</button>}
                           <button type="button" className="outline mini" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
                           <button type="button" className="primary mini" onClick={()=>completeReminder(r.id)}>Done ✓</button>
                           <button type="button" className="reminder-delete-button" aria-label="Delete reminder" title="Delete reminder" onClick={()=>deleteReminder(r.id)}><Icon name="close" size={15}/></button>
@@ -3654,8 +3702,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <h2 id="reminder-alarm-title">{ringingReminder.customer || "Pakki Baat reminder"}</h2>
             <p>{ringingReminder.text}</p>
             <small>{ringingReminder.date}{ringingReminder.time ? " · "+ringingReminder.time : ""}</small>
+            {ringingReminder.customer && (
+              <div className="reminder-followup-card">
+                <strong>Follow up now</strong>
+                {reminderLinkedJob(ringingReminder) && <small>{reminderLinkedJob(ringingReminder)!.work}{Math.max(0,reminderLinkedJob(ringingReminder)!.total-reminderLinkedJob(ringingReminder)!.paid)>0 ? ` · ${money(Math.max(0,reminderLinkedJob(ringingReminder)!.total-reminderLinkedJob(ringingReminder)!.paid))} baki` : ""}</small>}
+                <div>
+                  <button type="button" className="reminder-whatsapp-action" onClick={()=>followUpReminderOnWhatsApp(ringingReminder)}><Icon name="chat" size={17}/> WhatsApp</button>
+                  <button type="button" className="reminder-call-action" onClick={()=>callReminderCustomer(ringingReminder)}>☎ Call</button>
+                </div>
+              </div>
+            )}
             <div className="reminder-alarm-actions">
-              <button type="button" className="outline" onClick={()=>{snoozeReminder(ringingReminder.id);setRingingReminder(null);}}>Tomorrow</button>
+              <button type="button" className="outline" onClick={()=>{snoozeReminder(ringingReminder.id);setRingingReminder(null);}}>Remind tomorrow</button>
               <button type="button" className="primary" onClick={()=>{completeReminder(ringingReminder.id);setRingingReminder(null);}}>Done ✓</button>
             </div>
             <button type="button" className="reminder-alarm-dismiss" onClick={()=>setRingingReminder(null)}>Dismiss alert</button>
