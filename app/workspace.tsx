@@ -3292,10 +3292,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                         <div className="reminder-page-actions">
                           {r.customer && <button type="button" className="outline mini reminder-list-whatsapp" onClick={()=>followUpReminderOnWhatsApp(r)}><Icon name="chat" size={14}/> WhatsApp</button>}
                           {r.customer && <button type="button" className="outline mini reminder-list-call" onClick={()=>callReminderCustomer(r)}>☎ Call</button>}
-                          <button type="button" className="outline mini" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
-                          <button type="button" className="primary mini" onClick={()=>completeReminder(r.id)}>Done ✓</button>
-                          <button type="button" className="reminder-delete-button" aria-label="Delete reminder" title="Delete reminder" onClick={()=>deleteReminder(r.id)}><Icon name="close" size={15}/></button>
+                          <button type="button" className="outline mini reminder-list-tomorrow" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
+                          <button type="button" className="primary mini reminder-list-done" onClick={()=>completeReminder(r.id)}>Done ✓</button>
                         </div>
+                        <button type="button" className="reminder-delete-button reminder-card-delete" aria-label="Delete reminder" title="Delete reminder" onClick={()=>deleteReminder(r.id)}><Icon name="close" size={15}/></button>
                       </article>
                     ))}
                   </div>
