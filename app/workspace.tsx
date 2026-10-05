@@ -2487,27 +2487,27 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
 
     if (reminderAlertsEnabled) {
       if (!loggedIn) {
-        setToast("Reminder saved locally. Sign in to receive it when Pakki Baat is closed.");
+        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Saved in Reminders. Sign in for closed-app alerts.`);
         return;
       }
       if (!isOnline) {
-        setToast("Reminder saved. Closed-app alert will be scheduled when you’re online.");
+        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders. Phone alert will schedule when online.`);
         return;
       }
       if (!cloudReadyForPush) {
-        setToast("Reminder saved, but cloud sync failed. Closed-app alert will retry.");
+        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders. Cloud alert will retry.`);
         return;
       }
       try {
         await scheduleClosedReminder(reminder);
-        setToast("Reminder saved + phone alert scheduled ✓");
+        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders.`);
       } catch (error) {
         setToast(error instanceof Error ? error.message : "Reminder saved, but phone alert could not be scheduled.");
       }
       return;
     }
 
-    setToast("Reminder saved.");
+    setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders.`);
   }
   function completeReminder(id:string) {
     if (!requireActiveSubscriptionForSaving()) return;
