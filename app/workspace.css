@@ -9233,3 +9233,37 @@ footer .footer-separator{
   .reminder-page-actions{flex-wrap:wrap}
   .reminder-list-whatsapp,.reminder-list-call{flex:1 1 auto;justify-content:center}
 }
+
+
+/* Compact mobile reminder actions: contact first, reminder actions second. */
+.reminder-page-row{position:relative}
+.reminder-card-delete{
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:30px;
+  height:30px;
+  min-width:30px;
+  min-height:30px;
+  padding:0;
+  border-radius:9px;
+  opacity:.72;
+}
+@media(max-width:560px){
+  .reminder-page-row{padding-right:50px}
+  .reminder-page-actions{
+    grid-template-columns:1fr 1fr !important;
+    gap:8px !important;
+  }
+  .reminder-page-actions .mini{
+    min-height:42px;
+    padding:8px 10px;
+    font-size:12px;
+  }
+  .reminder-page-actions .reminder-list-whatsapp,
+  .reminder-page-actions .reminder-list-call,
+  .reminder-page-actions .reminder-list-tomorrow,
+  .reminder-page-actions .reminder-list-done{
+    width:100%;
+  }
+}
