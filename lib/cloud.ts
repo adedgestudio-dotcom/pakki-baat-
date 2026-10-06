@@ -101,6 +101,26 @@ export async function loadCloud() {
   return rows[0]?.payload || null;
 }
 
+export type WorkspaceBackup = {
+  id: string;
+  payload: unknown;
+  backup_kind: "daily" | "pre_restore";
+  backup_day: string;
+  created_at: string;
+};
+
+export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "pre_restore" = "daily") {
+  await request("/rest/v1/rpc/save_workspace_backup", { payload: snapshot, kind }, await cloudToken());
+}
+
+export async function loadWorkspaceBackups(): Promise<WorkspaceBackup[]> {
+  return await request(
+    "/rest/v1/workspace_backups?select=id,payload,backup_kind,backup_day,created_at&order=created_at.desc&limit=8",
+    undefined,
+    await cloudToken()
+  );
+}
+
 export type SubscriptionInfo = {
   plan: string;
   status: string;
