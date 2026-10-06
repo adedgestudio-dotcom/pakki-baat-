@@ -16,6 +16,7 @@ import {
   loadServerTime,
   loadCloud,
   saveCloud,
+  saveWorkspaceBackup,
   signInWithGoogle,
   signOut,
   watchSession,
@@ -724,7 +725,10 @@ export default function Workspace() {
 
     const timer = window.setTimeout(() => {
       void saveCloud(snapshot)
-        .then(() => {
+        .then(async () => {
+          // Keep a separate dated recovery point. A bad current sync therefore
+          // cannot erase all earlier healthy versions.
+          try { if (isSnapshot(snapshot)) await saveWorkspaceBackup(snapshot, "daily"); } catch {}
           if (syncPending) {
             setSyncPending(false);
             setToast("Back online. Your offline changes are synced ✓");
