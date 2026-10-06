@@ -1957,7 +1957,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
 <div class="row"><span>Received</span><strong>${escapeReceiptHtml(money(job.paid))}</strong></div>
 <div class="row total"><span>Balance</span><strong class="baki">${escapeReceiptHtml(money(baki))}</strong></div>
 <div class="status">${baki === 0 ? "Paid in full" : "Balance pending"}</div>
-<p class="footer">Pakki Baat · Sarrah Bharmal · Zorivo</p>
+<p class="footer">Pakki Baat by Sarrah Bharmal (Zorivo)</p>
 </div>
 <script>window.onload=()=>{window.print();};<\/script>
 </body></html>`);
@@ -2088,7 +2088,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         ctx.moveTo(122,1168);
         ctx.lineTo(958,1168);
         ctx.stroke();
-        text("Pakki Baat · Sarrah Bharmal · Zorivo",540,1218,17,"400","#8a958f","center");
+        text("Pakki Baat by Sarrah Bharmal (Zorivo)",540,1218,17,"400","#8a958f","center");
 
         canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not create receipt image.")), "image/png", 0.96);
       } catch (error) {
@@ -3256,7 +3256,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </p>
                 </aside>
               </section>
-              <footer className="settings-brand-footer">Pakki Baat <span>·</span> Sarrah Bharmal <span>·</span> <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a></footer>
+              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
           {tab === "Reminders" && (
@@ -3323,7 +3323,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </div>
                 </section>
               )}
-              <footer className="settings-brand-footer">Pakki Baat <span>·</span> Sarrah Bharmal <span>·</span> <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a></footer>
+              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
           {tab === "Hisaab" && (() => {
@@ -3514,7 +3514,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
                 </section>
               )}
-              <footer className="settings-brand-footer">Pakki Baat <span>·</span> Sarrah Bharmal <span>·</span> <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a></footer>
+              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
           {tab === "Subscription" && (
@@ -3559,7 +3559,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <section className="subscription-help">
                 <Icon name="shield" size={19}/><div><strong>What happens if voice minutes finish?</strong><p>You can keep using Hisaab and type entries. Voice/AI usage resumes after renewal or when extra minutes are added.</p></div>
               </section>
-              <footer className="settings-brand-footer">Pakki Baat <span>·</span> Sarrah Bharmal <span>·</span> <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a></footer>
+              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
           {tab === "Admin" && (
@@ -3587,7 +3587,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </section>
                 </div>
               </section>
-              <footer className="settings-brand-footer">Pakki Baat <span>·</span> Sarrah Bharmal <span>·</span> <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a></footer>
+              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
           {tab === "Settings" && (
@@ -3658,7 +3658,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <div className="settings-feedback-actions"><button className="outline" disabled={!feedback.trim()} onClick={shareFeedback}>Share feedback</button><button className="primary" disabled={!feedback.trim()} onClick={()=>{download(feedback,"pakki-baat-feedback.txt");setFeedback("");setToast("Feedback downloaded.");}}>Download</button></div>
                 </section>
               </div>
-              <footer className="settings-brand-footer">Pakki Baat <span>·</span> Sarrah Bharmal <span>·</span> <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a></footer>
+              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
         </div>
