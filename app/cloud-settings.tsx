@@ -45,12 +45,17 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
       setStatus("This backup is damaged or invalid. Choose an earlier backup.");
       return;
     }
+    const restoreSnapshot = backup.payload;
+    if (!isSnapshot(restoreSnapshot)) {
+      setStatus("This backup is damaged or invalid. Choose an earlier backup.");
+      return;
+    }
     if (!confirm("Restore this backup? Pakki Baat will first save your current workspace as a safety copy.")) return;
     await action(async () => {
       if (!isSnapshot(snapshot)) throw new Error("Current workspace is not valid enough to create a safety copy.");
       await saveWorkspaceBackup(snapshot, "pre_restore");
-      onRestore(backup.payload);
-      await saveCloud(backup.payload);
+      onRestore(restoreSnapshot);
+      await saveCloud(restoreSnapshot);
       setStatus("Backup restored ✓ Your previous workspace was saved as a safety copy.");
       await refreshBackups();
     });
