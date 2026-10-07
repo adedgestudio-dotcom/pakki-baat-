@@ -6671,6 +6671,17 @@ select:focus-visible {
   color:#78847d;
   font:italic 12px Georgia,serif;
 }
+.receipt-brand-footer{
+  display:block;
+  margin-top:9px;
+  padding-top:8px;
+  border-top:1px solid #eeeae1;
+  text-align:center;
+  color:#a0a8a3;
+  font-size:7px;
+  font-weight:500;
+  letter-spacing:.01em;
+}
 .receipt-help{
   margin:13px 2px 0;
   font-size:10px;
