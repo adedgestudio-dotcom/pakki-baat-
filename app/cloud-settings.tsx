@@ -63,6 +63,11 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
   const [retention, setRetention] = useState<15|30|null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [showDifference, setShowDifference] = useState(false);
+  const latestHealthy = backups.find(item => isSnapshot(item.payload));
+  const latestHealthyAt = latestHealthy ? new Date(latestHealthy.created_at) : null;
+  const protectedLabel = latestHealthyAt
+    ? `✓ Protected · Last backup: ${latestHealthyAt.toLocaleDateString("en-IN", { day:"numeric", month:"short" })}, ${latestHealthyAt.toLocaleTimeString("en-IN", { hour:"numeric", minute:"2-digit" })}`
+    : "Backup will start after your next saved change.";
 
   async function refreshBackups() {
     try {
@@ -143,6 +148,7 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
       <div><h3>Automatic backup</h3><p>Pakki Baat keeps dated recovery copies on your account so an older good copy stays available.</p></div>
       {logged && <span className={retention ? "backup-status-pill ok" : "backup-status-pill"}>{retention ? "On" : "Setup needed"}</span>}
     </div>
+    {logged && <div className="backup-protected-line">{protectedLabel}</div>}
 
     {!cloudConfigured ? <div className="notice">Cloud backup is not connected yet.</div>
     : checking ? <div className="notice">Checking your backup…</div>
