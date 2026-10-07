@@ -9297,3 +9297,9 @@ footer .footer-separator{
   .backup-history-row>span>strong{font-size:11px}
   .backup-history-row>.outline{min-width:76px}
 }
+
+
+/* Settings help row: keep the navigation arrow pinned to the far right. */
+.settings-help-row{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important}
+.settings-help-row>span{display:grid;gap:3px;min-width:0;flex:1}
+.settings-help-row>svg{flex:0 0 auto;margin-left:auto}
