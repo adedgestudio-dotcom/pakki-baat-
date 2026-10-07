@@ -47,7 +47,7 @@ function escapeHtml(value: unknown) {
 }
 
 function saveReadablePdf(snapshot: Snapshot) {
-  const popup = window.open("", "_blank", "noopener,noreferrer");
+  const popup = window.open("", "_blank");
   if (!popup) throw new Error("Allow pop-ups to save the PDF report.");
   popup.document.open();
   popup.document.write(readableReport(snapshot));
