@@ -9278,3 +9278,22 @@ footer .footer-separator{
     width:100%;
   }
 }
+
+
+/* Backup history: compact, aligned recovery cards */
+.backup-history{display:grid;gap:10px;margin-top:18px}
+.backup-history>div:first-child{display:grid;gap:3px}
+.backup-history>div:first-child>strong{font-size:16px;line-height:1.2;color:var(--text)}
+.backup-history>div:first-child>small{display:block;color:var(--muted);font-size:11px;line-height:1.45}
+.backup-history-row{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-sizing:border-box}
+.backup-history-row>span{display:grid;gap:4px;min-width:0;flex:1}
+.backup-history-row>span>strong{font-size:12px;line-height:1.35;color:var(--text);overflow-wrap:anywhere}
+.backup-history-row>span>small{display:inline-flex;width:max-content;max-width:100%;padding:3px 7px;border-radius:999px;background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--muted);font-size:9px;font-weight:700;line-height:1.25}
+.backup-history-row>.outline{flex:0 0 auto;min-height:36px;padding:7px 12px;border-radius:10px;font-size:11px}
+[data-theme="dark"] .backup-history-row{background:color-mix(in srgb,var(--surface) 92%,white 8%)}
+@media(max-width:520px){
+  .backup-history{gap:9px;margin-top:16px}
+  .backup-history-row{padding:11px 12px;gap:10px}
+  .backup-history-row>span>strong{font-size:11px}
+  .backup-history-row>.outline{min-width:76px}
+}
