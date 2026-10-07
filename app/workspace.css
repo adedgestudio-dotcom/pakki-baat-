@@ -9341,3 +9341,5 @@ footer .footer-separator{
   .backup-export-actions{display:grid;grid-template-columns:1fr}
   .backup-difference-box{grid-template-columns:1fr}
 }
+
+.backup-protected-line{padding:9px 11px;border-radius:11px;background:color-mix(in srgb,var(--accent) 8%,var(--surface));color:var(--muted);font-size:10px;font-weight:700}
