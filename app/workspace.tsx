@@ -31,7 +31,7 @@ import {
   type Snapshot,
 } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
-type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Customers" | "Subscription" | "Admin" | "Settings";
+type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Customers" | "Subscription" | "Admin" | "Backup" | "Settings";
 type ChatTurn = {
   id: string;
   role: "me" | "assistant";
@@ -166,6 +166,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     plan: "M4 7h16v12H4Z M4 10h16 M8 15h4",
     download: "M12 3v12 m-5-5 5 5 5-5 M5 21h14",
     shield: "M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3Z M9 12l2 2 4-5",
+    cloud: "M7 18h10a4 4 0 0 0 .7-7.9A6 6 0 0 0 6.3 8.4 4.5 4.5 0 0 0 7 18Z M12 10v6 m-3-3 3 3 3-3",
   };
   return (
     <svg
@@ -2686,6 +2687,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               Install Pakki Baat
             </button>
           )}
+          <button className="settings-button" onClick={() => go("Backup")}>
+            <Icon name="cloud" />
+            Backup
+          </button>
           <button className="settings-button" onClick={() => go("Settings")}>
             <Icon name="settings" />
             Settings & feedback
@@ -3594,6 +3599,21 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
+          {tab === "Backup" && (
+            <>
+              <div className="page-heading settings-heading">
+                <div>
+                  <div className="eyebrow">BACKUP</div>
+                  <h1>Protect your business data</h1>
+                  <p>Simple dated backups you can verify, restore or keep on your device.</p>
+                </div>
+              </div>
+              <section className="panel backup-main-panel">
+                <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={restore} dark={dark} onToggleTheme={toggleTheme}/>
+              </section>
+              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
+            </>
+          )}
           {tab === "Settings" && (
             <>
               <div className="page-heading settings-heading">
@@ -3647,12 +3667,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </section>
 
                 <section className="settings-group">
-                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="cloud" size={18}/></span><span><strong>Data & backup</strong><small>Keep a copy of your workspace.</small></span></div>
-                  <div className="settings-data-actions">
-                    <button className="outline" onClick={()=>download(JSON.stringify({jobs,owner,business,reminders,payments,notes,customerPhones},null,2),"pakki-baat-backup.json")}>Export my data</button>
-                    <label className="upload restore-backup-button"><span className="restore-backup-main"><Icon name="arrow" size={17}/> Restore backup</span><input type="file" accept=".json,application/json" onChange={(e)=>{const file=e.target.files?.[0];if(file)void importBackup(file);e.target.value="";}}/></label>
-                  </div>
-                  <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={restore} dark={dark} onToggleTheme={toggleTheme}/>
+                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="cloud" size={18}/></span><span><strong>Backup</strong><small>Automatic recovery, restore and downloads.</small></span></div>
+                  <button type="button" className="how-it-works-card settings-help-row" onClick={()=>go("Backup")}><span><strong>Open Backup</strong><small>View verified backups and choose 15 or 30 days.</small></span><Icon name="arrow" size={17}/></button>
                 </section>
 
                 <section className="settings-group">
