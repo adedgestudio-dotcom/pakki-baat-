@@ -1341,10 +1341,11 @@ export default function Workspace() {
       navigator.vibrate([350,180,350,180,650]);
     }
   }
-  function deleteReminder(id: string) {
+  async function deleteReminder(id: string) {
     if (!requireActiveSubscriptionForSaving()) return;
     const reminder = reminders.find(r => r.id === id);
     if (!reminder) return;
+    if (!(await savePreDeleteSafetyCopy())) return;
     rememberUndo("Reminder deleted");
     setReminders(items => items.filter(r => r.id !== id));
     if (ringingReminder?.id === id) setRingingReminder(null);
@@ -2290,8 +2291,21 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   function deleteEntry(job: Job) {
     setDeleteJob(job);
   }
-  function confirmDeleteCustomer() {
+  async function savePreDeleteSafetyCopy() {
+    if (!loggedIn) return true;
+    try {
+      const current: Snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
+      if (!isSnapshot(current)) throw new Error("Current workspace is invalid.");
+      await saveWorkspaceBackup(current, "pre_restore");
+      return true;
+    } catch {
+      setToast("Could not create a safety copy. Check your internet and try again.");
+      return false;
+    }
+  }
+  async function confirmDeleteCustomer() {
     if (!deleteCustomer || !requireActiveSubscriptionForSaving()) return;
+    if (!(await savePreDeleteSafetyCopy())) return;
     const name = deleteCustomer;
     rememberUndo("Customer deleted");
     const jobIds = new Set(jobs.filter(j => j.customer === name).map(j => j.id));
@@ -2309,8 +2323,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setDeleteCustomer(null);
     setToast(name + " deleted from Hisaab");
   }
-  function confirmDeleteEntry() {
+  async function confirmDeleteEntry() {
     if (!deleteJob || !requireActiveSubscriptionForSaving()) return;
+    if (!(await savePreDeleteSafetyCopy())) return;
     const job = deleteJob;
     const message = "Entry deleted";
     rememberUndo(message);
