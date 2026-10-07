@@ -121,13 +121,13 @@ export async function loadWorkspaceBackups(): Promise<WorkspaceBackup[]> {
   );
 }
 
-export async function loadWorkspaceBackupRetention(): Promise<15 | 30> {
+export async function loadWorkspaceBackupRetention(): Promise<15 | 30 | null> {
   const rows = await request(
     "/rest/v1/workspace_backup_preferences?select=retention_days",
     undefined,
     await cloudToken()
   );
-  return rows[0]?.retention_days === 30 ? 30 : 15;
+  return rows[0]?.retention_days === 30 ? 30 : rows[0]?.retention_days === 15 ? 15 : null;
 }
 
 export async function setWorkspaceBackupRetention(days: 15 | 30) {
