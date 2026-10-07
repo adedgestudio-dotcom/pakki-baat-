@@ -58,10 +58,12 @@ begin
   keep_days := coalesce(keep_days,15);
 
   if kind='daily' then
-    -- Immutable daily point: the first verified snapshot for a day is preserved.
+    -- One rolling automatic point per day. Destructive actions create a separate
+    -- pre_restore safety copy before the daily point can reflect the deletion.
     insert into public.workspace_backups(owner_id,payload,backup_kind,backup_day)
     values(uid,payload,'daily',today)
-    on conflict (owner_id,backup_day) where backup_kind='daily' do nothing;
+    on conflict (owner_id,backup_day) where backup_kind='daily'
+    do update set payload=excluded.payload, created_at=now();
   else
     insert into public.workspace_backups(owner_id,payload,backup_kind,backup_day)
     values(uid,payload,'pre_restore',today);
