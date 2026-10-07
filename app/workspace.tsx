@@ -3779,6 +3779,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               </div>
               <div className="receipt-due"><span>Due</span><strong>{receiptJob.date || "Not set"}{receiptJob.time ? " · "+receiptJob.time : ""}</strong></div>
               <p>Thank you.</p>
+              <small className="receipt-brand-footer">Pakki Baat by Sarrah Bharmal (Zorivo)</small>
             </div>
             <p className="receipt-help">Print it directly, save it as PDF from the print screen, or send the receipt details through WhatsApp.</p>
             <div className="receipt-actions">
