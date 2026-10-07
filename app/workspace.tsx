@@ -15,6 +15,7 @@ import {
   loadVoiceUsage,
   loadServerTime,
   loadCloud,
+  loadWorkspaceBackups,
   saveCloud,
   saveWorkspaceBackup,
   signInWithGoogle,
@@ -1107,6 +1108,40 @@ export default function Workspace() {
     }
     return subscription;
   }
+  async function warnIfBackupNeedsAttention() {
+    if (!loggedIn || !reminderAlertsEnabled || !isOnline || !activeUserIdRef.current) return;
+    try {
+      const backups = await loadWorkspaceBackups();
+      const latest = backups.find(item => isSnapshot(item.payload));
+      if (!latest) return;
+      const ageMs = Date.now() - new Date(latest.created_at).getTime();
+      if (!Number.isFinite(ageMs) || ageMs < 3 * 24 * 60 * 60 * 1000) return;
+
+      const userId = activeUserIdRef.current;
+      const warningKey = "pakki-baat-backup-warning:" + userId;
+      const lastWarned = Number(localStorage.getItem(warningKey) || "0");
+      if (Date.now() - lastWarned < 3 * 24 * 60 * 60 * 1000) return;
+
+      const subscription = await ensurePushSubscription();
+      const token = await cloudToken();
+      const response = await fetch("/api/push/backup-warning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ subscription: subscription.toJSON() }),
+      });
+      if (!response.ok) return;
+      localStorage.setItem(warningKey, String(Date.now()));
+    } catch {
+      // Backup warnings are intentionally quiet; normal app use must never be blocked.
+    }
+  }
+
+  useEffect(() => {
+    if (!ready || !loggedIn || !reminderAlertsEnabled || !isOnline) return;
+    const timer = window.setTimeout(() => void warnIfBackupNeedsAttention(), 2500);
+    return () => window.clearTimeout(timer);
+  }, [ready, loggedIn, reminderAlertsEnabled, isOnline]);
+
   function scheduledPushKey(reminder: Reminder, endpoint: string) {
     return `${reminder.id}:${reminder.date}:${reminder.time || "09:00"}:${endpoint.slice(-48)}`;
   }
