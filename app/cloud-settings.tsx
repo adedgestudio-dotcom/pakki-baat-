@@ -33,27 +33,6 @@ function downloadBackup(snapshot: Snapshot, createdAt = new Date()) {
   downloadBlob(new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" }), safeName(createdAt) + ".json");
 }
 
-function readableReport(snapshot: Snapshot) {
-  const rows = snapshot.jobs.map(job => {
-    const balance = Math.max(0, Number(job.total || 0) - Number(job.paid || 0));
-    return `<tr><td>${escapeHtml(job.customer)}</td><td>${escapeHtml(job.work)}</td><td>₹${Number(job.total||0).toLocaleString("en-IN")}</td><td>₹${Number(job.paid||0).toLocaleString("en-IN")}</td><td>₹${balance.toLocaleString("en-IN")}</td><td>${escapeHtml(job.date||"—")}</td></tr>`;
-  }).join("");
-  const totalOutstanding = snapshot.jobs.reduce((sum,job)=>sum+Math.max(0,Number(job.total||0)-Number(job.paid||0)),0);
-  return `<!doctype html><html><head><title>Pakki Baat Backup Report</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#202521}h1{font-size:22px;margin-bottom:4px}p{color:#66706a}table{width:100%;border-collapse:collapse;margin-top:22px;font-size:12px}th,td{border-bottom:1px solid #ddd;padding:9px 6px;text-align:left}th{background:#f5f7f5}.summary{display:flex;gap:18px;margin:18px 0}.summary b{display:block;font-size:18px}.footer{margin-top:28px;font-size:10px;color:#777}@media print{button{display:none}}</style></head><body><h1>Pakki Baat — Business Backup Report</h1><p>${escapeHtml(snapshot.business||"Your business")} · Generated ${new Date().toLocaleString("en-IN")}</p><div class="summary"><span><b>${snapshot.jobs.length}</b>Hisaab entries</span><span><b>${snapshot.reminders?.length||0}</b>Reminders</span><span><b>₹${totalOutstanding.toLocaleString("en-IN")}</b>Outstanding</span></div><table><thead><tr><th>Customer</th><th>Work</th><th>Total</th><th>Received</th><th>Balance</th><th>Due</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Hisaab entries in this backup.</td></tr>'}</tbody></table><div class="footer">Pakki Baat by Sarrah Bharmal (Zorivo) · PDF is for reading/printing and cannot be used to restore data.</div><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`;
-}
-
-function escapeHtml(value: unknown) {
-  return String(value ?? "").replace(/[&<>"']/g, char => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[char] || char));
-}
-
-function saveReadablePdf(snapshot: Snapshot) {
-  const popup = window.open("", "_blank");
-  if (!popup) throw new Error("Allow pop-ups to save the PDF report.");
-  popup.document.open();
-  popup.document.write(readableReport(snapshot));
-  popup.document.close();
-}
-
 export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; dark?: boolean; onToggleTheme?: () => void }) {
   const [logged, setLogged] = useState(false);
   const [checking, setChecking] = useState(cloudConfigured);
@@ -62,7 +41,6 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
   const [backups, setBackups] = useState<WorkspaceBackup[]>([]);
   const [retention, setRetention] = useState<15|30|null>(null);
   const [showSetup, setShowSetup] = useState(false);
-  const [showDifference, setShowDifference] = useState(false);
   const latestHealthy = backups.find(item => isSnapshot(item.payload));
   const latestHealthyAt = latestHealthy ? new Date(latestHealthy.created_at) : null;
   const protectedLabel = latestHealthyAt
@@ -177,14 +155,12 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
       </section>
 
       <section className="backup-export-card">
-        <div><strong>Keep a copy on your device</strong><small>Download a restorable backup or a readable report.</small></div>
+        <div><strong>Keep a copy on your device</strong><small>Save a restorable copy on your device.</small></div>
         <div className="backup-export-actions">
           <button type="button" className="primary" onClick={()=>downloadBackup(snapshot)}>Download Backup</button>
-          <button type="button" className="outline" onClick={()=>{try{saveReadablePdf(snapshot)}catch(e){setStatus(e instanceof Error?e.message:"Could not open PDF report.");}}}>Save PDF</button>
           <label className="upload restore-backup-button"><span className="restore-backup-main">Restore from File</span><input type="file" accept=".json,application/json" onChange={e=>{const file=e.target.files?.[0];if(file)void importBackup(file);e.target.value="";}}/></label>
         </div>
-        <button type="button" className="backup-difference-link" onClick={()=>setShowDifference(v=>!v)}>What's the difference? ⓘ</button>
-        {showDifference && <div className="backup-difference-box"><p><strong>Backup file</strong><br/>Use this to restore your Pakki Baat data later.</p><p><strong>PDF report</strong><br/>Easy to read, print or share. It cannot restore your account.</p></div>}
+        <small>For readable financial statements, PDF downloads and printing, use Reports.</small>
       </section>
     </>}
 
