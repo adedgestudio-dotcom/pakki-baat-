@@ -257,12 +257,25 @@ export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "pr
 export async function loadWorkspaceBackups(expectedOwnerId?: string): Promise<WorkspaceBackup[]> {
   const session = await accountSession(expectedOwnerId);
   const rows = await request(
-    "/rest/v1/workspace_backups?select=id,payload,backup_kind,backup_day,created_at&order=created_at.desc&limit=8",
+    "/rest/v1/workspace_backups?select=id,payload,backup_kind,backup_day,created_at&order=created_at.desc&limit=120",
     undefined,
     session.access_token
   );
   await accountSession(session.user.id);
   return rows;
+}
+
+export async function loadWorkspaceBackupRetention(): Promise<15 | 30 | null> {
+  const rows = await request(
+    "/rest/v1/workspace_backup_preferences?select=retention_days",
+    undefined,
+    await cloudToken()
+  );
+  return rows[0]?.retention_days === 30 ? 30 : rows[0]?.retention_days === 15 ? 15 : null;
+}
+
+export async function setWorkspaceBackupRetention(days: 15 | 30) {
+  await request("/rest/v1/rpc/set_workspace_backup_retention", { days }, await cloudToken());
 }
 
 export type SubscriptionInfo = {

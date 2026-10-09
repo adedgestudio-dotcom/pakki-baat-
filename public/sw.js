@@ -150,9 +150,9 @@ self.addEventListener("push", (event) => {
     body: data.body || "You have a reminder.",
     icon: "/icon.svg",
     badge: "/icon.svg",
-    tag: data.reminderId ? "pakki-baat-reminder-" + data.reminderId : "pakki-baat-reminder",
-    requireInteraction: true,
-    renotify: true,
+    tag: data.notificationTag || (data.reminderId ? "pakki-baat-reminder-" + data.reminderId : "pakki-baat-reminder"),
+    requireInteraction: data.notificationTag ? false : true,
+    renotify: data.notificationTag ? false : true,
     vibrate: [350, 180, 350, 180, 650],
     data: {
       url: data.url || "/",
