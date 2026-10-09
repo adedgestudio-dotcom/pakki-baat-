@@ -317,13 +317,23 @@ export default function Workspace() {
 
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-    setAppInstalled(standalone);
+    const installedKey = "pakki-baat-installed";
+    let rememberedInstalled = false;
+    try {
+      rememberedInstalled = localStorage.getItem(installedKey) === "1";
+      if (standalone) localStorage.setItem(installedKey, "1");
+    } catch {}
+    setAppInstalled(standalone || rememberedInstalled);
     const onInstallPrompt = (event: Event) => {
       event.preventDefault();
+      // A fresh browser install prompt means installation is available again
+      // (for example, the app was uninstalled). Do not repeatedly show our own banner.
       setInstallPrompt(event as InstallPromptEvent);
     };
     const onInstalled = () => {
+      try { localStorage.setItem(installedKey, "1"); } catch {}
       setAppInstalled(true);
+      setInstallWelcomeOpen(false);
       setInstallPrompt(null);
       setToast("Pakki Baat installed ✓");
     };
@@ -543,7 +553,7 @@ export default function Workspace() {
         try {
           const key = "pakki-baat-install-prompt-seen:" + session.user.id;
           const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-          if (!standalone && !localStorage.getItem(key)) {
+          if (!standalone && localStorage.getItem("pakki-baat-installed") !== "1" && !localStorage.getItem(key)) {
             localStorage.setItem(key, "1");
             setInstallWelcomeOpen(true);
           }
