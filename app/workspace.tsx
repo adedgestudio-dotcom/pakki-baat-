@@ -28,6 +28,7 @@ import {
   saveCloud,
   saveWorkspaceBackup,
   signInWithGoogle,
+  signInWithPassword,
   signOut,
   watchSession,
 } from "@/lib/cloud";
@@ -223,6 +224,9 @@ export default function Workspace() {
     [paymentSubmitting, setPaymentSubmitting] = useState(false),
     [feedback, setFeedback] = useState(""),
     [loggedIn, setLoggedIn] = useState(false),
+    [qaEmail, setQaEmail] = useState(""),
+    [qaPassword, setQaPassword] = useState(""),
+    [qaSigningIn, setQaSigningIn] = useState(false),
     [accountId, setAccountId] = useState<string | null>(null),
     [loadedAccountId, setLoadedAccountId] = useState<string | null>(null),
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
@@ -1660,6 +1664,21 @@ export default function Workspace() {
     if (voiceBusy) return;
     setToast("Retrying a sent voice note would charge its duration again. Please record a fresh voice note instead.");
   }
+  async function startQaPasswordSignIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (qaSigningIn) return;
+    setQaSigningIn(true);
+    try {
+      const session = await signInWithPassword(qaEmail, qaPassword);
+      if (!session) throw new Error("No session returned. Check that the QA user has a password.");
+      setQaPassword("");
+      setToast("QA sign-in successful.");
+    } catch (cause) {
+      setToast(cause instanceof Error ? cause.message : "QA sign-in failed.");
+    } finally {
+      setQaSigningIn(false);
+    }
+  }
   async function startGoogleSignIn() {
     try {
       if (!cloudConfigured) {
@@ -2946,19 +2965,11 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <Icon name="plan" size={18}/><span>Plan</span>
             </button>
             {!loggedIn && (
-              <button
-                type="button"
-                className="google-sign-in top-login"
-                onClick={() => void startGoogleSignIn()}
-                disabled={!cloudConfigured}
-                title={
-                  cloudConfigured
-                    ? "Login or sign up"
-                    : "Add Supabase env keys to enable login"
-                }
-              >
-                Login / Sign up
-              </button>
+              <form onSubmit={(event) => void startQaPasswordSignIn(event)} style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",maxWidth:"100%"}} aria-label="Staging QA login">
+                <input aria-label="QA email" type="email" autoComplete="username" placeholder="QA email" required value={qaEmail} onChange={event=>setQaEmail(event.target.value)} style={{width:160,minWidth:0,padding:"8px",borderRadius:8}} />
+                <input aria-label="QA password" type="password" autoComplete="current-password" placeholder="Password" required value={qaPassword} onChange={event=>setQaPassword(event.target.value)} style={{width:130,minWidth:0,padding:"8px",borderRadius:8}} />
+                <button type="submit" className="google-sign-in top-login" disabled={qaSigningIn || !cloudConfigured}>{qaSigningIn ? "Signing in…" : "QA Login"}</button>
+              </form>
             )}
             <button
               type="button"
