@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cloudConfigured, currentSession, loadCloud, loadWorkspaceBackups, saveCloud, saveWorkspaceBackup, signInWithGoogle, signOut, watchSession, type WorkspaceBackup } from "@/lib/cloud";
+import { blockCloudSaves, clearLedgerDirty, cloudConfigured, cloudSnapshotsEqual, currentSession, loadCloud, loadCloudState, loadWorkspaceBackups, readLedgerDirty, saveCloud, saveWorkspaceBackup, signInWithGoogle, signOut, watchSession, type WorkspaceBackup } from "@/lib/cloud";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 
-export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; dark?: boolean; onToggleTheme?: () => void }) {
+export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ownerId }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; onPauseAutosave: (paused: boolean) => void; ownerId: string | null; dark?: boolean; onToggleTheme?: () => void }) {
   const [logged, setLogged] = useState(false);
   const [checking, setChecking] = useState(cloudConfigured);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [backups, setBackups] = useState<WorkspaceBackup[]>([]);
+  const [backupHistory, setBackupHistory] = useState<{ ownerId: string; rows: WorkspaceBackup[] } | null>(null);
+  const backups = backupHistory?.ownerId === ownerId ? backupHistory.rows : [];
 
   async function refreshBackups() {
-    try { setBackups(await loadWorkspaceBackups()); }
-    catch { setBackups([]); }
+    try {
+      const session = await currentSession();
+      if (!session) { setBackupHistory(null); return; }
+      const rows = await loadWorkspaceBackups(session.user.id);
+      setBackupHistory({ ownerId: session.user.id, rows });
+    } catch { setBackupHistory(null); }
   }
 
   useEffect(() => {
@@ -28,7 +33,7 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
     return watchSession((session) => {
       setLogged(Boolean(session));
       setChecking(false);
-      if (session) void refreshBackups(); else setBackups([]);
+      if (session) void refreshBackups(); else setBackupHistory(null);
     });
   }, []);
 
@@ -36,11 +41,15 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
     setBusy(true);
     setStatus("");
     try { await run(); }
-    catch (cause) { setStatus(cause instanceof Error ? cause.message : "Please try again."); }
+    catch (cause) { onPauseAutosave(false); setStatus(cause instanceof Error ? cause.message : "Please try again."); }
     finally { setBusy(false); }
   }
 
   async function restoreVersion(backup: WorkspaceBackup) {
+    if (!ownerId || backupHistory?.ownerId !== ownerId || !backupHistory.rows.some((row) => row.id === backup.id)) {
+      setStatus("Backup history belongs to another sign-in. Reload the history before restoring.");
+      return;
+    }
     if (!isSnapshot(backup.payload)) {
       setStatus("This backup is damaged or invalid. Choose an earlier backup.");
       return;
@@ -52,13 +61,40 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
     }
     if (!confirm("Restore this backup? Pakki Baat will first save your current workspace as a safety copy.")) return;
     await action(async () => {
+      onPauseAutosave(true);
       if (!isSnapshot(snapshot)) throw new Error("Current workspace is not valid enough to create a safety copy.");
-      await saveWorkspaceBackup(snapshot, "pre_restore");
+      if (!ownerId) throw new Error("Sign in before restoring a cloud backup.");
+      await saveWorkspaceBackup(snapshot, "pre_restore", ownerId);
+      const dirty = readLedgerDirty(ownerId);
+      if (dirty && !cloudSnapshotsEqual(dirty.snapshot, snapshot)) throw new Error("Workspace changed during restore. Please retry so the safety copy includes your latest changes.");
+      await saveCloud(restoreSnapshot, ownerId);
+      if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: restore was saved to the original account, but this device switched accounts. Sign in again to load it.");
       onRestore(restoreSnapshot);
-      await saveCloud(restoreSnapshot);
       setStatus("Backup restored ✓ Your previous workspace was saved as a safety copy.");
       await refreshBackups();
     });
+  }
+
+  async function restoreCurrentCloud() {
+    if (!ownerId) throw new Error("Sign in before restoring a cloud backup.");
+    onPauseAutosave(true);
+    const saved = await loadCloud(ownerId);
+    if (!saved) { onPauseAutosave(false); setStatus("No cloud backup yet."); return; }
+    if (!isSnapshot(saved)) throw new Error("The current cloud workspace is not valid. Use Backup history below to restore an earlier healthy copy.");
+    if (!confirm("Restore current cloud workspace? This replaces this device’s current workspace.")) { onPauseAutosave(false); return; }
+    if (isSnapshot(snapshot)) await saveWorkspaceBackup(snapshot, "pre_restore", ownerId);
+    const dirty = readLedgerDirty(ownerId);
+    if (dirty && !cloudSnapshotsEqual(dirty.snapshot, snapshot)) throw new Error("Workspace changed during restore. Please retry so the safety copy includes your latest changes.");
+    const current = await loadCloudState();
+    if (current.ownerId !== ownerId || !cloudSnapshotsEqual(current.snapshot, saved)) {
+      blockCloudSaves(ownerId);
+      throw new Error("Cloud changed during restore. Please review and try again.");
+    }
+    if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: sign in to the original account before restoring.");
+    clearLedgerDirty(ownerId, snapshot);
+    onRestore(saved);
+    setStatus("Cloud backup restored.");
+    await refreshBackups();
   }
 
   const backupLabel = (backup: WorkspaceBackup) => {
@@ -80,8 +116,8 @@ export default function CloudSettings({ snapshot, onRestore }: { snapshot: Snaps
             </button>
           : <>
               <div className="cloud-buttons">
-                <button className="primary" disabled={busy} onClick={() => action(async () => { if (!confirm("Replace your cloud workspace with this device’s workspace?")) return; await saveCloud(snapshot); await saveWorkspaceBackup(snapshot); await refreshBackups(); setStatus("Cloud backup saved."); })}>Save cloud backup</button>
-                <button className="outline" disabled={busy} onClick={() => action(async () => { const saved = await loadCloud(); if (!saved) { setStatus("No cloud backup yet."); return; } if (!isSnapshot(saved)) throw new Error("The current cloud workspace is not valid. Use Backup history below to restore an earlier healthy copy."); if (confirm("Restore current cloud workspace? This replaces this device’s current workspace.")) { if (isSnapshot(snapshot)) await saveWorkspaceBackup(snapshot,"pre_restore"); onRestore(saved); setStatus("Cloud backup restored."); await refreshBackups(); } })}>Restore cloud backup</button>
+                <button className="primary" disabled={busy} onClick={() => action(async () => { if (!confirm("Replace your cloud workspace with this device’s workspace?")) return; if (!ownerId) throw new Error("Sign in before saving a cloud backup."); await saveCloud(snapshot, ownerId); await saveWorkspaceBackup(snapshot, "daily", ownerId); await refreshBackups(); setStatus("Cloud backup saved."); })}>Save cloud backup</button>
+                <button className="outline" disabled={busy} onClick={() => action(restoreCurrentCloud)}>Restore cloud backup</button>
                 <button className="text-button" disabled={busy} onClick={() => action(async () => { await signOut(); setStatus("Signed out. Sign in again to see your workspace."); })}>Sign out</button>
               </div>
               <div className="backup-history">

@@ -14,7 +14,15 @@ import {
   loadSubscription,
   loadVoiceUsage,
   loadServerTime,
-  loadCloud,
+  loadCloudState,
+  cloudSnapshotsEqual,
+  blockCloudSaves,
+  clearLedgerDirty,
+  ledgerModeForAccount,
+  markLedgerDirty,
+  reconcileLedgerHydration,
+  readLedgerDirty,
+  isRetryableCloudError,
   saveCloud,
   saveWorkspaceBackup,
   signInWithGoogle,
@@ -120,6 +128,9 @@ function accountNameFromEmail(session: Session | null) {
     .join(" ");
 }
 const LOCAL_WORKSPACE_ID = "local";
+function normalizedSnapshot(s: Snapshot): Snapshot {
+  return { jobs: s.jobs, owner: s.owner, business: s.business, reminders: s.reminders || [], payments: s.payments || [], notes: s.notes || [], customerPhones: s.customerPhones || {} };
+}
 const localWorkspaceKey = (userId: string) =>
   "pakki-baat-workspace:" + userId;
 function readLocalWorkspace(userId: string) {
@@ -209,6 +220,8 @@ export default function Workspace() {
     [paymentSubmitting, setPaymentSubmitting] = useState(false),
     [feedback, setFeedback] = useState(""),
     [loggedIn, setLoggedIn] = useState(false),
+    [accountId, setAccountId] = useState<string | null>(null),
+    [loadedAccountId, setLoadedAccountId] = useState<string | null>(null),
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
     [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null),
     [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
@@ -277,6 +290,12 @@ export default function Workspace() {
   const loadingVoiceIds = useRef(new Set<string>());
   const activeUserIdRef = useRef<string | null>(null);
   const cloudHydratedRef = useRef(false);
+  const workspaceUserIdRef = useRef<string | null>(null);
+  const autosavePausedRef = useRef(false);
+  const restoreTargetRef = useRef<Snapshot | null>(null);
+  const savedPendingRef = useRef<Job | null>(null);
+  const savedDraftRef = useRef<Job | null>(null);
+  const submittedPaymentJobRef = useRef<Job | null>(null);
   const firedReminderKeysRef = useRef(new Set<string>());
   const navigationRestoredRef = useRef(false);
   const entryDraftRestoredForUserRef = useRef<string | null>(null);
@@ -486,10 +505,21 @@ export default function Workspace() {
     if (!cloudConfigured) return;
 
     let cancelled = false;
+    let sessionSequence = 0;
+    let hydratedUserId: string | null = null;
 
     async function applySession(session: Session | null) {
       if (cancelled) return;
+      if (session && hydratedUserId === session.user.id) return;
+      const sequence = ++sessionSequence;
+      cloudHydratedRef.current = false;
+      workspaceUserIdRef.current = null;
+      autosavePausedRef.current = false;
+      restoreTargetRef.current = null;
+      setReady(false);
       setLoggedIn(Boolean(session));
+      setAccountId(session?.user.id || null);
+      setLoadedAccountId(null);
       setUserEmail(session?.user.email || null);
       setUserName(accountNameFromEmail(session));
       activeUserIdRef.current = session?.user.id || null;
@@ -573,6 +603,7 @@ export default function Workspace() {
       }
 
       if (!session) {
+        hydratedUserId = null;
         setSubscriptionPlan(null);
         setSubscriptionStatus(null);
         setSubscriptionPeriodEnd(null);
@@ -581,6 +612,7 @@ export default function Workspace() {
         setTrialOfferOpen(false);
         cloudHydratedRef.current = false;
         const localSnapshot = readLocalWorkspace(LOCAL_WORKSPACE_ID);
+        workspaceUserIdRef.current = LOCAL_WORKSPACE_ID;
         if (localSnapshot) restore(localSnapshot);
         setReady(true);
         return;
@@ -588,13 +620,28 @@ export default function Workspace() {
 
       cloudHydratedRef.current = false;
       setReady(false);
+      let loaded = false;
+      let conflict = false;
       try {
-        const cloudSnapshot = await loadCloud();
-        if (cancelled || activeUserIdRef.current !== session.user.id) return;
+        const cloud = await loadCloudState();
+        if (cancelled || sequence !== sessionSequence || activeUserIdRef.current !== session.user.id) return;
+        const cloudSnapshot = cloud.snapshot;
         const localSnapshot = readLocalWorkspace(session.user.id);
-        const snapshot = cloudSnapshot && isSnapshot(cloudSnapshot)
-          ? cloudSnapshot
-          : localSnapshot;
+        if (cloud.ledgerEnabled && (!isSnapshot(cloudSnapshot) || cloud.revision === null)) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
+        const decision = cloud.ledgerEnabled
+          ? reconcileLedgerHydration(cloudSnapshot as Snapshot, cloud.revision as number, localSnapshot, readLedgerDirty(session.user.id))
+          : null;
+        conflict = decision?.conflict ?? false;
+        const snapshot = decision?.snapshot ?? (cloudSnapshot && isSnapshot(cloudSnapshot) ? cloudSnapshot : localSnapshot);
+        if (decision?.markUnknown && localSnapshot) markLedgerDirty(session.user.id, localSnapshot, 0);
+        if (decision?.clearDirty) clearLedgerDirty(session.user.id);
+        if (conflict) {
+          blockCloudSaves(session.user.id);
+          cloudHydratedRef.current = false;
+          setSyncPending(true);
+          setToast("Cloud changed since your local Hisaab edits. Your local copy is preserved; automatic sync is paused to prevent overwriting newer data.");
+        }
+        workspaceUserIdRef.current = session.user.id;
         if (snapshot) {
           restore(snapshot);
         } else {
@@ -609,18 +656,23 @@ export default function Workspace() {
           setPendingJob(null);
           setChatStep("customer");
         }
+        hydratedUserId = session.user.id;
+        setLoadedAccountId(session.user.id);
+        loaded = true;
       } catch {
-        if (!cancelled) {
+        if (!cancelled && sequence === sessionSequence && activeUserIdRef.current === session.user.id) {
+          cloudHydratedRef.current = false;
           const localSnapshot = readLocalWorkspace(session.user.id);
           if (localSnapshot) {
+            workspaceUserIdRef.current = session.user.id;
             restore(localSnapshot);
           } else {
             setToast("Could not load your cloud workspace.");
           }
         }
       } finally {
-        if (!cancelled && activeUserIdRef.current === session.user.id) {
-          cloudHydratedRef.current = true;
+        if (!cancelled && sequence === sessionSequence && activeUserIdRef.current === session.user.id) {
+          cloudHydratedRef.current = loaded && !conflict;
           setReady(true);
         }
       }
@@ -712,10 +764,29 @@ export default function Workspace() {
     if (!ready) return;
     const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
+    if (workspaceUserIdRef.current !== storageUserId) return;
     // Signed-in expired/inactive accounts are read-only. Do not persist accidental
     // client-side mutations locally when the backend would reject the cloud save.
     if (loggedIn && !hasActiveSubscription) return;
+    const ledgerMode = loggedIn && ledgerModeForAccount(storageUserId);
+    if (ledgerMode) {
+      try { markLedgerDirty(storageUserId, snapshot); }
+      catch {
+        queueMicrotask(() => {
+          if (activeUserIdRef.current !== storageUserId) return;
+          setSyncPending(true);
+          setToast("This device cannot safely retain pending ledger changes. Free storage before continuing.");
+        });
+        return;
+      }
+    }
     writeLocalWorkspace(storageUserId, snapshot);
+
+    if (autosavePausedRef.current) {
+      if (!restoreTargetRef.current || !cloudSnapshotsEqual(snapshot, restoreTargetRef.current)) return;
+      autosavePausedRef.current = false;
+      restoreTargetRef.current = null;
+    }
 
     if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
     if (!isOnline) {
@@ -723,19 +794,52 @@ export default function Workspace() {
       return;
     }
 
+    let disposed = false;
+    let retryTimer: number | undefined;
+    const retryAfterNetworkError = () => {
+      if (!ledgerMode || disposed || retryTimer !== undefined) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = undefined;
+        if (disposed || !navigator.onLine || activeUserIdRef.current !== storageUserId || !cloudHydratedRef.current ||
+            !cloudSnapshotsEqual(readLedgerDirty(storageUserId)?.snapshot, snapshot)) return;
+        void saveCloud(snapshot, storageUserId).then(() => {
+          if (!disposed) setSyncPending(false);
+        }).catch((error) => {
+          if (error instanceof Error && error.message.includes("WORKSPACE_REVISION_CONFLICT")) {
+            cloudHydratedRef.current = false;
+            setToast("Cloud changed on another device. Your local copy is preserved; automatic sync is paused.");
+          } else if (isRetryableCloudError(error)) retryAfterNetworkError();
+          else setToast(`Hisaab was not synced: ${error instanceof Error ? error.message : "Save rejected"}. Your local copy is preserved.`);
+        });
+      }, 5000);
+    };
     const timer = window.setTimeout(() => {
-      void saveCloud(snapshot)
+      if (autosavePausedRef.current) return;
+      void saveCloud(snapshot, storageUserId)
         .then(async () => {
           // Keep a separate dated recovery point. A bad current sync therefore
           // cannot erase all earlier healthy versions.
-          try { if (isSnapshot(snapshot)) await saveWorkspaceBackup(snapshot, "daily"); } catch {}
+          try { if (isSnapshot(snapshot)) await saveWorkspaceBackup(snapshot, "daily", storageUserId); } catch {}
+          if (activeUserIdRef.current !== storageUserId) return;
           if (syncPending) {
             setSyncPending(false);
             setToast("Back online. Your offline changes are synced ✓");
           }
         })
         .catch((error) => {
+          if (activeUserIdRef.current !== storageUserId) return;
           const message = error instanceof Error ? error.message : "";
+          if (message.includes("WORKSPACE_REVISION_CONFLICT")) {
+            cloudHydratedRef.current = false;
+            setSyncPending(true);
+            setToast("Cloud changed on another device. Your local copy is preserved; automatic sync is paused.");
+            return;
+          }
+          if (ledgerMode && !isRetryableCloudError(error)) {
+            setSyncPending(true);
+            setToast(`Hisaab was not synced: ${message}. Your local copy is preserved.`);
+            return;
+          }
           if (message.includes("CUSTOMER_LIMIT_REACHED")) {
             const limit = message.match(/CUSTOMER_LIMIT_REACHED:(\d+)/)?.[1];
             setSyncPending(false);
@@ -746,9 +850,10 @@ export default function Workspace() {
           }
           setSyncPending(true);
           setToast("Saved on this device. Cloud backup will retry when you're online.");
+          if (isRetryableCloudError(error)) retryAfterNetworkError();
         });
     }, 500);
-    return () => window.clearTimeout(timer);
+    return () => { disposed = true; window.clearTimeout(timer); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
   }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn, isOnline]);
 
   useEffect(() => {
@@ -1680,7 +1785,12 @@ export default function Workspace() {
         if (!(amount > 0)) { say("assistant", "How much did they pay?"); return; }
         const latest = jobs.find(j => j.customer === customer && j.paid < j.total);
         if (latest) {
-          const preview: Job = { ...latest, id: crypto.randomUUID(), paid: Math.min(latest.total, latest.paid + amount), source: message };
+          const ledgerMode = ledgerModeForAccount(activeUserIdRef.current || "");
+          if (ledgerMode && amount > latest.total - latest.paid) {
+            say("assistant", "That payment is higher than the remaining balance. Check the amount before saving.");
+            return;
+          }
+          const preview: Job = { ...latest, id: ledgerMode ? latest.id : crypto.randomUUID(), paid: Math.min(latest.total, latest.paid + amount), source: message };
           setPendingJob(preview);
           setChatStep("ready");
           say("assistant", "I got the details. Check this before saving:", preview);
@@ -1718,6 +1828,10 @@ export default function Workspace() {
           ...(["Waiting","Confirmed","Completed"].includes(changes.status) ? { status: changes.status } : {}),
         };
         if (next.total < next.paid) { say("assistant", "That would make the received amount higher than the total. Tell me the correct total or payment."); return; }
+        if (ledgerModeForAccount(activeUserIdRef.current || "") && next.paid < latest.paid) {
+          say("assistant", "Received amount cannot be reduced without correcting the matching payment record. No change was saved.");
+          return;
+        }
         if (next.paid > latest.paid) {
           setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: latest.id, amount: next.paid-latest.paid, date: day(), note: "Payment correction", createdAt: new Date().toISOString() }, ...items]);
         }
@@ -1754,10 +1868,19 @@ export default function Workspace() {
 
   function savePendingEntry(item: Job) {
     if (!selectedCustomer || !requireActiveSubscriptionForSaving()) return;
+    if (savedPendingRef.current === item) return;
     const saved = { ...item, customer: selectedCustomer };
+    const ledgerMode = ledgerModeForAccount(activeUserIdRef.current || "");
+    const previous = jobs.find(j => j.id === saved.id);
+    if (ledgerMode && (!Number.isFinite(saved.paid) || !Number.isFinite(saved.total) || saved.paid < (previous?.paid || 0) || saved.paid > saved.total)) {
+      setToast("Check the total and received amount before saving.");
+      return;
+    }
+    savedPendingRef.current = item;
     setJobs(items => [saved, ...items.filter(j => j.id !== saved.id)]);
-    if (saved.paid > 0 && !payments.some(p => p.jobId === saved.id)) {
-      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: saved.paid, date: day(), note: "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    const paymentDelta = ledgerMode ? saved.paid - (previous?.paid || 0) : saved.paid;
+    if (paymentDelta > 0 && (ledgerMode || !payments.some(p => p.jobId === saved.id))) {
+      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: paymentDelta, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
     }
     setPendingJob(null);
     setChatStep("customer");
@@ -1816,10 +1939,19 @@ export default function Workspace() {
       setToast("Add the entry details first, then tap Save.");
       return;
     }
+    if (savedPendingRef.current === pendingJob) return;
     const saved = { ...pendingJob, customer: selectedCustomer };
+    const ledgerMode = ledgerModeForAccount(activeUserIdRef.current || "");
+    const previous = jobs.find(j => j.id === saved.id);
+    if (ledgerMode && (!Number.isFinite(saved.paid) || !Number.isFinite(saved.total) || saved.paid < (previous?.paid || 0) || saved.paid > saved.total)) {
+      setToast("Check the total and received amount before saving.");
+      return;
+    }
+    savedPendingRef.current = pendingJob;
     setJobs(items => [saved, ...items.filter(j => j.id !== saved.id)]);
-    if (saved.paid > 0 && !payments.some(p => p.jobId === saved.id)) {
-      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: saved.paid, date: day(), note: "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    const paymentDelta = ledgerMode ? saved.paid - (previous?.paid || 0) : saved.paid;
+    if (paymentDelta > 0 && (ledgerMode || !payments.some(p => p.jobId === saved.id))) {
+      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: paymentDelta, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
     }
     setPendingJob(null);
     setPendingReminderText("");
@@ -1840,6 +1972,7 @@ export default function Workspace() {
   }
   function save() {
     if (!draft || !draft.customer.trim() || !draft.work.trim()) return;
+    if (savedDraftRef.current === draft) return;
     if (!requireActiveSubscriptionForSaving()) return;
     if (
       !Number.isFinite(draft.total) ||
@@ -1860,6 +1993,11 @@ export default function Workspace() {
     if (!canAddCustomer(item.customer)) return;
     const previous = jobs.find(j => j.id === item.id);
     const previousPaid = previous?.paid || 0;
+    if (previous && ledgerModeForAccount(activeUserIdRef.current || "") && item.paid < previousPaid) {
+      setToast("Received amount cannot be reduced without correcting its payment record. No change was saved.");
+      return;
+    }
+    savedDraftRef.current = draft;
     if (item.paid > previousPaid) {
       setPayments(items => [{ id: crypto.randomUUID(), customer: item.customer, jobId: item.id, amount: item.paid - previousPaid, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
     }
@@ -2154,9 +2292,22 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   function rememberUndo(message: string) {
     setLastUndo({ message, snapshot: currentSnapshot() });
   }
-  function undoLastAction() {
+  async function undoLastAction() {
     if (!lastUndo || !requireActiveSubscriptionForSaving()) return;
     const s = lastUndo.snapshot;
+    const ownerId = activeUserIdRef.current;
+    if (ownerId && ledgerModeForAccount(ownerId)) {
+      autosavePausedRef.current = true;
+      try {
+        await saveCloud(normalizedSnapshot(s), ownerId);
+        if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: undo was saved to the original account. Sign in again to load it.");
+        restoreTargetRef.current = normalizedSnapshot(s);
+      } catch (error) {
+        autosavePausedRef.current = false;
+        setToast(`Undo was not applied: ${error instanceof Error ? error.message : "cloud save failed"}`);
+        return;
+      }
+    }
     setJobs(s.jobs);
     setReminders(s.reminders || []);
     setPayments(s.payments || []);
@@ -2252,17 +2403,20 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       setToast("This entry is already fully paid.");
       return;
     }
+    submittedPaymentJobRef.current = null;
     setPaymentJob(job);
     setPaymentAmount("");
   }
   function saveQuickPayment() {
     if (!paymentJob || !requireActiveSubscriptionForSaving()) return;
+    if (submittedPaymentJobRef.current === paymentJob) return;
     const amount = Number(paymentAmount);
     const baki = Math.max(0, paymentJob.total - paymentJob.paid);
     if (!(amount > 0) || amount > baki) {
       setToast("Enter an amount up to " + money(baki) + ".");
       return;
     }
+    submittedPaymentJobRef.current = paymentJob;
     const message = "Payment updated ✓";
     rememberUndo(message);
     setJobs(items => items.map(j => j.id === paymentJob.id ? { ...j, paid: j.paid + amount } : j));
@@ -2352,6 +2506,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   }
   function sample() {
     if (!requireActiveSubscriptionForSaving()) return;
+    if (ledgerModeForAccount(activeUserIdRef.current || "")) {
+      setToast("Sample data is unavailable in ledger mode because it has no matching payment history.");
+      return;
+    }
     setJobs([
       {
         ...blank(),
@@ -2402,8 +2560,22 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       const data = JSON.parse(await file.text());
       if (!isSnapshot(data))
         throw new Error("This is not a valid Pakki Baat backup.");
-      if (confirm("Replace this device’s workspace with this backup?"))
+      if (confirm("Replace this device’s workspace with this backup?")) {
+        const ownerId = activeUserIdRef.current;
+        if (ownerId && ledgerModeForAccount(ownerId)) {
+          autosavePausedRef.current = true;
+          try {
+            await saveWorkspaceBackup(currentSnapshot(), "pre_restore", ownerId);
+            await saveCloud(normalizedSnapshot(data), ownerId);
+            if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: backup was saved to the original account. Sign in again to load it.");
+            restoreTargetRef.current = normalizedSnapshot(data);
+          } catch (error) {
+            autosavePausedRef.current = false;
+            throw error;
+          }
+        }
         restore(data);
+      }
     } catch (e) {
       setToast(e instanceof Error ? e.message : "Could not read this backup.");
     }
@@ -2483,7 +2655,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     let cloudReadyForPush = true;
     if (loggedIn && isOnline) {
       try {
-        await saveCloud({ jobs, owner, business, reminders: nextReminders, payments, notes, customerPhones });
+        await saveCloud({ jobs, owner, business, reminders: nextReminders, payments, notes, customerPhones }, activeUserIdRef.current || undefined);
       } catch {
         cloudReadyForPush = false;
       }
@@ -3652,7 +3824,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <button className="outline" onClick={()=>download(JSON.stringify({jobs,owner,business,reminders,payments,notes,customerPhones},null,2),"pakki-baat-backup.json")}>Export my data</button>
                     <label className="upload restore-backup-button"><span className="restore-backup-main"><Icon name="arrow" size={17}/> Restore backup</span><input type="file" accept=".json,application/json" onChange={(e)=>{const file=e.target.files?.[0];if(file)void importBackup(file);e.target.value="";}}/></label>
                   </div>
-                  <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={restore} dark={dark} onToggleTheme={toggleTheme}/>
+                  <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={(saved) => { restoreTargetRef.current = normalizedSnapshot(saved); restore(saved); }} onPauseAutosave={(paused) => { autosavePausedRef.current = paused; if (!paused) restoreTargetRef.current = null; }} ownerId={ready && loadedAccountId === accountId ? accountId : null} dark={dark} onToggleTheme={toggleTheme}/>
                 </section>
 
                 <section className="settings-group">
