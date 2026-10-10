@@ -7,7 +7,7 @@ async function authUsers():Promise<AuthUser[]>{const{base,service}=cfg();const r
 
 export async function GET(req:NextRequest){
   const secret=process.env.CRON_SECRET||"";
-  if(secret&&req.headers.get("authorization")!=="Bearer "+secret)return NextResponse.json({error:"Unauthorized"},{status:401});
+  if(!secret||req.headers.get("authorization")!=="Bearer "+secret)return NextResponse.json({error:"Unauthorized"},{status:401});
   const{base,service,resend,from,appUrl}=cfg();
   if(!base||!service)return NextResponse.json({error:"Supabase server configuration missing"},{status:503});
   try{
