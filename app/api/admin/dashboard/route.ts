@@ -57,17 +57,8 @@ export async function GET(req:NextRequest){
   const claimMap=new Map((claims||[]).map((x:any)=>[x.first_owner_id,x]));
   const workspaceMap=new Map((workspaces||[]).map((x:any)=>[x.owner_id,x.payload]));
   const now=Date.now();
-  // Activate any already-paid pending downgrade whose previous period has ended before rendering Admin state.
-  await Promise.all(
-    (subs || [])
-      .filter((s:any) => s.pending_plan && s.pending_period_end && new Date(s.period_end).getTime() <= Date.now())
-      .map((s:any) => sb("rpc/apply_due_pending_plan", {
-        method:"POST",
-        body:JSON.stringify({target_user_id:s.owner_id})
-      }))
-  );
-  const refreshedSubs=await sb("subscriptions?select=*");
-  const refreshedSubMap=new Map((refreshedSubs||[]).map((x:any)=>[x.owner_id,x]));
+  // Dashboard GET is read-only. Due-plan transitions must run in an authorized lifecycle job.
+  const refreshedSubMap=new Map((subs||[]).map((x:any)=>[x.owner_id,x]));
   const list=authUsers.map((u:any)=>{
    const sub:any=refreshedSubMap.get(u.id)||{};
    const entitlement=plans[sub.plan]||null;
