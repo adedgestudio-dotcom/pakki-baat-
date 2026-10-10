@@ -2,20 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 function cfg(){return{base:process.env.NEXT_PUBLIC_SUPABASE_URL||"",service:process.env.SUPABASE_SERVICE_ROLE_KEY||"",resend:process.env.RESEND_API_KEY||"",from:process.env.TRIAL_EMAIL_FROM||"Pakki Baat <onboarding@resend.dev>",appUrl:process.env.NEXT_PUBLIC_APP_URL||""}}
 async function sb(path:string,init:RequestInit={}){const{base,service}=cfg();const r=await fetch(base+"/rest/v1/"+path,{...init,headers:{apikey:service,Authorization:"Bearer "+service,"Content-Type":"application/json",...(init.headers||{})},cache:"no-store"});const t=await r.text();if(!r.ok)throw new Error(t||"Database request failed");return t?JSON.parse(t):null}
-async function authUsers(){const{base,service}=cfg();const r=await fetch(base+"/auth/v1/admin/users?per_page=1000",{headers:{apikey:service,Authorization:"Bearer "+service},cache:"no-store"});if(!r.ok)throw new Error("Could not load users");return(await r.json()).users||[]}
+type AuthUser={id:string;email?:string|null};
+async function authUsers():Promise<AuthUser[]>{const{base,service}=cfg();const r=await fetch(base+"/auth/v1/admin/users?per_page=1000",{headers:{apikey:service,Authorization:"Bearer "+service},cache:"no-store"});if(!r.ok)throw new Error("Could not load users");const body=await r.json() as {users?:AuthUser[]};return body.users||[]}
 
 export async function GET(req:NextRequest){
   const secret=process.env.CRON_SECRET||"";
   if(secret&&req.headers.get("authorization")!=="Bearer "+secret)return NextResponse.json({error:"Unauthorized"},{status:401});
   const{base,service,resend,from,appUrl}=cfg();
   if(!base||!service)return NextResponse.json({error:"Supabase server configuration missing"},{status:503});
-  if(!resend||!appUrl)return NextResponse.json({ok:false,error:"RESEND_API_KEY and NEXT_PUBLIC_APP_URL must be configured",sent:0},{status:503});
   try{
+    const lifecycle=await sb("rpc/apply_due_pending_plans",{method:"POST",body:"{}"});
+    if(!resend||!appUrl)return NextResponse.json({ok:true,sent:0,lifecycle,warning:"RESEND_API_KEY and NEXT_PUBLIC_APP_URL must be configured for trial emails"});
     const now=new Date();
     const upper=new Date(now.getTime()+3*86400000).toISOString();
     const lower=new Date(now.getTime()+1*86400000).toISOString();
     const trials=await sb("subscriptions?plan=eq.trial&status=eq.active&period_end=gt."+encodeURIComponent(lower)+"&period_end=lte."+encodeURIComponent(upper)+"&select=owner_id,period_end");
-    const users=await authUsers();const emailMap=new Map(users.map((u:any)=>[u.id,u.email]));
+    const users=await authUsers();const emailMap=new Map(users.map(u=>[u.id,u.email]));
     let sent=0;
     for(const sub of trials||[]){
       // Reserve this reminder atomically before sending. The (owner_id, period_end)
@@ -36,6 +38,6 @@ export async function GET(req:NextRequest){
       }
       sent++;
     }
-    return NextResponse.json({ok:true,sent});
+    return NextResponse.json({ok:true,sent,lifecycle});
   }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Trial reminder failed"},{status:500})}
 }

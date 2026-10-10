@@ -292,6 +292,7 @@ export default function Workspace() {
     [appInstalled, setAppInstalled] = useState(false),
     [installWelcomeOpen, setInstallWelcomeOpen] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
+  const paymentRequestKeyRef = useRef<string | null>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
   const loadingVoiceIds = useRef(new Set<string>());
@@ -397,9 +398,12 @@ export default function Workspace() {
       setPaymentSubmitting(true);
       const token = await cloudToken();
       const form = new FormData();
+      const idempotencyKey = paymentRequestKeyRef.current || crypto.randomUUID();
+      paymentRequestKeyRef.current = idempotencyKey;
       form.append("plan", paymentPlan?.name || "");
       form.append("price", paymentPlan?.price || "");
       form.append("transactionRef", paymentRef.trim());
+      form.append("idempotencyKey", idempotencyKey);
       if (paymentProof) form.append("proof", paymentProof);
       const response = await fetch("/api/payment-request", { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:form });
       const result = await response.json().catch(()=>({}));
@@ -408,6 +412,7 @@ export default function Workspace() {
       setPaymentPlan(null);
       setPaymentRef("");
       setPaymentProof(null);
+      paymentRequestKeyRef.current = null;
     } catch (error) {
       setToast(error instanceof Error ? error.message : "Could not submit payment.");
     } finally {
@@ -3796,7 +3801,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <li>Receipts & customer history</li>
                   </ul>
                   <div className="plan-voice-value"><small>{plan.voiceCopy}</small></div>
-                  <button type="button" className={plan.name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name:plan.name,price:plan.price});setPaymentRef("");setPaymentProof(null);}}>Choose {plan.name}</button>
+                  <button type="button" className={plan.name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name:plan.name,price:plan.price});setPaymentRef("");setPaymentProof(null);paymentRequestKeyRef.current=null;}}>Choose {plan.name}</button>
                 </article>)}
               </div>
               <section className="subscription-help">
