@@ -42,7 +42,7 @@ import {
   type Snapshot,
 } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
-type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Customers" | "Subscription" | "Admin" | "Backup" | "Settings";
+type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Reports" | "Customers" | "Subscription" | "Admin" | "Backup" | "Settings";
 type ChatTurn = {
   id: string;
   role: "me" | "assistant";
@@ -217,6 +217,10 @@ export default function Workspace() {
     [voiceBusy, setVoiceBusy] = useState(false),
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
+    [reportQuery, setReportQuery] = useState(""),
+    [reportFrom, setReportFrom] = useState(""),
+    [reportTo, setReportTo] = useState(""),
+    [reportSort, setReportSort] = useState<"newest"|"oldest"|"amount-high"|"amount-low">("newest"),
     [toast, setToast] = useState(""),
     [paymentPlan, setPaymentPlan] = useState<{name:string;price:string}|null>(null),
     [paymentRef, setPaymentRef] = useState(""),
@@ -951,6 +955,7 @@ export default function Workspace() {
   const nav: [Tab, string][] = [
     ["Today", "home"],
     ["Hisaab", "list"],
+    ["Reports", "plan"],
     ["Reminders", "bell"],
   ];
   const trustedClockRef = useRef<{ serverEpochMs: number; performanceMs: number } | null>(null);
@@ -3777,6 +3782,31 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
           )}
+          {tab === "Reports" && (() => {
+            const matches = (name: string, amount: number, date: string) =>
+              (!reportQuery.trim() || name.toLowerCase().includes(reportQuery.trim().toLowerCase()) || String(amount).includes(reportQuery.trim())) &&
+              (!reportFrom || date >= reportFrom) && (!reportTo || date <= reportTo);
+            const rows = [
+              ...jobs.map(j => ({ id: "job:"+j.id, date: (j.createdAt || j.date || "").slice(0,10), customer: j.customer, detail: j.work, type: "Sale" as const, amount: j.total })),
+              ...payments.map(p => ({ id: "payment:"+p.id, date: p.date, customer: p.customer, detail: p.note || "Payment received", type: "Paid" as const, amount: p.amount }))
+            ].filter(r => matches(r.customer+" "+r.detail, r.amount, r.date))
+             .sort((a,b) => reportSort==="amount-high" ? b.amount-a.amount : reportSort==="amount-low" ? a.amount-b.amount : reportSort==="oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+            const sales = rows.filter(r=>r.type==="Sale").reduce((sum,r)=>sum+r.amount,0);
+            const received = rows.filter(r=>r.type==="Paid").reduce((sum,r)=>sum+r.amount,0);
+            return <section className="reports-page">
+              <div className="page-heading"><div><span className="eyebrow">BUSINESS OVERVIEW</span><h1>Reports</h1><p>Search and review your currently saved sales and payments.</p></div></div>
+              <div className="reports-filters">
+                <label>Search by customer or amount<input aria-label="Search reports" placeholder="Name, work or amount" value={reportQuery} onChange={e=>setReportQuery(e.target.value)}/></label>
+                <label>From<input aria-label="Report start date" type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
+                <label>To<input aria-label="Report end date" type="date" min={reportFrom || undefined} value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
+                <label>Sort<select aria-label="Sort report" value={reportSort} onChange={e=>setReportSort(e.target.value as typeof reportSort)}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="amount-high">Highest amount</option><option value="amount-low">Lowest amount</option></select></label>
+              </div>
+              <div className="reports-summary"><div><small>Sales in view</small><strong>{money(sales)}</strong></div><div><small>Payments in view</small><strong>{money(received)}</strong></div><div><small>Entries in view</small><strong>{rows.length}</strong></div></div>
+              <div className="reports-list-head"><h2>Transactions</h2><span>{rows.length} records</span></div>
+              <div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Date</th><th>Customer / details</th><th>Type</th><th>Amount</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td>{r.date || "—"}</td><td><strong>{r.customer}</strong><small>{r.detail}</small></td><td><span className={r.type==="Paid"?"report-type paid":"report-type"}>{r.type}</span></td><td className="report-amount">{money(r.amount)}</td></tr>)}</tbody></table>{rows.length===0 && <p className="reports-empty">No matching transactions. Try changing the filters.</p>}</div>
+              <p className="reports-disclaimer">This preview uses currently saved Hisaab entries and payment records. It is not yet the permanent, deletion-proof financial ledger report. Sales are filtered by entry creation date; payments by payment date. Totals represent separate sales and payment flows.</p>
+            </section>;
+          })()}
           {tab === "Subscription" && (
             <>
               <div className="page-heading subscription-heading">
