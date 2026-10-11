@@ -9343,3 +9343,26 @@ footer .footer-separator{
 }
 
 .backup-protected-line{padding:9px 11px;border-radius:11px;background:color-mix(in srgb,var(--accent) 8%,var(--surface));color:var(--muted);font-size:10px;font-weight:700}
+
+
+/* Compact, expandable Hisaab history (presentation only). */
+.compact-entry-list{display:grid;gap:8px;margin-top:10px}
+.compact-entry{border:1px solid var(--line);border-radius:13px;background:var(--surface);overflow:hidden}
+.compact-entry-summary{display:grid;grid-template-columns:28px minmax(0,1fr) auto 16px;align-items:center;gap:11px;padding:12px 13px;cursor:pointer;list-style:none;color:var(--text)}
+.compact-entry-summary::-webkit-details-marker{display:none}
+.compact-entry-summary:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+.compact-entry-number{display:grid;place-items:center;width:27px;height:27px;border-radius:9px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));font-size:12px;font-weight:700}
+.compact-entry-main{display:grid;gap:3px;min-width:0}
+.compact-entry-main strong{font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.compact-entry-main small,.compact-entry-balance small{color:var(--muted);font-size:11px}
+.compact-entry-balance{display:grid;gap:2px;text-align:right;white-space:nowrap}
+.compact-entry-balance strong{font-size:13px;font-variant-numeric:tabular-nums}
+.compact-entry-chevron{color:var(--muted);font-size:19px;transition:transform .15s}
+.compact-entry[open] .compact-entry-chevron{transform:rotate(180deg)}
+.compact-entry-details{padding:12px 13px 14px;border-top:1px solid var(--line)}
+.compact-entry-details dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 13px}
+.compact-entry-details dl>div{display:grid;gap:3px}
+.compact-entry-details dt{font-size:11px;color:var(--muted)}
+.compact-entry-details dd{margin:0;font-size:13px;font-weight:650;color:var(--text);overflow-wrap:anywhere}
+.compact-entry-details .saved-card-actions{margin-top:12px}
+@media(max-width:600px){.compact-entry-summary{gap:8px;padding:11px 10px;grid-template-columns:24px minmax(0,1fr) auto 12px}.compact-entry-number{width:24px;height:24px}.compact-entry-main strong,.compact-entry-balance strong{font-size:12px}.compact-entry-main small{font-size:10px}.compact-entry-details{padding:11px}}
