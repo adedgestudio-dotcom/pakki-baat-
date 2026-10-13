@@ -3011,13 +3011,13 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <button
                   type="button"
                   className="avatar small top-account-avatar"
-                  aria-label="Account menu"
+                  aria-label="More options"
+                  aria-haspopup="menu"
                   aria-expanded={accountMenuOpen}
-                  title={userEmail || "Account"}
-                  onMouseEnter={()=>setAccountMenuOpen(true)}
+                  title="More options"
                   onClick={()=>setAccountMenuOpen(v=>!v)}
                 >
-                  {displayName.charAt(0).toUpperCase()}
+                  <span aria-hidden="true" style={{fontSize:23,fontWeight:800,lineHeight:1,letterSpacing:1}}>⋮</span>
                 </button>
                 {accountMenuOpen && (
                   <div className="top-account-popover">
@@ -3025,6 +3025,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       <span className="avatar">{displayName.charAt(0).toUpperCase()}</span>
                       <span><strong>{displayName}</strong><small>{userEmail}</small><em className={"top-account-plan "+(hasActiveSubscription?"active":"inactive")}>{hasActiveSubscription && subscriptionPlan ? (subscriptionPlan==="trial"?"Free trial":subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)) : (subscriptionPlan&&subscriptionExpired?"Plan expired":"No active plan")}</em></span>
                     </div>
+                    <div className="top-account-links" role="menu" aria-label="Workspace options">
+                      {([["Reports","Reports"],["Settings","Settings"],["Backup","Backup & Restore"],["Subscription","Subscription"]] as const).map(([destination,label])=>(
+                        <button type="button" role="menuitem" key={destination} onClick={()=>{setAccountMenuOpen(false);go(destination);}}>{label}</button>
+                      ))}
+                    </div>
+                    <div className="top-account-divider" />
                     <button type="button" onClick={()=>{setAccountMenuOpen(false);void handleSignOut();}}>
                       <Icon name="arrow" size={17}/> Sign out
                     </button>
@@ -3989,14 +3995,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </button>
           </span>
         ))}
-        <button
-          aria-label="Settings"
-          className={tab === "Settings" ? "active mobile-nav-item" : "mobile-nav-item"}
-          onClick={() => go("Settings")}
-        >
-          <span className="mobile-nav-icon-wrap"><Icon name="settings" size={23} /></span>
-          <span className="mobile-nav-label">Settings</span>
-        </button>
+
       </nav>
       {ringingReminder && (
         <div className="modal-backdrop reminder-alarm-backdrop" onClick={()=>setRingingReminder(null)}>
