@@ -9418,3 +9418,13 @@ footer .footer-separator{
 @media (max-width: 390px) {
   .today-focus-item { grid-template-columns: auto minmax(0,1fr) auto; }
 }
+
+/* Modern three-dot workspace actions: compact, touch-friendly, theme-aware. */
+.top-account-avatar{display:inline-flex;align-items:center;justify-content:center;min-width:40px;min-height:40px;border-radius:13px!important;background:var(--panel,#fff);border:1px solid var(--line,#e5e7e2)!important;color:var(--text,inherit);box-shadow:0 2px 8px rgba(0,0,0,.04);transition:background .15s ease,transform .15s ease}
+.top-account-avatar:hover{background:var(--hover,rgba(127,127,127,.09));transform:translateY(-1px)}
+.top-account-avatar:focus-visible{outline:2px solid var(--accent,#7c3aed);outline-offset:3px}
+.top-account-links{display:grid;gap:3px;padding:4px 0 8px}
+.top-account-links button{width:100%;min-height:42px;text-align:left;padding:10px 12px;border-radius:10px;font-size:13px}
+.top-account-links button:hover{background:var(--hover,rgba(127,127,127,.09))}
+.top-account-divider{height:1px;background:var(--line,#e5e7e2);margin:4px 2px 8px}
+@media(max-width:800px){.top-account-popover{width:min(270px,calc(100vw - 24px));max-height:min(70vh,520px);overflow-y:auto}.top-account-avatar{min-width:42px;min-height:42px}}
