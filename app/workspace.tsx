@@ -3081,50 +3081,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   {subscriptionPlan === "trial" && trialDaysLeft !== null && <small>{trialDaysLeft} days left</small>}
                 </button>
               )}
-              <section className="hero">
-                <div className="hero-copy">
-                  <span className="pill">YOUR BUSINESS, A LITTLE LIGHTER</span>
-                  <h2>
-                    Every little detail.
-                    <br />
-                    Taken care of.
-                  </h2>
-                  <p>
-                    A customer message, a voice note, a promise.
-                    <br />
-                    Let’s turn it into your next clear step.
-                  </p>
-                  <button
-                    className="dark-button hero-cta"
-                    onClick={() => go("Hisaab")}
-                  >
-                    Tell me what’s new <Icon name="arrow" size={18} />
-                  </button>
-                </div>
-                <div className="hero-art hero-app-preview" aria-hidden="true">
-                  <div className="hero-preview-glow" />
-                  <div className="hero-preview-main">
-                    <div className="hero-preview-top">
-                      <span className="hero-preview-avatar">A</span>
-                      <span><strong>Asha</strong><small>Cake order</small></span>
-                      <Icon name="check" size={15} />
-                    </div>
-                    <div className="hero-preview-money">
-                      <small>Balance</small>
-                      <strong>₹2,000</strong>
-                      <span>baki</span>
-                    </div>
-                  </div>
-                  <div className="hero-preview-chip reminder">
-                    <span className="hero-preview-chip-icon"><Icon name="bell" size={15} /></span>
-                    <span><small>Reminder</small><strong>Tomorrow · 9:00</strong></span>
-                  </div>
-                  <div className="hero-preview-chip whatsapp">
-                    <span className="hero-preview-chip-icon"><Icon name="chat" size={15} /></span>
-                    <span><small>WhatsApp</small><strong>Reply ready</strong></span>
-                  </div>
-                </div>
-              </section>
               <section className="stats">
                 <button
                   onClick={() => {
@@ -3199,6 +3155,48 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </div>
                 </section>
               )}
+              <section className="hero">
+                <div className="hero-copy">
+                  <span className="pill">QUICK ENTRY</span>
+                  <h2>
+                    Add a new entry.
+                    <br />
+                    Keep things moving.
+                  </h2>
+                  <p>
+                    Record customer work, payments and follow-ups in one place.
+                  </p>
+                  <button
+                    className="dark-button hero-cta"
+                    onClick={() => go("Hisaab")}
+                  >
+                    Open Hisaab <Icon name="arrow" size={18} />
+                  </button>
+                </div>
+                <div className="hero-art hero-app-preview" aria-hidden="true">
+                  <div className="hero-preview-glow" />
+                  <div className="hero-preview-main">
+                    <div className="hero-preview-top">
+                      <span className="hero-preview-avatar">A</span>
+                      <span><strong>Asha</strong><small>Cake order</small></span>
+                      <Icon name="check" size={15} />
+                    </div>
+                    <div className="hero-preview-money">
+                      <small>Balance</small>
+                      <strong>₹2,000</strong>
+                      <span>baki</span>
+                    </div>
+                  </div>
+                  <div className="hero-preview-chip reminder">
+                    <span className="hero-preview-chip-icon"><Icon name="bell" size={15} /></span>
+                    <span><small>Reminder</small><strong>Tomorrow · 9:00</strong></span>
+                  </div>
+                  <div className="hero-preview-chip whatsapp">
+                    <span className="hero-preview-chip-icon"><Icon name="chat" size={15} /></span>
+                    <span><small>WhatsApp</small><strong>Reply ready</strong></span>
+                  </div>
+                </div>
+              </section>
               <div className="lower-grid">
                 <section className="panel">
                   <div className="section-heading">
