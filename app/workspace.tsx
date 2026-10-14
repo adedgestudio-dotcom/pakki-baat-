@@ -3073,11 +3073,11 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">A LITTLE CLARITY FOR YOUR DAY</div>
+                  <div className="eyebrow">YOUR BUSINESS TODAY</div>
                   <h1>
                     Hello, {displayName} <span className="sun">☀</span>
                   </h1>
-                  <p>Let’s make room for the work you love.</p>
+                  <p>Here’s what needs your attention.</p>
                 </div>
               </div>
               {hasActiveSubscription && subscriptionPlan && (
@@ -3098,7 +3098,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <div>
                     <span>Payments to collect</span>
                     <strong>{money(balance)}</strong>
-                    <small>A gentle nudge goes a long way</small>
+                    <small>Outstanding customer balances</small>
                   </div>
                   <Icon name="arrow" size={18} />
                 </button>
@@ -3116,7 +3116,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <strong>
                       {due.length} <em>commitments</em>
                     </strong>
-                    <small>Keep your promises on time</small>
+                    <small>Due commitments</small>
                   </div>
                   <Icon name="arrow" size={18} />
                 </button>
@@ -3135,7 +3135,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       {open.filter((j) => j.status === "Waiting").length}{" "}
                       <em>entries</em>
                     </strong>
-                    <small>Things that still need action</small>
+                    <small>Waiting for action</small>
                   </div>
                   <Icon name="arrow" size={18} />
                 </button>
@@ -3161,46 +3161,13 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </div>
                 </section>
               )}
-              <section className="hero">
-                <div className="hero-copy">
-                  <span className="pill">QUICK ENTRY</span>
-                  <h2>
-                    Add a new entry.
-                    <br />
-                    Keep things moving.
-                  </h2>
-                  <p>
-                    Record customer work, payments and follow-ups in one place.
-                  </p>
-                  <button
-                    className="dark-button hero-cta"
-                    onClick={() => go("Hisaab")}
-                  >
-                    Open Hisaab <Icon name="arrow" size={18} />
-                  </button>
-                </div>
-                <div className="hero-art hero-app-preview" aria-hidden="true">
-                  <div className="hero-preview-glow" />
-                  <div className="hero-preview-main">
-                    <div className="hero-preview-top">
-                      <span className="hero-preview-avatar">A</span>
-                      <span><strong>Asha</strong><small>Cake order</small></span>
-                      <Icon name="check" size={15} />
-                    </div>
-                    <div className="hero-preview-money">
-                      <small>Balance</small>
-                      <strong>₹2,000</strong>
-                      <span>baki</span>
-                    </div>
-                  </div>
-                  <div className="hero-preview-chip reminder">
-                    <span className="hero-preview-chip-icon"><Icon name="bell" size={15} /></span>
-                    <span><small>Reminder</small><strong>Tomorrow · 9:00</strong></span>
-                  </div>
-                  <div className="hero-preview-chip whatsapp">
-                    <span className="hero-preview-chip-icon"><Icon name="chat" size={15} /></span>
-                    <span><small>WhatsApp</small><strong>Reply ready</strong></span>
-                  </div>
+              <section className="today-quick-actions" aria-label="Quick actions">
+                <div className="section-heading"><h2>Quick actions</h2></div>
+                <div className="today-quick-actions-grid">
+                  <button type="button" onClick={openNewEntry}><Icon name="plus" size={20}/> New entry</button>
+                  <button type="button" onClick={()=>go("Hisaab")}><Icon name="people" size={20}/> Customers & payments</button>
+                  <button type="button" onClick={openReminders}><Icon name="bell" size={20}/> Reminders</button>
+                  <button type="button" onClick={()=>go("Reports")}><Icon name="list" size={20}/> Reports</button>
                 </div>
               </section>
               <div className="lower-grid">
@@ -3238,26 +3205,15 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </div>
                   )}
                 </section>
-                <section className="tip-panel">
-                  <span className="eyebrow">YOUR POCKET ASSISTANT</span>
-                  <h2>
-                    “Wait, what did
-                    <br />
-                    she ask for?”
-                  </h2>
-                  <p>
-                    Sound familiar? Paste a customer’s message and keep the
-                    work, amount and date in one place.
-                  </p>
-                  <button
-                    className="outline"
-                    onClick={() => go("Hisaab")}
-                  >
-                    Let’s try it <Icon name="arrow" size={16} />
-                  </button>
-                  <span className="tiny">
-                    Made for your everyday kind of busy.
-                  </span>
+                <section className="panel today-reminder-summary">
+                  <div className="section-heading"><h2>Reminders</h2><button className="text-button" onClick={openReminders}>View all <Icon name="arrow" size={15}/></button></div>
+                  {reminders.filter(r=>!r.done).length ? reminders.filter(r=>!r.done).slice(0,4).map(r=>(
+                    <button type="button" className="today-focus-item" key={r.id} onClick={openReminders}>
+                      <span className="today-focus-icon"><Icon name="bell" size={17}/></span>
+                      <span><strong>{r.customer || "Reminder"}</strong><small>{r.text}</small></span>
+                      <b>{r.date}</b>
+                    </button>
+                  )) : <p className="today-empty-reminders">No upcoming reminders. You're all caught up.</p>}
                 </section>
               </div>
               <footer>
