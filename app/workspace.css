@@ -9439,3 +9439,16 @@ footer .footer-separator{
 .top-account-links button:hover,.top-account-links button:focus-visible{background:var(--surface,#f3f4f6);outline:none}
 .top-account-divider{height:1px;background:var(--line,#e5e7e2);margin:6px 0 2px}
 .top-account-popover>button{border-top:0;margin-top:0;padding:12px;color:#b44747;font-size:13px}
+
+/* Productive Today dashboard: compact actions and reminders */
+.today-quick-actions{margin:16px 0 20px}
+.today-quick-actions .section-heading{margin-bottom:12px}
+.today-quick-actions-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.today-quick-actions-grid button{display:flex;align-items:center;justify-content:center;gap:9px;min-height:58px;padding:12px;border:1px solid var(--line,#e5e7e2);border-radius:13px;background:var(--panel,#fff);color:inherit;font:inherit;font-size:13px;font-weight:650;cursor:pointer;text-align:center;transition:background .15s,transform .15s}
+.today-quick-actions-grid button:hover{background:var(--hover,rgba(127,127,127,.09));transform:translateY(-1px)}
+.today-quick-actions-grid button:focus-visible{outline:2px solid var(--accent,#7c3aed);outline-offset:2px}
+.today-reminder-summary{min-width:0}
+.today-reminder-summary .today-focus-item{width:100%;text-align:left}
+.today-empty-reminders{padding:16px 4px;color:var(--muted,#6b7280);font-size:14px}
+@media(max-width:900px){.today-quick-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.today-quick-actions{margin:12px 0 16px}.today-quick-actions-grid{gap:8px}.today-quick-actions-grid button{min-height:56px;justify-content:flex-start;padding:10px;font-size:12px}.today-quick-actions-grid button svg{flex-shrink:0}}
