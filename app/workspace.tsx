@@ -15,12 +15,13 @@ import {
   loadVoiceUsage,
   loadServerTime,
   loadCloudState,
+  uploadRevisionedWorkspaceJournal,
   cloudSnapshotsEqual,
   blockCloudSaves,
   clearLedgerDirty,
   ledgerModeForAccount,
+  workspaceRevisionForAccount,
   markLedgerDirty,
-  reconcileLedgerHydration,
   readLedgerDirty,
   isRetryableCloudError,
   loadCloud,
@@ -32,6 +33,14 @@ import {
   signOut,
   watchSession,
 } from "@/lib/cloud";
+import { reconcileWorkspaceStartup } from "@/lib/workspace-startup";
+import { acknowledgePendingWorkspaceJournal, readPendingWorkspaceJournal } from "@/lib/workspace-journal";
+import { commitWorkspaceTransaction } from "@/lib/workspace-transaction";
+import { decideWorkspaceMutationGate } from "@/lib/workspace-mutation-gate";
+import { planWorkspaceMutation, type WorkspaceMutationOperation } from "@/lib/workspace-mutation-plan";
+import { decideWorkspaceSource } from "@/lib/workspace-source-selection-policy";
+import { GUARDED_REDUCER_STAGING_FLAG_DEFAULT } from "@/lib/workspace-guarded-cutover";
+import { WorkspaceGuardedRuntime } from "@/lib/workspace-guarded-runtime";
 import {
   isSnapshot,
   calendarFile,
@@ -291,6 +300,19 @@ export default function Workspace() {
     [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null),
     [appInstalled, setAppInstalled] = useState(false),
     [installWelcomeOpen, setInstallWelcomeOpen] = useState(false);
+  // Deliberately inert until all audited user writes are migrated. The legacy
+  // fields, hydration, and generic autosave remain the sole live path.
+  const dormantWorkspaceSource = decideWorkspaceSource({
+    signedIn: loggedIn,
+    ownerId: accountId,
+    requestedGuarded: GUARDED_REDUCER_STAGING_FLAG_DEFAULT,
+    environment: "staging",
+    migratedUserMutationCount: 0,
+    auditedUserMutationCount: 45,
+    remainingDirectUserMutationCount: 45,
+    specialWorkflowsReady: false,
+  });
+  void dormantWorkspaceSource;
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const paymentRequestKeyRef = useRef<string | null>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
@@ -300,6 +322,12 @@ export default function Workspace() {
   const cloudHydratedRef = useRef(false);
   const workspaceUserIdRef = useRef<string | null>(null);
   const autosavePausedRef = useRef(false);
+  // Set before restoring recovery data so the autosave effect cannot mark dirty,
+  // replace local storage, or start a generic cloud write for that snapshot.
+  const recoveryWriteBlockedRef = useRef(false);
+  const workspaceSnapshotRef = useRef<Snapshot>({ jobs: [], owner: "", business: "My small business", reminders: [], payments: [], notes: [], customerPhones: {} });
+  const latestJournalOperationRef = useRef<{ ownerId: string; operationId: string } | null>(null);
+  const recoveryConflictRef = useRef(false);
   const restoreTargetRef = useRef<Snapshot | null>(null);
   const savedPendingRef = useRef<Job | null>(null);
   const savedDraftRef = useRef<Job | null>(null);
@@ -313,6 +341,31 @@ export default function Workspace() {
   const customerChatOpenRef = useRef(false);
   const messageRef = useRef("");
   const entryModeRef = useRef<"quick"|"form">("quick");
+  const guardedRuntimeRef = useRef<WorkspaceGuardedRuntime | null>(null);
+
+  // This branch is unreachable while the dormant seam remains at 0/45/45.
+  // It deliberately owns no rendering, hydration, mutation, or persistence.
+  useEffect(() => {
+    if (!dormantWorkspaceSource.guardedReachable || !dormantWorkspaceSource.ownerId) return;
+    const runtime = new WorkspaceGuardedRuntime({
+      activeOwnerId: async () => (await currentSession())?.user.id || null,
+      isOnline: () => navigator.onLine,
+      readCurrentJournal: (ownerId) => {
+        try { return readPendingWorkspaceJournal(ownerId); } catch { return null; }
+      },
+      acknowledgeExactLocalJournal: acknowledgePendingWorkspaceJournal,
+      transport: uploadRevisionedWorkspaceJournal,
+      sourceSelection: () => dormantWorkspaceSource,
+      schedule: (task) => { queueMicrotask(() => { void task(); }); },
+    });
+    guardedRuntimeRef.current = runtime;
+    runtime.onOwnerChanged(dormantWorkspaceSource.ownerId);
+    return () => {
+      runtime.onOwnerChanged(null);
+      runtime.dispose();
+      if (guardedRuntimeRef.current === runtime) guardedRuntimeRef.current = null;
+    };
+  }, [dormantWorkspaceSource.guardedReachable, dormantWorkspaceSource.ownerId]);
 
   useEffect(() => { pendingJobRef.current = pendingJob; }, [pendingJob]);
   useEffect(() => { selectedCustomerRef.current = selectedCustomer; }, [selectedCustomer]);
@@ -527,6 +580,9 @@ export default function Workspace() {
       cloudHydratedRef.current = false;
       workspaceUserIdRef.current = null;
       autosavePausedRef.current = false;
+      recoveryWriteBlockedRef.current = false;
+      latestJournalOperationRef.current = null;
+      recoveryConflictRef.current = false;
       restoreTargetRef.current = null;
       setReady(false);
       setLoggedIn(Boolean(session));
@@ -637,21 +693,46 @@ export default function Workspace() {
       try {
         const cloud = await loadCloudState();
         if (cancelled || sequence !== sessionSequence || activeUserIdRef.current !== session.user.id) return;
-        const cloudSnapshot = cloud.snapshot;
         const localSnapshot = readLocalWorkspace(session.user.id);
-        if (cloud.ledgerEnabled && (!isSnapshot(cloudSnapshot) || cloud.revision === null)) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
-        const decision = cloud.ledgerEnabled
-          ? reconcileLedgerHydration(cloudSnapshot as Snapshot, cloud.revision as number, localSnapshot, readLedgerDirty(session.user.id))
-          : null;
-        conflict = decision?.conflict ?? false;
-        const snapshot = decision?.snapshot ?? (cloudSnapshot && isSnapshot(cloudSnapshot) ? cloudSnapshot : localSnapshot);
-        if (decision?.markUnknown && localSnapshot) markLedgerDirty(session.user.id, localSnapshot, 0);
-        if (decision?.clearDirty) clearLedgerDirty(session.user.id);
+        const decision = reconcileWorkspaceStartup({
+          ownerId: session.user.id,
+          localSnapshot,
+          ledgerDirty: readLedgerDirty(session.user.id),
+          cloud: {
+            available: true,
+            ownerId: cloud.ownerId,
+            snapshot: isSnapshot(cloud.snapshot) ? cloud.snapshot : null,
+            revision: cloud.revision,
+            ledgerEnabled: cloud.ledgerEnabled,
+          },
+        });
+        // A legacy ledger-dirty record has its own proven exact-payload retry
+        // path. Keep that behavior unless a journal is also present (the pure
+        // reconciler reports that disagreement as a conflict).
+        let recoveryBlocked = decision.state !== "cloud-current" && decision.state !== "ledger-pending";
+        if (decision.state === "ledger-pending" && localSnapshot && isSnapshot(cloud.snapshot)
+          && cloudSnapshotsEqual(readLedgerDirty(session.user.id)?.snapshot, cloud.snapshot)) {
+          clearLedgerDirty(session.user.id);
+        }
+        if (decision.state === "journal-acknowledged" && decision.acknowledgmentCandidate && decision.displaySnapshot) {
+          try {
+            if ((await currentSession())?.user.id !== session.user.id) throw new Error("ACCOUNT_CHANGED");
+            acknowledgePendingWorkspaceJournal(session.user.id, decision.acknowledgmentCandidate, decision.displaySnapshot);
+            recoveryBlocked = false;
+          } catch {
+            recoveryBlocked = true;
+          }
+        }
+        conflict = decision.state === "recovery-conflict";
+        recoveryConflictRef.current = conflict;
+        recoveryWriteBlockedRef.current = recoveryBlocked;
+        const snapshot = decision.displaySnapshot;
         if (conflict) {
           blockCloudSaves(session.user.id);
-          cloudHydratedRef.current = false;
+        }
+        if (recoveryBlocked) {
           setSyncPending(true);
-          setToast("Cloud changed since your local Hisaab edits. Your local copy is preserved; automatic sync is paused to prevent overwriting newer data.");
+          setToast(`Workspace recovery needed: ${decision.reason} Automatic sync is paused and local recovery data is preserved.`);
         }
         workspaceUserIdRef.current = session.user.id;
         if (snapshot) {
@@ -675,16 +756,23 @@ export default function Workspace() {
         if (!cancelled && sequence === sessionSequence && activeUserIdRef.current === session.user.id) {
           cloudHydratedRef.current = false;
           const localSnapshot = readLocalWorkspace(session.user.id);
-          if (localSnapshot) {
-            workspaceUserIdRef.current = session.user.id;
-            restore(localSnapshot);
-          } else {
-            setToast("Could not load your cloud workspace.");
-          }
+          const decision = reconcileWorkspaceStartup({
+            ownerId: session.user.id,
+            localSnapshot,
+            ledgerDirty: readLedgerDirty(session.user.id),
+            cloud: { available: false, ownerId: null, snapshot: null, revision: null, ledgerEnabled: false },
+          });
+          recoveryWriteBlockedRef.current = true;
+          recoveryConflictRef.current = false;
+          workspaceUserIdRef.current = session.user.id;
+          if (decision.displaySnapshot) restore(decision.displaySnapshot);
+          setSyncPending(true);
+          setToast(`Cloud workspace is unavailable. ${decision.reason} Automatic sync is paused.`);
+          loaded = Boolean(decision.displaySnapshot);
         }
       } finally {
         if (!cancelled && sequence === sessionSequence && activeUserIdRef.current === session.user.id) {
-          cloudHydratedRef.current = loaded && !conflict;
+          cloudHydratedRef.current = loaded && !conflict && !recoveryWriteBlockedRef.current;
           setReady(true);
         }
       }
@@ -771,12 +859,16 @@ export default function Workspace() {
       window.removeEventListener("focus", onFocus);
     };
   }, []);
+  useEffect(() => {
+    workspaceSnapshotRef.current = { jobs, owner, business, reminders, payments, notes, customerPhones };
+  }, [jobs, owner, business, reminders, payments, notes, customerPhones]);
 
   useEffect(() => {
     if (!ready) return;
     const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     if (workspaceUserIdRef.current !== storageUserId) return;
+    if (recoveryWriteBlockedRef.current) return;
     // Signed-in expired/inactive accounts are read-only. Do not persist accidental
     // client-side mutations locally when the backend would reject the cloud save.
     if (loggedIn && !hasActiveSubscription) return;
@@ -2349,7 +2441,72 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     }
   }
   function currentSnapshot(): Snapshot {
-    return { jobs, owner, business, reminders, payments, notes, customerPhones };
+    return workspaceSnapshotRef.current;
+  }
+  function commitWorkspaceMutation(update: (draft: Snapshot) => Snapshot) {
+    const ownerId = activeUserIdRef.current;
+    if (!ownerId || !loggedIn || workspaceUserIdRef.current !== ownerId) {
+      setToast("Sign in to the correct account before saving.");
+      return null;
+    }
+    try {
+      const committed = commitWorkspaceTransaction({
+        ownerId,
+        current: workspaceSnapshotRef.current,
+        update,
+        baseRevision: workspaceRevisionForAccount(ownerId),
+        operationId: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        ledgerDirty: readLedgerDirty(ownerId),
+      });
+      // Must happen before React state changes: generic autosave cannot write a
+      // different payload over the durable journal created above.
+      recoveryWriteBlockedRef.current = true;
+      latestJournalOperationRef.current = { ownerId, operationId: committed.journal.operationId };
+      workspaceSnapshotRef.current = committed.snapshot;
+      return committed.snapshot;
+    } catch (error) {
+      setToast(`Customer number was not saved. ${error instanceof Error ? error.message : "This device could not safely retain the change."}`);
+      return null;
+    }
+  }
+  function applyWorkspaceMutation(operation: WorkspaceMutationOperation) {
+    const ownerId = activeUserIdRef.current;
+    if (!ownerId || !loggedIn || workspaceUserIdRef.current !== ownerId) {
+      setToast("Sign in to the correct account before saving.");
+      return null;
+    }
+    let pending;
+    try { pending = readPendingWorkspaceJournal(ownerId); }
+    catch {
+      setToast("Workspace change was not saved because this device cannot read its recovery storage.");
+      return null;
+    }
+    const gate = decideWorkspaceMutationGate({
+      activeOwnerId: ownerId,
+      operationOwnerId: ownerId,
+      storageHealthy: true,
+      cloudAvailable: cloudHydratedRef.current,
+      recoveryConflict: recoveryConflictRef.current,
+      ledgerDirtyPending: Boolean(readLedgerDirty(ownerId)),
+      journal: pending,
+      latestBoundaryOperationId: latestJournalOperationRef.current?.ownerId === ownerId ? latestJournalOperationRef.current.operationId : null,
+    });
+    if (!gate.allowed) {
+      setToast(gate.reason);
+      return null;
+    }
+    const planned = planWorkspaceMutation(workspaceSnapshotRef.current, operation);
+    if (!planned.accepted) {
+      setToast(`Workspace change was not saved. ${planned.reason}`);
+      return null;
+    }
+    const committed = commitWorkspaceMutation(() => planned.snapshot);
+    if (!committed) return null;
+    // Applies only after the durable journal commit. This reuses the approved
+    // persisted-state application path and does not start a cloud save.
+    restore(committed, { workspaceOnly: true });
+    return committed;
   }
   function rememberUndo(message: string) {
     setLastUndo({ message, snapshot: currentSnapshot() });
@@ -2420,12 +2577,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       setToast("Enter a valid WhatsApp number with country code.");
       return;
     }
-    setCustomerPhones(items => {
-      const next = { ...items };
-      if (digits) next[phoneEditorCustomer] = digits;
-      else delete next[phoneEditorCustomer];
-      return next;
-    });
+    const saved = applyWorkspaceMutation({ kind: "phone", customer: phoneEditorCustomer, phone: digits || null });
+    if (!saved) return;
     setPhoneEditorCustomer(null);
     setPhoneEditorValue("");
     setToast(digits ? "Customer WhatsApp number saved." : "Customer number removed.");
@@ -2612,7 +2765,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     ]);
     setToast("Sample commitments added. Edit or delete them freely.");
   }
-  function restore(s: Snapshot) {
+  function restore(s: Snapshot, options?: { workspaceOnly?: boolean }) {
+    workspaceSnapshotRef.current = normalizedSnapshot(s);
     setJobs(s.jobs);
     setReminders(s.reminders || []);
     setPayments(s.payments || []);
@@ -2620,6 +2774,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setCustomerPhones(s.customerPhones || {});
     setOwner(s.owner);
     setBusiness(s.business);
+    if (options?.workspaceOnly) return;
     setChatTurns([]);
     // Do not wipe an unfinished Hisaab entry when the workspace rehydrates
     // after the phone backgrounds and resumes the PWA.

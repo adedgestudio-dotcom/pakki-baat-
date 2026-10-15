@@ -7,7 +7,11 @@ const path = require("node:path");
 const ts = require("typescript");
 
 const source = fs.readFileSync(path.join(__dirname, "../lib/cloud.ts"), "utf8");
+const journalSource = fs.readFileSync(path.join(__dirname, "../lib/workspace-journal.ts"), "utf8");
 const compiled = ts.transpileModule(source, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const journalCompiled = ts.transpileModule(journalSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
@@ -15,9 +19,9 @@ function snapshot(jobs = [], payments = []) {
   return { jobs, payments, owner: "Fictional Owner", business: "Fictional Shop", reminders: [], notes: [], customerPhones: {} };
 }
 
-function harness({ mode = true, initial = snapshot(), revision = 1, storage = new Map() } = {}) {
+function harness({ mode = true, initial = snapshot(), revision = 1, storage = new Map(), owner = "fictional-a" } = {}) {
   const requests = [];
-  const state = { owner: "fictional-a", payload: initial, revision, rpc: null, switchDuringBackups: false };
+  const state = { owner, payload: initial, revision, rpc: null, switchDuringBackups: false };
   const auth = { getSession: async () => ({ data: { session: state.owner ? { user: { id: state.owner }, access_token: state.owner + "-token" } : null }, error: null }) };
   const ok = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
   const fail = (status, message, code) => ({ ok: false, status, text: async () => JSON.stringify({ message, code }) });
@@ -53,15 +57,33 @@ function harness({ mode = true, initial = snapshot(), revision = 1, storage = ne
     }
     throw new Error("Unexpected request " + endpoint);
   }
+  const localStorage = { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) };
+  const data = { isSnapshot: (value) => !!value && Array.isArray(value.jobs) && typeof value.owner === "string" };
+  const journalModule = { exports: {} };
+  vm.runInNewContext(journalCompiled, {
+    module: journalModule, exports: journalModule.exports, require: (name) => {
+      if (name === "./data") return data;
+      throw new Error("Unexpected journal import " + name);
+    }, JSON, Date, localStorage,
+  }, { filename: "workspace-journal.js" });
   const cloudModule = { exports: {} };
+  const verifiedBackup = {
+    canonicalWorkspaceSnapshotDigest: async () => "a".repeat(64),
+    verifyWorkspaceBackupConfirmation: async (_snapshot, _owner, _kind, row) => ({
+      backupId: row.backup_id, ownerId: row.owner_id, kind: row.backup_kind,
+      payloadSha256: row.payload_sha256, createdAt: row.created_at,
+    }),
+  };
   vm.runInNewContext(compiled, {
     module: cloudModule, exports: cloudModule.exports, process: { env: { NEXT_PUBLIC_SUPABASE_URL: "https://staging.invalid", NEXT_PUBLIC_SUPABASE_ANON_KEY: "fictional-anon" } },
     require: (name) => {
       if (name === "@supabase/supabase-js") return { createClient: () => ({ auth }) };
-      if (name === "./data") return { isSnapshot: (value) => !!value && Array.isArray(value.jobs) && typeof value.owner === "string" };
+      if (name === "./data") return data;
+      if (name === "./workspace-journal") return journalModule.exports;
+      if (name === "./verified-workspace-backup") return verifiedBackup;
       throw new Error("Unexpected import " + name);
     },
-    fetch, localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) },
+    fetch, localStorage,
   }, { filename: "cloud.js" });
   return { api: cloudModule.exports, requests, storage, state, ok, fail };
 }
@@ -253,4 +275,90 @@ test("backup history fetched for one account is rejected if the account switches
   h.state.switchDuringBackups = true;
   await assert.rejects(h.api.loadWorkspaceBackups("fictional-a"), /ACCOUNT_CHANGED/);
   assert.equal(h.requests.find((item) => item.endpoint.includes("workspace_backups")).token, "Bearer fictional-a-token");
+});
+
+const journalOwner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const journal = (value, operationId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc", baseRevision = 1) => ({
+  version: 1, ownerId: journalOwner, baseRevision, syncStrategy: "revisioned", operationId,
+  createdAt: "2026-10-11T12:00:00.000Z", snapshot: value,
+});
+
+test("journal-specific save acknowledges only its exact confirmed snapshot", async () => {
+  const h = harness({ owner: journalOwner });
+  await h.api.loadCloudState();
+  const value = snapshot([{ id: "journal-job", customer: "Journal", total: 20, paid: 0 }]);
+  const pending = journal(value);
+  h.storage.set(`pakki-baat-workspace-pending:${journalOwner}`, JSON.stringify(pending));
+  const result = await h.api.savePendingWorkspaceJournal(pending, journalOwner);
+  assert.equal(result.status, "acknowledged");
+  assert.equal(result.acknowledgment.ownerId, journalOwner);
+  assert.equal(result.acknowledgment.revision, 2);
+  assert.equal(h.storage.has(`pakki-baat-workspace-pending:${journalOwner}`), false);
+});
+
+test("lost ledger response retries the journal's exact payload before acknowledgment", async () => {
+  const h = harness({ owner: journalOwner });
+  await h.api.loadCloudState();
+  const value = snapshot([{ id: "lost-response", customer: "Journal", total: 30, paid: 0 }]);
+  const pending = journal(value);
+  h.storage.set(`pakki-baat-workspace-pending:${journalOwner}`, JSON.stringify(pending));
+  let lost = false;
+  h.state.rpc = async (body) => {
+    if (!lost) { lost = true; h.state.payload = body.payload; h.state.revision = 2; throw new TypeError("network response lost"); }
+    assert.equal(body.expected_revision, 1);
+    assert.deepEqual(body.payload, value);
+    return h.ok({ revision: 2, ledger_events: 0, unchanged: true });
+  };
+  assert.equal((await h.api.savePendingWorkspaceJournal(pending, journalOwner)).status, "pending");
+  assert.equal(h.storage.has(`pakki-baat-workspace-pending:${journalOwner}`), true);
+  assert.equal((await h.api.savePendingWorkspaceJournal(pending, journalOwner)).status, "acknowledged");
+  const calls = h.requests.filter((item) => item.endpoint.endsWith("save_workspace_with_ledger"));
+  assert.deepEqual(calls.map((item) => item.body.expected_revision), [1, 1]);
+  assert.equal(h.storage.has(`pakki-baat-workspace-pending:${journalOwner}`), false);
+});
+
+test("stale journal operation, account switch, and revision conflict preserve pending data", async () => {
+  const h = harness({ owner: journalOwner });
+  await h.api.loadCloudState();
+  const value = snapshot([{ id: "stale", customer: "Journal", total: 40, paid: 0 }]);
+  const pending = journal(value);
+  const newer = journal(value, "dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+  h.storage.set(`pakki-baat-workspace-pending:${journalOwner}`, JSON.stringify(pending));
+  h.state.rpc = async (body) => {
+    h.state.payload = body.payload; h.state.revision = 2;
+    h.storage.set(`pakki-baat-workspace-pending:${journalOwner}`, JSON.stringify(newer));
+    return h.ok({ revision: 2, ledger_events: 1, unchanged: false });
+  };
+  assert.equal((await h.api.savePendingWorkspaceJournal(pending, journalOwner)).status, "pending");
+  assert.equal(h.storage.get(`pakki-baat-workspace-pending:${journalOwner}`), JSON.stringify(newer));
+
+  const switched = harness({ owner: journalOwner });
+  await switched.api.loadCloudState();
+  switched.storage.set(`pakki-baat-workspace-pending:${journalOwner}`, JSON.stringify(pending));
+  switched.state.rpc = async (body) => { switched.state.payload = body.payload; switched.state.revision = 2; switched.state.owner = "fictional-b"; return switched.ok({ revision: 2 }); };
+  assert.equal((await switched.api.savePendingWorkspaceJournal(pending, journalOwner)).status, "account-changed");
+  assert.equal(switched.storage.has(`pakki-baat-workspace-pending:${journalOwner}`), true);
+
+  const conflict = harness({ owner: journalOwner, revision: 2 });
+  await conflict.api.loadCloudState();
+  conflict.storage.set(`pakki-baat-workspace-pending:${journalOwner}`, JSON.stringify(pending));
+  assert.equal((await conflict.api.savePendingWorkspaceJournal(pending, journalOwner)).status, "conflict");
+  assert.equal(conflict.requests.some((item) => item.endpoint.endsWith("save_workspace_with_ledger")), false);
+  assert.equal(conflict.storage.has(`pakki-baat-workspace-pending:${journalOwner}`), true);
+});
+
+test("manual journals never invoke the legacy save RPC", async () => {
+  const h = harness({ owner: journalOwner, mode: false });
+  const manual = { ...journal(snapshot(), "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"), baseRevision: null, syncStrategy: "manual" };
+  assert.equal((await h.api.savePendingWorkspaceJournal(manual, journalOwner)).status, "manual");
+  assert.equal(h.requests.some((item) => item.endpoint.endsWith("/rpc/save_workspace")), false);
+});
+
+test("a revisioned journal also refuses a legacy last-write-wins account", async () => {
+  const h = harness({ owner: journalOwner, mode: false });
+  const pending = journal(snapshot());
+  h.storage.set(`pakki-baat-workspace-pending:${journalOwner}`, JSON.stringify(pending));
+  assert.equal((await h.api.savePendingWorkspaceJournal(pending, journalOwner)).status, "pending");
+  assert.equal(h.requests.some((item) => item.endpoint.endsWith("/rpc/save_workspace")), false);
+  assert.equal(h.storage.has(`pakki-baat-workspace-pending:${journalOwner}`), true);
 });

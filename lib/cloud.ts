@@ -1,5 +1,7 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { isSnapshot, type Snapshot } from "./data";
+import { acknowledgePendingWorkspaceJournal, isPendingWorkspaceJournal, type PendingWorkspaceJournal } from "./workspace-journal";
+import { canonicalWorkspaceSnapshotDigest, verifyWorkspaceBackupConfirmation, type VerifiedWorkspaceBackupConfirmation } from "./verified-workspace-backup";
 
 let base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 let key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -103,8 +105,26 @@ async function request(path: string, body?: unknown, token?: string) {
 }
 
 export type CloudWorkspaceState = { ownerId: string; snapshot: unknown; revision: number | null; ledgerEnabled: boolean };
-type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<void>; uncertain: { payload: unknown; revision: number } | null; conflict: boolean };
+type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<unknown>; uncertain: { payload: unknown; revision: number } | null; conflict: boolean };
 const saveStates = new Map<string, SaveState>();
+
+/** A save result tied to the exact payload submitted by this caller. */
+export type CloudWorkspaceSaveAcknowledgment = { ownerId: string; snapshot: Snapshot; revision: number | null };
+export type JournalCloudSaveResult =
+  | { status: "acknowledged"; acknowledgment: CloudWorkspaceSaveAcknowledgment }
+  | { status: "pending"; reason: string }
+  | { status: "conflict"; reason: string }
+  | { status: "manual"; reason: string }
+  | { status: "account-changed"; reason: string };
+/**
+ * Journal-only transport result. Unlike savePendingWorkspaceJournal this does
+ * not alter local storage: a coordinator must validate and acknowledge the
+ * exact journal it submitted.
+ */
+export type JournalRevisionedTransportResult =
+  | { status: "cloud-acknowledged"; acknowledgment: CloudWorkspaceSaveAcknowledgment }
+  | { status: "offline" | "ambiguous" | "pending" | "conflict" | "manual" | "account-changed"; reason: string };
+type SaveCloudOptions = { expectedRevision?: number };
 
 function equalJson(left: unknown, right: unknown): boolean {
   if (left === right) return true;
@@ -177,6 +197,11 @@ export async function loadCloudState(): Promise<CloudWorkspaceState> {
 }
 
 export function ledgerModeForAccount(ownerId: string) { return saveStates.get(ownerId)?.ledgerEnabled === true; }
+/** The revision observed during the current authenticated workspace hydration. */
+export function workspaceRevisionForAccount(ownerId: string): number | null {
+  const state = saveStates.get(ownerId);
+  return state?.ledgerEnabled && Number.isSafeInteger(state.revision) ? state.revision : null;
+}
 export function cloudSnapshotsEqual(a: unknown, b: unknown) { return equalJson(a, b); }
 export function reconcileLedgerHydration(server: Snapshot, revision: number, local: Snapshot | null, dirty: { snapshot: Snapshot; revision: number } | null) {
   if (dirty) {
@@ -191,7 +216,7 @@ export function blockCloudSaves(ownerId: string) {
   if (state?.ledgerEnabled) state.conflict = true;
 }
 
-export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {
+export async function saveCloud(snapshot: unknown, expectedOwnerId?: string, options?: SaveCloudOptions): Promise<CloudWorkspaceSaveAcknowledgment> {
   const session = await accountSession(expectedOwnerId);
   const ownerId = session.user.id;
   if (!saveStates.has(ownerId)) await loadCloudState();
@@ -203,7 +228,9 @@ export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {
     const current = await accountSession(ownerId);
     if (!state.ledgerEnabled) {
       await request("/rest/v1/rpc/save_workspace", { payload: snapshot }, current.access_token);
-      return;
+      await accountSession(ownerId);
+      if (!isSnapshot(snapshot)) throw new Error("INVALID_WORKSPACE_SNAPSHOT");
+      return { ownerId, snapshot, revision: null };
     }
     if (!isSnapshot(snapshot) || !state.revision) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
     async function atomicSave(payload: unknown, revision: number) {
@@ -221,15 +248,87 @@ export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {
       state.revision = Number(next);
       state.uncertain = null;
     }
+    let retriedExactExpectedPayload = false;
     if (state.uncertain) {
       const pending = state.uncertain;
       await atomicSave(pending.payload, pending.revision);
+      retriedExactExpectedPayload = options?.expectedRevision === pending.revision && equalJson(pending.payload, snapshot);
     }
-    await atomicSave(snapshot, state.revision);
+    if (options?.expectedRevision !== undefined && !retriedExactExpectedPayload && state.revision !== options.expectedRevision) {
+      throw new Error("WORKSPACE_REVISION_CONFLICT: cloud revision changed before the pending journal could be saved.");
+    }
+    if (!retriedExactExpectedPayload) await atomicSave(snapshot, state.revision);
+    await accountSession(ownerId);
     clearLedgerDirty(ownerId, snapshot);
+    return { ownerId, snapshot, revision: state.revision };
   });
   state.tail = operation;
   return operation;
+}
+
+function journalFailure(error: unknown): JournalRevisionedTransportResult {
+  const message = error instanceof Error ? error.message : "Cloud save could not be confirmed.";
+  if (message.startsWith("ACCOUNT_CHANGED")) return { status: "account-changed", reason: message };
+  if (message.startsWith("WORKSPACE_REVISION_CONFLICT")) return { status: "conflict", reason: message };
+  if (typeof navigator !== "undefined" && !navigator.onLine) return { status: "offline", reason: message };
+  if (isRetryableCloudError(error)) return { status: "ambiguous", reason: message };
+  return { status: "pending", reason: message };
+}
+
+/**
+ * Narrow journal-only transport. The shared saveCloud primitive remains
+ * private to this module; guarded callers receive no generic saveCloud API.
+ * This function deliberately does not clear the local journal.
+ */
+export async function uploadRevisionedWorkspaceJournal(journal: unknown, expectedOwnerId?: string): Promise<JournalRevisionedTransportResult> {
+  if (!isPendingWorkspaceJournal(journal)) return { status: "conflict", reason: "Pending workspace journal is invalid or does not belong to this account." };
+  if (expectedOwnerId && journal.ownerId !== expectedOwnerId) return { status: "account-changed", reason: "Pending workspace journal belongs to a different account." };
+  if (journal.syncStrategy !== "revisioned" || journal.baseRevision === null) {
+    return { status: "manual", reason: "This pending workspace journal has no safe cloud revision and cannot be auto-uploaded." };
+  }
+  try {
+    const before = await accountSession(journal.ownerId);
+    if (!saveStates.has(journal.ownerId)) await loadCloudState();
+    const state = saveStates.get(journal.ownerId);
+    // A revisioned journal must never fall through to the old last-write-wins
+    // RPC if ledger mode is unavailable or disabled.
+    if (!state?.ledgerEnabled || state.revision === null) {
+      return { status: "pending", reason: "Cloud ledger revision is unavailable; the pending journal was not uploaded." };
+    }
+    const acknowledgment = await saveCloud(journal.snapshot, before.user.id, { expectedRevision: journal.baseRevision });
+    const after = await accountSession(journal.ownerId);
+    if (after.user.id !== acknowledgment.ownerId || acknowledgment.ownerId !== journal.ownerId
+      || !equalJson(acknowledgment.snapshot, journal.snapshot) || acknowledgment.revision === null) {
+      return { status: "pending", reason: "Cloud save response could not be matched to the pending journal." };
+    }
+    return { status: "cloud-acknowledged", acknowledgment };
+  } catch (error) {
+    return journalFailure(error);
+  }
+}
+
+/**
+ * Backwards-compatible journal helper. New guarded code should use the
+ * coordinator with uploadRevisionedWorkspaceJournal so local acknowledgment
+ * and reducer handoff remain explicit.
+ */
+export async function savePendingWorkspaceJournal(journal: unknown, expectedOwnerId?: string): Promise<JournalCloudSaveResult> {
+  const uploaded = await uploadRevisionedWorkspaceJournal(journal, expectedOwnerId);
+  if (uploaded.status !== "cloud-acknowledged") {
+    if (uploaded.status === "offline" || uploaded.status === "ambiguous") return { status: "pending", reason: uploaded.reason };
+    if (uploaded.status === "pending") return { status: "pending", reason: uploaded.reason };
+    if (uploaded.status === "conflict") return { status: "conflict", reason: uploaded.reason };
+    if (uploaded.status === "manual") return { status: "manual", reason: uploaded.reason };
+    return { status: "account-changed", reason: uploaded.reason };
+  }
+  const pending = journal as PendingWorkspaceJournal;
+  try {
+    acknowledgePendingWorkspaceJournal(pending.ownerId, pending, uploaded.acknowledgment.snapshot);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Pending journal acknowledgment could not be stored.";
+    return { status: "pending", reason: message };
+  }
+  return { status: "acknowledged", acknowledgment: uploaded.acknowledgment };
 }
 
 export async function loadCloud(expectedOwnerId?: string) {
@@ -252,6 +351,23 @@ export type WorkspaceBackup = {
 export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "pre_restore" = "daily", expectedOwnerId?: string) {
   const session = await accountSession(expectedOwnerId);
   await request("/rest/v1/rpc/save_workspace_backup", { payload: snapshot, kind }, session.access_token);
+}
+
+/**
+ * Isolated verified-backup path for the future guarded reducer. Legacy callers
+ * must continue using saveWorkspaceBackup until their workflows are migrated.
+ */
+export async function saveVerifiedWorkspaceBackup(snapshot: Snapshot, kind: "daily" | "pre_restore" = "pre_restore", expectedOwnerId?: string): Promise<VerifiedWorkspaceBackupConfirmation> {
+  if (!isSnapshot(snapshot)) throw new Error("INVALID_WORKSPACE_SNAPSHOT");
+  const session = await accountSession(expectedOwnerId);
+  const ownerId = session.user.id;
+  // Calculate before requesting the server write so unsupported canonical forms
+  // fail before a backup could be created but not independently verified.
+  await canonicalWorkspaceSnapshotDigest(snapshot);
+  const reply = await request("/rest/v1/rpc/save_workspace_backup_verified", { payload: snapshot, kind }, session.access_token);
+  await accountSession(ownerId);
+  const row = Array.isArray(reply) ? reply[0] : reply;
+  return verifyWorkspaceBackupConfirmation(snapshot, ownerId, kind, row);
 }
 
 export async function loadWorkspaceBackups(expectedOwnerId?: string): Promise<WorkspaceBackup[]> {
