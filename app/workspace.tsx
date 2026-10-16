@@ -41,9 +41,10 @@ import { planWorkspaceMutation, type WorkspaceMutationOperation } from "@/lib/wo
 import { decideWorkspaceSource } from "@/lib/workspace-source-selection-policy";
 import { GUARDED_REDUCER_STAGING_FLAG_DEFAULT } from "@/lib/workspace-guarded-cutover";
 import { WorkspaceGuardedRuntime } from "@/lib/workspace-guarded-runtime";
-import { WorkspaceDailyBackupCoordinator } from "@/lib/workspace-daily-backup-coordinator";
+import { WorkspaceDailyBackupCoordinator, type DailyBackupStatus } from "@/lib/workspace-daily-backup-coordinator";
 import { WorkspaceDailyBackupLifecycle } from "@/lib/workspace-daily-backup-lifecycle";
 import { scheduleDailyBackupAfterCloudSave } from "@/lib/workspace-daily-backup-post-save";
+import { type WorkspaceCloudSaveStatus } from "@/lib/workspace-backup-status";
 import {
   isSnapshot,
   calendarFile,
@@ -258,6 +259,8 @@ export default function Workspace() {
     [dark, setDark] = useState(false),
     [isOnline, setIsOnline] = useState(true),
     [syncPending, setSyncPending] = useState(false),
+    [cloudSaveStatus, setCloudSaveStatus] = useState<WorkspaceCloudSaveStatus>({ state: "idle" }),
+    [dailyBackupStatus, setDailyBackupStatus] = useState<DailyBackupStatus>({ state: "idle" }),
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
     [payments, setPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
@@ -348,13 +351,33 @@ export default function Workspace() {
   const dailyBackupCoordinatorRef = useRef<WorkspaceDailyBackupCoordinator | null>(null);
   const dailyBackupLifecycleRef = useRef<WorkspaceDailyBackupLifecycle | null>(null);
   const dailyBackupGenerationRef = useRef(0);
+  const dailyBackupUiMountedRef = useRef(true);
+  const clearBackupStatusUi = () => {
+    if (!dailyBackupUiMountedRef.current) return;
+    setCloudSaveStatus({ state: "idle" });
+    setDailyBackupStatus({ state: "idle" });
+  };
   if (!dailyBackupCoordinatorRef.current) {
     dailyBackupCoordinatorRef.current = new WorkspaceDailyBackupCoordinator({
       saveDailyBackup: (snapshot, ownerId) => saveWorkspaceBackup(snapshot, "daily", ownerId),
+      onStatus: (status) => {
+        if (!dailyBackupUiMountedRef.current) return;
+        if ((status.state === "saving" || status.state === "retrying" || status.state === "confirmed" || status.state === "failed")
+          && (status.ownerId !== activeUserIdRef.current || status.generation !== dailyBackupGenerationRef.current)) return;
+        setDailyBackupStatus(status);
+      },
     });
     dailyBackupLifecycleRef.current = new WorkspaceDailyBackupLifecycle(dailyBackupCoordinatorRef.current);
   }
   const cancelDailyBackup = () => dailyBackupLifecycleRef.current?.invalidate();
+
+  useEffect(() => {
+    dailyBackupUiMountedRef.current = true;
+    return () => {
+      dailyBackupUiMountedRef.current = false;
+      cancelDailyBackup();
+    };
+  }, []);
 
   // This branch is unreachable while the dormant seam remains at 0/45/45.
   // It deliberately owns no rendering, hydration, mutation, or persistence.
@@ -592,6 +615,7 @@ export default function Workspace() {
       if (cancelled) return;
       if (session && hydratedUserId === session.user.id) return;
       cancelDailyBackup();
+      clearBackupStatusUi();
       const sequence = ++sessionSequence;
       cloudHydratedRef.current = false;
       workspaceUserIdRef.current = null;
@@ -742,7 +766,7 @@ export default function Workspace() {
         conflict = decision.state === "recovery-conflict";
         recoveryConflictRef.current = conflict;
         recoveryWriteBlockedRef.current = recoveryBlocked;
-        if (recoveryBlocked) cancelDailyBackup();
+        if (recoveryBlocked) { cancelDailyBackup(); clearBackupStatusUi(); }
         const snapshot = decision.displaySnapshot;
         if (conflict) {
           blockCloudSaves(session.user.id);
@@ -781,6 +805,7 @@ export default function Workspace() {
           });
           recoveryWriteBlockedRef.current = true;
           cancelDailyBackup();
+          clearBackupStatusUi();
           recoveryConflictRef.current = false;
           workspaceUserIdRef.current = session.user.id;
           if (decision.displaySnapshot) restore(decision.displaySnapshot);
@@ -887,7 +912,14 @@ export default function Workspace() {
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     if (workspaceUserIdRef.current !== storageUserId) return;
     const effectGeneration = ++dailyBackupGenerationRef.current;
-    if (recoveryWriteBlockedRef.current) { cancelDailyBackup(); return; }
+    let disposed = false;
+    clearBackupStatusUi();
+    const setCurrentCloudSaveStatus = (state: Exclude<WorkspaceCloudSaveStatus["state"], "idle">) => {
+      if (disposed || !dailyBackupUiMountedRef.current || activeUserIdRef.current !== storageUserId
+        || dailyBackupGenerationRef.current !== effectGeneration) return;
+      setCloudSaveStatus({ state, ownerId: storageUserId, generation: effectGeneration } as WorkspaceCloudSaveStatus);
+    };
+    if (recoveryWriteBlockedRef.current) { cancelDailyBackup(); setCurrentCloudSaveStatus("unavailable"); return; }
     // Signed-in expired/inactive accounts are read-only. Do not persist accidental
     // client-side mutations locally when the backend would reject the cloud save.
     if (loggedIn && !hasActiveSubscription) return;
@@ -914,10 +946,10 @@ export default function Workspace() {
     if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
     if (!isOnline) {
       setSyncPending(true);
+      setCurrentCloudSaveStatus("offline");
       return;
     }
 
-    let disposed = false;
     let retryTimer: number | undefined;
     const retryAfterNetworkError = () => {
       if (!ledgerMode || disposed || retryTimer !== undefined) return;
@@ -925,11 +957,14 @@ export default function Workspace() {
         retryTimer = undefined;
         if (disposed || !navigator.onLine || activeUserIdRef.current !== storageUserId || !cloudHydratedRef.current ||
             !cloudSnapshotsEqual(readLedgerDirty(storageUserId)?.snapshot, snapshot)) return;
+        setCurrentCloudSaveStatus("pending");
         void saveCloud(snapshot, storageUserId).then(async () => {
-          if (activeUserIdRef.current !== storageUserId || autosavePausedRef.current || recoveryWriteBlockedRef.current) return;
+          if (disposed || activeUserIdRef.current !== storageUserId || autosavePausedRef.current || recoveryWriteBlockedRef.current || dailyBackupGenerationRef.current !== effectGeneration) return;
+          setCurrentCloudSaveStatus("saved");
           await scheduleDailyBackupAfterCloudSave({ lifecycle: dailyBackupLifecycleRef.current!, snapshot, ownerId: storageUserId, snapshotGeneration: effectGeneration, isDisposed: () => disposed, activeOwnerId: () => activeUserIdRef.current, isAutosavePaused: () => autosavePausedRef.current, isRecoveryBlocked: () => recoveryWriteBlockedRef.current, currentSnapshotGeneration: () => dailyBackupGenerationRef.current, currentSession });
           if (!disposed) setSyncPending(false);
         }).catch((error) => {
+          setCurrentCloudSaveStatus("failed");
           if (error instanceof Error && error.message.includes("WORKSPACE_REVISION_CONFLICT")) {
             cloudHydratedRef.current = false;
             setToast("Cloud changed on another device. Your local copy is preserved; automatic sync is paused.");
@@ -940,11 +975,14 @@ export default function Workspace() {
     };
     const timer = window.setTimeout(() => {
       if (autosavePausedRef.current) return;
+      setCurrentCloudSaveStatus("pending");
       void saveCloud(snapshot, storageUserId)
         .then(async () => {
           // Keep a separate dated recovery point. A bad current sync therefore
           // cannot erase all earlier healthy versions.
-          if (isSnapshot(snapshot) && !autosavePausedRef.current && !recoveryWriteBlockedRef.current) {
+          if (disposed || activeUserIdRef.current !== storageUserId || autosavePausedRef.current || recoveryWriteBlockedRef.current || dailyBackupGenerationRef.current !== effectGeneration) return;
+          setCurrentCloudSaveStatus("saved");
+          if (isSnapshot(snapshot)) {
             await scheduleDailyBackupAfterCloudSave({ lifecycle: dailyBackupLifecycleRef.current!, snapshot, ownerId: storageUserId, snapshotGeneration: effectGeneration, isDisposed: () => disposed, activeOwnerId: () => activeUserIdRef.current, isAutosavePaused: () => autosavePausedRef.current, isRecoveryBlocked: () => recoveryWriteBlockedRef.current, currentSnapshotGeneration: () => dailyBackupGenerationRef.current, currentSession });
           }
           if (activeUserIdRef.current !== storageUserId) return;
@@ -955,6 +993,7 @@ export default function Workspace() {
         })
         .catch((error) => {
           if (activeUserIdRef.current !== storageUserId) return;
+          setCurrentCloudSaveStatus("failed");
           const message = error instanceof Error ? error.message : "";
           if (message.includes("WORKSPACE_REVISION_CONFLICT")) {
             cloudHydratedRef.current = false;
@@ -980,7 +1019,7 @@ export default function Workspace() {
           if (isRetryableCloudError(error)) retryAfterNetworkError();
         });
     }, 500);
-    return () => { disposed = true; cancelDailyBackup(); window.clearTimeout(timer); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
+    return () => { disposed = true; cancelDailyBackup(); clearBackupStatusUi(); window.clearTimeout(timer); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
   }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn, isOnline]);
 
   useEffect(() => {
@@ -4028,7 +4067,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </div>
               <section className="panel backup-main-panel">
-                <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={(saved) => { restoreTargetRef.current = normalizedSnapshot(saved); restore(saved); }} onPauseAutosave={(paused) => { autosavePausedRef.current = paused; if (paused) cancelDailyBackup(); if (!paused) restoreTargetRef.current = null; }} ownerId={ready && loadedAccountId === accountId ? accountId : null} dark={dark} onToggleTheme={toggleTheme}/>
+                <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={(saved) => { restoreTargetRef.current = normalizedSnapshot(saved); restore(saved); }} onPauseAutosave={(paused) => { autosavePausedRef.current = paused; if (paused) { cancelDailyBackup(); clearBackupStatusUi(); } if (!paused) restoreTargetRef.current = null; }} ownerId={ready && loadedAccountId === accountId ? accountId : null} cloudSaveStatus={cloudSaveStatus} dailyBackupStatus={dailyBackupStatus} dailyBackupGeneration={dailyBackupGenerationRef.current} dark={dark} onToggleTheme={toggleTheme}/>
               </section>
               <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>

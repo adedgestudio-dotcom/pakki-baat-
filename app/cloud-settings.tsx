@@ -16,6 +16,8 @@ import {
   type WorkspaceBackup,
 } from "@/lib/cloud";
 import { isSnapshot, type Snapshot } from "@/lib/data";
+import { presentWorkspaceBackupStatus, type WorkspaceCloudSaveStatus } from "@/lib/workspace-backup-status";
+import type { DailyBackupStatus } from "@/lib/workspace-daily-backup-coordinator";
 
 function safeName(date = new Date()) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -35,7 +37,7 @@ function downloadBackup(snapshot: Snapshot, createdAt = new Date()) {
   downloadBlob(new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" }), safeName(createdAt) + ".json");
 }
 
-export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ownerId }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; onPauseAutosave: (paused: boolean) => void; ownerId: string | null; dark?: boolean; onToggleTheme?: () => void }) {
+export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ownerId, cloudSaveStatus, dailyBackupStatus, dailyBackupGeneration }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; onPauseAutosave: (paused: boolean) => void; ownerId: string | null; cloudSaveStatus: WorkspaceCloudSaveStatus; dailyBackupStatus: DailyBackupStatus; dailyBackupGeneration: number; dark?: boolean; onToggleTheme?: () => void }) {
   const [logged, setLogged] = useState(false);
   const [checking, setChecking] = useState(cloudConfigured);
   const [busy, setBusy] = useState(false);
@@ -49,6 +51,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ow
   const protectedLabel = latestHealthyAt
     ? `✓ Protected · Last backup: ${latestHealthyAt.toLocaleDateString("en-IN", { day:"numeric", month:"short" })}, ${latestHealthyAt.toLocaleTimeString("en-IN", { hour:"numeric", minute:"2-digit" })}`
     : "Backup will start after your next saved change.";
+  const statusSummary = presentWorkspaceBackupStatus({ cloud: cloudSaveStatus, recovery: dailyBackupStatus, ownerId, generation: dailyBackupGeneration });
 
   async function refreshBackups() {
     try {
@@ -139,6 +142,10 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ow
       {logged && <span className={retention ? "backup-status-pill ok" : "backup-status-pill"}>{retention ? "On" : "Setup needed"}</span>}
     </div>
     {logged && <div className="backup-protected-line">{protectedLabel}</div>}
+    {logged && <section className="backup-status-summary" aria-label="Backup status">
+      <div className={`backup-status-row ${statusSummary.cloud.tone}`}><span>Workspace save</span><strong>{statusSummary.cloud.label}</strong>{statusSummary.cloud.detail && <small>{statusSummary.cloud.detail}</small>}</div>
+      <div className={`backup-status-row ${statusSummary.recovery.tone}`}><span>Daily recovery copy</span><strong>{statusSummary.recovery.label}</strong>{statusSummary.recovery.detail && <small>{statusSummary.recovery.detail}</small>}</div>
+    </section>}
 
     {!cloudConfigured ? <div className="notice">Cloud backup is not connected yet.</div>
     : checking ? <div className="notice">Checking your backup…</div>
@@ -157,7 +164,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ow
         {backups.length ? backups.map(backup => {
           const healthy=isSnapshot(backup.payload);
           return <div className="backup-history-row" key={backup.id}>
-            <span><strong>{label(backup)}</strong><small>{healthy?"✓ Verified":"Invalid backup — restore blocked"}</small></span>
+            <span><strong>{label(backup)}</strong><small>{healthy?"Available for restore":"Invalid backup — restore blocked"}</small></span>
             <div className="backup-row-actions">
               <button type="button" className="outline" disabled={busy||!healthy} onClick={()=>void restoreVersion(backup)}>Restore</button>
               <button type="button" className="outline" disabled={!healthy} onClick={()=>healthy&&downloadBackup(backup.payload as Snapshot,new Date(backup.created_at))}>Download</button>

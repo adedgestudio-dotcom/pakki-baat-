@@ -9343,3 +9343,9 @@ footer .footer-separator{
 }
 
 .backup-protected-line{padding:9px 11px;border-radius:11px;background:color-mix(in srgb,var(--accent) 8%,var(--surface));color:var(--muted);font-size:10px;font-weight:700}
+.backup-status-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.backup-status-row{display:grid;gap:3px;padding:10px 11px;border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--muted)}
+.backup-status-row>span{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.backup-status-row>strong{color:var(--text);font-size:11px;line-height:1.35}.backup-status-row>small{font-size:10px;line-height:1.35}
+.backup-status-row.success{border-color:color-mix(in srgb,var(--accent) 34%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}.backup-status-row.warning{border-color:#d9b877;background:#fff9ec}
+[data-theme="dark"] .backup-status-row.warning{background:#3d3322;border-color:#80653d}
+@media(max-width:600px){.backup-status-summary{grid-template-columns:1fr}.backup-status-row{padding:10px 11px}}
