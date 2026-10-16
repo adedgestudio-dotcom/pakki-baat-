@@ -41,6 +41,9 @@ import { planWorkspaceMutation, type WorkspaceMutationOperation } from "@/lib/wo
 import { decideWorkspaceSource } from "@/lib/workspace-source-selection-policy";
 import { GUARDED_REDUCER_STAGING_FLAG_DEFAULT } from "@/lib/workspace-guarded-cutover";
 import { WorkspaceGuardedRuntime } from "@/lib/workspace-guarded-runtime";
+import { WorkspaceDailyBackupCoordinator } from "@/lib/workspace-daily-backup-coordinator";
+import { WorkspaceDailyBackupLifecycle } from "@/lib/workspace-daily-backup-lifecycle";
+import { scheduleDailyBackupAfterCloudSave } from "@/lib/workspace-daily-backup-post-save";
 import {
   isSnapshot,
   calendarFile,
@@ -342,6 +345,16 @@ export default function Workspace() {
   const messageRef = useRef("");
   const entryModeRef = useRef<"quick"|"form">("quick");
   const guardedRuntimeRef = useRef<WorkspaceGuardedRuntime | null>(null);
+  const dailyBackupCoordinatorRef = useRef<WorkspaceDailyBackupCoordinator | null>(null);
+  const dailyBackupLifecycleRef = useRef<WorkspaceDailyBackupLifecycle | null>(null);
+  const dailyBackupGenerationRef = useRef(0);
+  if (!dailyBackupCoordinatorRef.current) {
+    dailyBackupCoordinatorRef.current = new WorkspaceDailyBackupCoordinator({
+      saveDailyBackup: (snapshot, ownerId) => saveWorkspaceBackup(snapshot, "daily", ownerId),
+    });
+    dailyBackupLifecycleRef.current = new WorkspaceDailyBackupLifecycle(dailyBackupCoordinatorRef.current);
+  }
+  const cancelDailyBackup = () => dailyBackupLifecycleRef.current?.invalidate();
 
   // This branch is unreachable while the dormant seam remains at 0/45/45.
   // It deliberately owns no rendering, hydration, mutation, or persistence.
@@ -366,6 +379,8 @@ export default function Workspace() {
       if (guardedRuntimeRef.current === runtime) guardedRuntimeRef.current = null;
     };
   }, [dormantWorkspaceSource.guardedReachable, dormantWorkspaceSource.ownerId]);
+
+  useEffect(() => () => { cancelDailyBackup(); }, []);
 
   useEffect(() => { pendingJobRef.current = pendingJob; }, [pendingJob]);
   useEffect(() => { selectedCustomerRef.current = selectedCustomer; }, [selectedCustomer]);
@@ -576,6 +591,7 @@ export default function Workspace() {
     async function applySession(session: Session | null) {
       if (cancelled) return;
       if (session && hydratedUserId === session.user.id) return;
+      cancelDailyBackup();
       const sequence = ++sessionSequence;
       cloudHydratedRef.current = false;
       workspaceUserIdRef.current = null;
@@ -726,6 +742,7 @@ export default function Workspace() {
         conflict = decision.state === "recovery-conflict";
         recoveryConflictRef.current = conflict;
         recoveryWriteBlockedRef.current = recoveryBlocked;
+        if (recoveryBlocked) cancelDailyBackup();
         const snapshot = decision.displaySnapshot;
         if (conflict) {
           blockCloudSaves(session.user.id);
@@ -763,6 +780,7 @@ export default function Workspace() {
             cloud: { available: false, ownerId: null, snapshot: null, revision: null, ledgerEnabled: false },
           });
           recoveryWriteBlockedRef.current = true;
+          cancelDailyBackup();
           recoveryConflictRef.current = false;
           workspaceUserIdRef.current = session.user.id;
           if (decision.displaySnapshot) restore(decision.displaySnapshot);
@@ -868,7 +886,8 @@ export default function Workspace() {
     const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     if (workspaceUserIdRef.current !== storageUserId) return;
-    if (recoveryWriteBlockedRef.current) return;
+    const effectGeneration = ++dailyBackupGenerationRef.current;
+    if (recoveryWriteBlockedRef.current) { cancelDailyBackup(); return; }
     // Signed-in expired/inactive accounts are read-only. Do not persist accidental
     // client-side mutations locally when the backend would reject the cloud save.
     if (loggedIn && !hasActiveSubscription) return;
@@ -887,7 +906,7 @@ export default function Workspace() {
     writeLocalWorkspace(storageUserId, snapshot);
 
     if (autosavePausedRef.current) {
-      if (!restoreTargetRef.current || !cloudSnapshotsEqual(snapshot, restoreTargetRef.current)) return;
+      if (!restoreTargetRef.current || !cloudSnapshotsEqual(snapshot, restoreTargetRef.current)) { cancelDailyBackup(); return; }
       autosavePausedRef.current = false;
       restoreTargetRef.current = null;
     }
@@ -906,7 +925,9 @@ export default function Workspace() {
         retryTimer = undefined;
         if (disposed || !navigator.onLine || activeUserIdRef.current !== storageUserId || !cloudHydratedRef.current ||
             !cloudSnapshotsEqual(readLedgerDirty(storageUserId)?.snapshot, snapshot)) return;
-        void saveCloud(snapshot, storageUserId).then(() => {
+        void saveCloud(snapshot, storageUserId).then(async () => {
+          if (activeUserIdRef.current !== storageUserId || autosavePausedRef.current || recoveryWriteBlockedRef.current) return;
+          await scheduleDailyBackupAfterCloudSave({ lifecycle: dailyBackupLifecycleRef.current!, snapshot, ownerId: storageUserId, snapshotGeneration: effectGeneration, isDisposed: () => disposed, activeOwnerId: () => activeUserIdRef.current, isAutosavePaused: () => autosavePausedRef.current, isRecoveryBlocked: () => recoveryWriteBlockedRef.current, currentSnapshotGeneration: () => dailyBackupGenerationRef.current, currentSession });
           if (!disposed) setSyncPending(false);
         }).catch((error) => {
           if (error instanceof Error && error.message.includes("WORKSPACE_REVISION_CONFLICT")) {
@@ -923,7 +944,9 @@ export default function Workspace() {
         .then(async () => {
           // Keep a separate dated recovery point. A bad current sync therefore
           // cannot erase all earlier healthy versions.
-          try { if (isSnapshot(snapshot)) await saveWorkspaceBackup(snapshot, "daily", storageUserId); } catch {}
+          if (isSnapshot(snapshot) && !autosavePausedRef.current && !recoveryWriteBlockedRef.current) {
+            await scheduleDailyBackupAfterCloudSave({ lifecycle: dailyBackupLifecycleRef.current!, snapshot, ownerId: storageUserId, snapshotGeneration: effectGeneration, isDisposed: () => disposed, activeOwnerId: () => activeUserIdRef.current, isAutosavePaused: () => autosavePausedRef.current, isRecoveryBlocked: () => recoveryWriteBlockedRef.current, currentSnapshotGeneration: () => dailyBackupGenerationRef.current, currentSession });
+          }
           if (activeUserIdRef.current !== storageUserId) return;
           if (syncPending) {
             setSyncPending(false);
@@ -957,7 +980,7 @@ export default function Workspace() {
           if (isRetryableCloudError(error)) retryAfterNetworkError();
         });
     }, 500);
-    return () => { disposed = true; window.clearTimeout(timer); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
+    return () => { disposed = true; cancelDailyBackup(); window.clearTimeout(timer); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
   }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn, isOnline]);
 
   useEffect(() => {
@@ -2517,6 +2540,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     const ownerId = activeUserIdRef.current;
     if (ownerId && ledgerModeForAccount(ownerId)) {
       autosavePausedRef.current = true;
+      cancelDailyBackup();
       try {
         await saveCloud(normalizedSnapshot(s), ownerId);
         if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: undo was saved to the original account. Sign in again to load it.");
@@ -2795,6 +2819,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         const ownerId = activeUserIdRef.current;
         if (ownerId && ledgerModeForAccount(ownerId)) {
           autosavePausedRef.current = true;
+          cancelDailyBackup();
           try {
             await saveWorkspaceBackup(currentSnapshot(), "pre_restore", ownerId);
             await saveCloud(normalizedSnapshot(data), ownerId);
@@ -4003,7 +4028,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </div>
               <section className="panel backup-main-panel">
-                <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={(saved) => { restoreTargetRef.current = normalizedSnapshot(saved); restore(saved); }} onPauseAutosave={(paused) => { autosavePausedRef.current = paused; if (!paused) restoreTargetRef.current = null; }} ownerId={ready && loadedAccountId === accountId ? accountId : null} dark={dark} onToggleTheme={toggleTheme}/>
+                <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={(saved) => { restoreTargetRef.current = normalizedSnapshot(saved); restore(saved); }} onPauseAutosave={(paused) => { autosavePausedRef.current = paused; if (paused) cancelDailyBackup(); if (!paused) restoreTargetRef.current = null; }} ownerId={ready && loadedAccountId === accountId ? accountId : null} dark={dark} onToggleTheme={toggleTheme}/>
               </section>
               <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
             </>
