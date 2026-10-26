@@ -1431,7 +1431,9 @@ export default function Workspace() {
     } catch {}
   }
   async function scheduleClosedReminder(reminder: Reminder, existingSubscription?: PushSubscription) {
-    if (!reminderAlertsEnabled || reminder.done || !reminder.date || !loggedIn) return;
+    // Unmarked reminders are deployment-pinned Workflow 4 work. Never submit
+    // them to the V5 endpoint during enable/refresh/device sweeps.
+    if (reminder.scheduler !== "v5" || !reminderAlertsEnabled || reminder.done || !reminder.date || !loggedIn) return;
     const subscription = existingSubscription || await ensurePushSubscription();
     const key = scheduledPushKey(reminder, subscription.endpoint);
     if (hasScheduledPush(key)) return;
@@ -1490,7 +1492,7 @@ export default function Workspace() {
       persistReminderAlertSettings(true);
 
       for (const reminder of reminders) {
-        if (!reminder.done) {
+        if (!reminder.done && reminder.scheduler === "v5") {
           try {
             await scheduleClosedReminder(reminder, subscription);
           } catch {}
@@ -2940,6 +2942,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       customer,
       jobId: reminderJob?.id || undefined,
       repeat: reminderRepeat,
+      scheduler: "v5",
       done: false,
       createdAt: new Date().toISOString(),
     };
@@ -3062,7 +3065,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         if (cancelled) return;
         for (const reminder of reminders) {
           if (cancelled) return;
-          if (!reminder.done) {
+          if (!reminder.done && reminder.scheduler === "v5") {
             try {
               await scheduleClosedReminder(reminder, subscription);
             } catch {}

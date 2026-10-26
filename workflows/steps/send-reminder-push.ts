@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import type { ReminderWorkflowInput } from "../reminder-push";
+import { beginV5Delivery, finishV5Delivery, releaseV5Delivery } from "./reminder-v5-ledger";
 
 type StepInput = ReminderWorkflowInput & {
   occurrenceAt: string;
@@ -12,6 +13,7 @@ type WorkspaceReminder = {
   time?: string;
   customer?: string;
   repeat?: "none" | "daily" | "weekly" | "monthly";
+  scheduler?: "v5";
   done?: boolean;
 };
 
@@ -57,6 +59,7 @@ export async function sendReminderPush(input: StepInput): Promise<{
 
   if (
     !reminder ||
+    reminder.scheduler !== "v5" ||
     reminder.done ||
     reminder.date !== input.expectedDate ||
     (reminder.time || "09:00") !== input.expectedTime
@@ -70,6 +73,12 @@ export async function sendReminderPush(input: StepInput): Promise<{
     reminder.repeat === "monthly"
       ? reminder.repeat
       : "none";
+
+  // The ledger is the final rollback/ownership gate, immediately before the
+  // irreversible Web Push provider call.
+  if (!(await beginV5Delivery(input.scheduleId, input.generation, input.occurrenceAt, input.runnerId))) {
+    return { active: false, repeat: "none" };
+  }
 
   if (
     !input.subscription?.endpoint ||
@@ -117,11 +126,14 @@ export async function sendReminderPush(input: StepInput): Promise<{
         : 0;
 
     if (statusCode === 404 || statusCode === 410) {
+      await finishV5Delivery(input.scheduleId, input.generation, input.occurrenceAt);
       return { active: false, repeat };
     }
-
+    await releaseV5Delivery(input.scheduleId, input.generation, input.occurrenceAt);
     throw error;
   }
+
+  await finishV5Delivery(input.scheduleId, input.generation, input.occurrenceAt);
 
   return { active: true, repeat };
 }
