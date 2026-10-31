@@ -8305,7 +8305,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </section>
           </div>
         )}
-        {installWelcomeOpen && !appInstalled && (
+        {installWelcomeOpen && !appInstalled && !trialOfferOpen && !trialActivatedOpen && (
           <div
             className="modal-backdrop"
             onClick={() => setInstallWelcomeOpen(false)}

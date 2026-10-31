@@ -1,26 +1,27 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Pakki Baat — Your little business assistant",
   description:
     "Customer conversations, clear commitments and a little less remembering. For bakers, tutors, boutique owners and other small businesses.",
-  themeColor: "#2d7667",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Pakki Baat",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-  },
   icons: {
     icon: "/icon.svg",
     apple: "/apple-icon.svg",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2d7667",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
