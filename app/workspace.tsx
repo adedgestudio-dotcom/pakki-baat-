@@ -1116,10 +1116,16 @@ export default function Workspace() {
       return;
     if (!isOnline) {
       setSyncPending(true);
+      setCloudSaveStatus({ state: "offline", ownerId: storageUserId, generation: effectGeneration });
       return;
     }
 
     let disposed = false;
+    const reportCloudSave = (state: "pending" | "saved" | "failed") => {
+      if (!disposed && activeUserIdRef.current === storageUserId && dailyBackupGenerationRef.current === effectGeneration) {
+        setCloudSaveStatus({ state, ownerId: storageUserId, generation: effectGeneration });
+      }
+    };
     let retryTimer: number | undefined;
     const retryAfterNetworkError = () => {
       if (!ledgerMode || disposed || retryTimer !== undefined) return;
@@ -1136,8 +1142,10 @@ export default function Workspace() {
           )
         )
           return;
+        reportCloudSave("pending");
         void saveCloud(snapshot, storageUserId)
           .then(async () => {
+            reportCloudSave("saved");
             if (
               disposed ||
               activeUserIdRef.current !== storageUserId ||
@@ -1161,6 +1169,7 @@ export default function Workspace() {
             if (!disposed) setSyncPending(false);
           })
           .catch((error) => {
+            reportCloudSave("failed");
             if (
               error instanceof Error &&
               error.message.includes("WORKSPACE_REVISION_CONFLICT")
@@ -1181,8 +1190,10 @@ export default function Workspace() {
     };
     const timer = window.setTimeout(() => {
       if (autosavePausedRef.current) return;
+      reportCloudSave("pending");
       void saveCloud(snapshot, storageUserId)
         .then(async () => {
+          reportCloudSave("saved");
           // Keep a separate dated recovery point. A bad current sync therefore
           // cannot erase all earlier healthy versions.
           if (
@@ -1213,6 +1224,7 @@ export default function Workspace() {
           }
         })
         .catch((error) => {
+          reportCloudSave("failed");
           if (activeUserIdRef.current !== storageUserId) return;
           const message = error instanceof Error ? error.message : "";
           if (message.includes("WORKSPACE_REVISION_CONFLICT")) {
