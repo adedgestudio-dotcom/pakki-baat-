@@ -7,6 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description:
       "Customer conversations, clear commitments and a little less remembering.",
     start_url: "/",
+    id: "/",
+    scope: "/",
     display: "standalone",
     background_color: "#f7f2e8",
     theme_color: "#2d7667",

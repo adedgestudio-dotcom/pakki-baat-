@@ -1,29 +1,55 @@
-const VERSION = "pakki-baat-v3";
+const VERSION = "pakki-baat-launch-20261031";
 const SHELL_CACHE = VERSION + "-shell";
 const RUNTIME_CACHE = VERSION + "-runtime";
 const CORE = ["/manifest.json", "/icon.svg", "/apple-icon.svg"];
+
+function criticalShellAssets(html) {
+  return Array.from(html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)=["']([^"']+)["']/gi), (match) => match[1])
+    .filter((url) => url.startsWith("/_next/static/") && /\.(?:js|css)(?:\?|$)/i.test(url))
+    .filter((url, index, list) => list.indexOf(url) === index);
+}
+
+async function shellIsComplete(response) {
+  if (!response?.ok) return false;
+  const assets = criticalShellAssets(await response.clone().text());
+  if (!assets.some((url) => /\.js(?:\?|$)/i.test(url))) return false;
+  const cached = await Promise.all(assets.map((url) => caches.match(new URL(url, self.location.origin).href)));
+  return cached.every((asset) => asset?.ok);
+}
+
+function offlineRecoveryPage() {
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reconnect to Pakki Baat</title>
+<style>body{margin:0;padding:24px;min-height:100vh;box-sizing:border-box;display:grid;place-items:center;background:#f7f4ea;color:#263f35;font:16px/1.6 system-ui,sans-serif}main{max-width:420px}h1{font-size:28px;line-height:1.25}a{display:inline-block;padding:12px 20px;border-radius:12px;background:#2d7667;color:white;text-decoration:none}a:focus-visible{outline:3px solid #263f35;outline-offset:4px}</style></head>
+<body><main><p>pakki baat.</p><h1>Reconnect to reopen Hisaab</h1><p>Some app files are missing from this device. Connect to the internet, then try again.</p><p>Saved changes have not been cleared.</p><a href="/">Try again</a></main></body></html>`, {
+    status: 503,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
+async function cachedCompleteShell(request) {
+  // Prefer the latest online navigation, then the install-time shell. A cached
+  // document is usable only while its referenced critical assets still exist.
+  for (const cacheName of [RUNTIME_CACHE, SHELL_CACHE]) {
+    for (const key of [request, "/"]) {
+      const response = await caches.match(key, { cacheName });
+      if (response && await shellIsComplete(response)) return response;
+    }
+  }
+  return offlineRecoveryPage();
+}
 
 async function cacheAppShell() {
   const cache = await caches.open(SHELL_CACHE);
   await Promise.allSettled(CORE.map((url) => cache.add(url)));
 
-  try {
-    const response = await fetch("/", { cache: "reload" });
-    if (!response || !response.ok) return;
-    await cache.put("/", response.clone());
-
-    const html = await response.text();
-    const assetUrls = Array.from(
-      html.matchAll(/(?:src|href)=["']([^"']+)["']/g),
-      (match) => match[1]
-    )
-      .filter((url) => url.startsWith("/_next/static/") || /\.(?:css|js|woff2?|svg|png|webp)$/i.test(url))
-      .filter((url, index, list) => list.indexOf(url) === index);
-
-    await Promise.allSettled(assetUrls.map((url) => cache.add(url)));
-  } catch {
-    // The current page remains usable and runtime caching can complete later.
-  }
+  const response = await fetch("/", { cache: "reload" });
+  if (!response?.ok) throw new Error("App shell document is unavailable.");
+  const assets = criticalShellAssets(await response.clone().text());
+  if (!assets.some((url) => /\.js(?:\?|$)/i.test(url))) throw new Error("App shell scripts are missing.");
+  await Promise.all(assets.map((url) => cache.add(url)));
+  if (!await shellIsComplete(response)) throw new Error("App shell caching is incomplete.");
+  // Commit HTML last. A failed refresh must not replace a previous usable shell.
+  await cache.put("/", response.clone());
 }
 
 self.addEventListener("install", (event) => {
@@ -65,19 +91,15 @@ self.addEventListener("fetch", (event) => {
       try {
         const response = await fetch(request);
         if (response && response.ok) {
-          const cache = await caches.open(RUNTIME_CACHE);
-          await cache.put(request, response.clone());
+          try {
+            const cache = await caches.open(RUNTIME_CACHE);
+            await cache.put(request, response.clone());
+          } catch { /* Cache failure must not hide a usable online document. */ }
         }
         return response;
       } catch {
-        return (
-          (await caches.match(request)) ||
-          (await caches.match("/")) ||
-          new Response("Pakki Baat is offline. Reconnect once to finish loading the app.", {
-            status: 503,
-            headers: { "Content-Type": "text/plain; charset=utf-8" },
-          })
-        );
+        try { return await cachedCompleteShell(request); }
+        catch { return offlineRecoveryPage(); }
       }
     })());
     return;
@@ -93,8 +115,10 @@ self.addEventListener("fetch", (event) => {
       if (cached) return cached;
       const response = await fetch(request);
       if (response && response.ok) {
-        const cache = await caches.open(RUNTIME_CACHE);
-        await cache.put(request, response.clone());
+        try {
+          const cache = await caches.open(RUNTIME_CACHE);
+          await cache.put(request, response.clone());
+        } catch { /* Online assets remain usable when browser storage is full. */ }
       }
       return response;
     })());
@@ -106,8 +130,10 @@ self.addEventListener("fetch", (event) => {
     const network = fetch(request)
       .then(async (response) => {
         if (response && response.ok) {
-          const cache = await caches.open(RUNTIME_CACHE);
-          await cache.put(request, response.clone());
+          try {
+            const cache = await caches.open(RUNTIME_CACHE);
+            await cache.put(request, response.clone());
+          } catch { /* Opportunistic caching must not change a network success. */ }
         }
         return response;
       })

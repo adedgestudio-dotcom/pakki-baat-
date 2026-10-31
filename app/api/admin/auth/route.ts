@@ -5,7 +5,7 @@ import { clearAdminCookie, isAdmin, setAdminCookie } from "@/lib/admin-auth";
 export async function GET(request:NextRequest){return NextResponse.json({ok:isAdmin(request)},{status:isAdmin(request)?200:401})}
 export async function POST(request:NextRequest){
   const expected=process.env.ADMIN_PIN?.trim();
-  const qaExpected=process.env.QA_ADMIN_PIN?.trim();
+  const qaExpected=process.env.VERCEL_ENV!=="production"?process.env.QA_ADMIN_PIN?.trim():undefined;
   if(!expected && !qaExpected) return NextResponse.json({error:"Admin PIN is not configured"},{status:503});
   const body=await request.json().catch(()=>({}));
   const supplied=String(body?.pin||"").trim();

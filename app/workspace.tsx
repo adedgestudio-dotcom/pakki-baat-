@@ -5,6 +5,22 @@ import "./connections.css";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import AudioPlayer from "./audio-player";
+import Reports from "./reports";
+import {
+  canOfferTrial,
+  loadTrialSubscription,
+  type TrialSubscriptionState,
+} from "@/lib/trial-offer";
+import {
+  WorkspaceDailyBackupCoordinator,
+  type DailyBackupStatus,
+} from "@/lib/workspace-daily-backup-coordinator";
+import { WorkspaceDailyBackupLifecycle } from "@/lib/workspace-daily-backup-lifecycle";
+import { scheduleDailyBackupAfterCloudSave } from "@/lib/workspace-daily-backup-post-save";
+import {
+  clearStaleOfflineCloudSaveStatus,
+  type WorkspaceCloudSaveStatus,
+} from "@/lib/workspace-backup-status";
 import { saveVoice, loadVoice, deleteVoice } from "@/lib/voice-messages";
 import {
   cloudConfigured,
@@ -41,7 +57,17 @@ import {
   type Snapshot,
 } from "@/lib/data";
 import type { Session } from "@supabase/supabase-js";
-type Tab = "Today" | "Reminders" | "My assistant" | "Hisaab" | "Customers" | "Subscription" | "Admin" | "Backup" | "Settings";
+type Tab =
+  | "Today"
+  | "Reminders"
+  | "My assistant"
+  | "Hisaab"
+  | "Reports"
+  | "Customers"
+  | "Subscription"
+  | "Admin"
+  | "Backup"
+  | "Settings";
 type ChatTurn = {
   id: string;
   role: "me" | "assistant";
@@ -53,7 +79,10 @@ type ChatTurn = {
 };
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
-type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }> };
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
 function isRealDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, date] = value.split("-").map(Number);
@@ -131,10 +160,17 @@ function accountNameFromEmail(session: Session | null) {
 }
 const LOCAL_WORKSPACE_ID = "local";
 function normalizedSnapshot(s: Snapshot): Snapshot {
-  return { jobs: s.jobs, owner: s.owner, business: s.business, reminders: s.reminders || [], payments: s.payments || [], notes: s.notes || [], customerPhones: s.customerPhones || {} };
+  return {
+    jobs: s.jobs,
+    owner: s.owner,
+    business: s.business,
+    reminders: s.reminders || [],
+    payments: s.payments || [],
+    notes: s.notes || [],
+    customerPhones: s.customerPhones || {},
+  };
 }
-const localWorkspaceKey = (userId: string) =>
-  "pakki-baat-workspace:" + userId;
+const localWorkspaceKey = (userId: string) => "pakki-baat-workspace:" + userId;
 function readLocalWorkspace(userId: string) {
   try {
     const raw = localStorage.getItem(localWorkspaceKey(userId));
@@ -166,7 +202,8 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     check: "m5 12 4 4L19 6",
     bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4",
     clock: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2",
-    calendar: "M6 2v4 M18 2v4 M3 9h18 M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z",
+    calendar:
+      "M6 2v4 M18 2v4 M3 9h18 M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z",
     copy: "M9 9h12v12H9Z M5 15H3V3h12v2",
     search: "M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0 m-2 5 6 6",
     close: "m6 6 12 12 M6 18 18 6",
@@ -179,7 +216,8 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     plan: "M4 7h16v12H4Z M4 10h16 M8 15h4",
     download: "M12 3v12 m-5-5 5 5 5-5 M5 21h14",
     shield: "M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3Z M9 12l2 2 4-5",
-    cloud: "M7 18h10a4 4 0 0 0 .7-7.9A6 6 0 0 0 6.3 8.4 4.5 4.5 0 0 0 7 18Z M12 10v6 m-3-3 3 3 3-3",
+    cloud:
+      "M7 18h10a4 4 0 0 0 .7-7.9A6 6 0 0 0 6.3 8.4 4.5 4.5 0 0 0 7 18Z M12 10v6 m-3-3 3 3 3-3",
   };
   return (
     <svg
@@ -205,7 +243,8 @@ export default function Workspace() {
     [owner, setOwner] = useState(""),
     [business, setBusiness] = useState("My small business"),
     [profileOwnerDraft, setProfileOwnerDraft] = useState(""),
-    [profileBusinessDraft, setProfileBusinessDraft] = useState("My small business"),
+    [profileBusinessDraft, setProfileBusinessDraft] =
+      useState("My small business"),
     [message, setMessage] = useState(""),
     [draft, setDraft] = useState<Job | null>(null),
     [pendingJob, setPendingJob] = useState<Job | null>(null),
@@ -217,7 +256,10 @@ export default function Workspace() {
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
-    [paymentPlan, setPaymentPlan] = useState<{name:string;price:string}|null>(null),
+    [paymentPlan, setPaymentPlan] = useState<{
+      name: string;
+      price: string;
+    } | null>(null),
     [paymentRef, setPaymentRef] = useState(""),
     [paymentProof, setPaymentProof] = useState<File | null>(null),
     [paymentSubmitting, setPaymentSubmitting] = useState(false),
@@ -226,9 +268,14 @@ export default function Workspace() {
     [accountId, setAccountId] = useState<string | null>(null),
     [loadedAccountId, setLoadedAccountId] = useState<string | null>(null),
     [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null),
+    [trialSubscription, setTrialSubscription] =
+      useState<TrialSubscriptionState>({ ownerId: null, status: "loading" }),
     [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null),
-    [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(null),
-    [subscriptionBonusVoiceSeconds, setSubscriptionBonusVoiceSeconds] = useState(0),
+    [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState<string | null>(
+      null
+    ),
+    [subscriptionBonusVoiceSeconds, setSubscriptionBonusVoiceSeconds] =
+      useState(0),
     [voiceSecondsUsed, setVoiceSecondsUsed] = useState(0),
     [serverNowMs, setServerNowMs] = useState<number | null>(null),
     [trustedClockTick, setTrustedClockTick] = useState(0),
@@ -242,10 +289,16 @@ export default function Workspace() {
     [dark, setDark] = useState(false),
     [isOnline, setIsOnline] = useState(true),
     [syncPending, setSyncPending] = useState(false),
+    [cloudSaveStatus, setCloudSaveStatus] = useState<WorkspaceCloudSaveStatus>({
+      state: "idle",
+    }),
+    [dailyBackupStatus, setDailyBackupStatus] = useState<DailyBackupStatus>({
+      state: "idle",
+    }),
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
     [payments, setPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
-    [customerPhones, setCustomerPhones] = useState<Record<string,string>>({}),
+    [customerPhones, setCustomerPhones] = useState<Record<string, string>>({}),
     [customerContactsOpen, setCustomerContactsOpen] = useState(false),
     [contactQuery, setContactQuery] = useState(""),
     [newCustomerOpen, setNewCustomerOpen] = useState(false),
@@ -256,9 +309,20 @@ export default function Workspace() {
     [saveWhatsappNumber, setSaveWhatsappNumber] = useState(true),
     [paymentJob, setPaymentJob] = useState<Job | null>(null),
     [paymentAmount, setPaymentAmount] = useState(""),
-    [phoneEditorCustomer, setPhoneEditorCustomer] = useState<string | null>(null),
+    [editingPayment, setEditingPayment] = useState<Payment | null>(null),
+    [editPaymentAmount, setEditPaymentAmount] = useState(""),
+    [editPaymentReason, setEditPaymentReason] = useState<
+      "wrong_amount" | "duplicate" | "data_entry_error" | "other"
+    >("wrong_amount"),
+    [editPaymentNote, setEditPaymentNote] = useState(""),
+    [phoneEditorCustomer, setPhoneEditorCustomer] = useState<string | null>(
+      null
+    ),
     [phoneEditorValue, setPhoneEditorValue] = useState(""),
-    [lastUndo, setLastUndo] = useState<{message:string;snapshot:Snapshot}|null>(null),
+    [lastUndo, setLastUndo] = useState<{
+      message: string;
+      snapshot: Snapshot;
+    } | null>(null),
     [guideOpen, setGuideOpen] = useState(false),
     [deleteJob, setDeleteJob] = useState<Job | null>(null),
     [deleteCustomer, setDeleteCustomer] = useState<string | null>(null),
@@ -271,22 +335,31 @@ export default function Workspace() {
     [reminderJob, setReminderJob] = useState<Job | null>(null),
     [reminderDate, setReminderDate] = useState(""),
     [reminderTime, setReminderTime] = useState("09:00"),
-    [reminderRepeat, setReminderRepeat] = useState<"none"|"daily"|"weekly"|"monthly">("none"),
+    [reminderRepeat, setReminderRepeat] = useState<
+      "none" | "daily" | "weekly" | "monthly"
+    >("none"),
     [reminderText, setReminderText] = useState(""),
     [reminderAlertsEnabled, setReminderAlertsEnabled] = useState(false),
     [reminderSoundEnabled, setReminderSoundEnabled] = useState(true),
     [reminderVibrationEnabled, setReminderVibrationEnabled] = useState(true),
-    [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default"),
+    [notificationPermission, setNotificationPermission] = useState<
+      NotificationPermission | "unsupported"
+    >("default"),
     [ringingReminder, setRingingReminder] = useState<Reminder | null>(null),
-    [dismissedTodayReminderIds, setDismissedTodayReminderIds] = useState<string[]>([]),
+    [dismissedTodayReminderIds, setDismissedTodayReminderIds] = useState<
+      string[]
+    >([]),
     [navigationReady, setNavigationReady] = useState(false),
     [pushDiagnostic, setPushDiagnostic] = useState(""),
     [pushDiagnosticBusy, setPushDiagnosticBusy] = useState(false),
-    [entryMode, setEntryMode] = useState<"quick"|"form">("quick"),
+    [entryMode, setEntryMode] = useState<"quick" | "form">("quick"),
     [receivedAmountTouched, setReceivedAmountTouched] = useState(false),
-    [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null),
+    [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
+      null
+    ),
     [appInstalled, setAppInstalled] = useState(false),
     [installWelcomeOpen, setInstallWelcomeOpen] = useState(false);
+  const paymentRequestAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -307,16 +380,71 @@ export default function Workspace() {
   const selectedCustomerRef = useRef<string | null>(null);
   const customerChatOpenRef = useRef(false);
   const messageRef = useRef("");
-  const entryModeRef = useRef<"quick"|"form">("quick");
-
-  useEffect(() => { pendingJobRef.current = pendingJob; }, [pendingJob]);
-  useEffect(() => { selectedCustomerRef.current = selectedCustomer; }, [selectedCustomer]);
-  useEffect(() => { customerChatOpenRef.current = customerChatOpen; }, [customerChatOpen]);
-  useEffect(() => { messageRef.current = message; }, [message]);
-  useEffect(() => { entryModeRef.current = entryMode; }, [entryMode]);
+  const entryModeRef = useRef<"quick" | "form">("quick");
+  const dailyBackupCoordinatorRef =
+    useRef<WorkspaceDailyBackupCoordinator | null>(null);
+  const dailyBackupLifecycleRef = useRef<WorkspaceDailyBackupLifecycle | null>(
+    null
+  );
+  const dailyBackupGenerationRef = useRef(0);
+  const dailyBackupUiMountedRef = useRef(true);
+  const clearBackupStatusUi = () => {
+    if (!dailyBackupUiMountedRef.current) return;
+    setCloudSaveStatus({ state: "idle" });
+    setDailyBackupStatus({ state: "idle" });
+  };
+  if (!dailyBackupCoordinatorRef.current) {
+    dailyBackupCoordinatorRef.current = new WorkspaceDailyBackupCoordinator({
+      saveDailyBackup: (snapshot, ownerId) =>
+        saveWorkspaceBackup(snapshot, "daily", ownerId),
+      onStatus: (status) => {
+        if (!dailyBackupUiMountedRef.current) return;
+        if (
+          (status.state === "saving" ||
+            status.state === "retrying" ||
+            status.state === "confirmed" ||
+            status.state === "failed") &&
+          (status.ownerId !== activeUserIdRef.current ||
+            status.generation !== dailyBackupGenerationRef.current)
+        )
+          return;
+        setDailyBackupStatus(status);
+      },
+    });
+    dailyBackupLifecycleRef.current = new WorkspaceDailyBackupLifecycle(
+      dailyBackupCoordinatorRef.current
+    );
+  }
+  const cancelDailyBackup = () => dailyBackupLifecycleRef.current?.invalidate();
+  useEffect(() => {
+    dailyBackupUiMountedRef.current = true;
+    return () => {
+      dailyBackupUiMountedRef.current = false;
+      cancelDailyBackup();
+    };
+  }, []);
 
   useEffect(() => {
-    const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    pendingJobRef.current = pendingJob;
+  }, [pendingJob]);
+  useEffect(() => {
+    selectedCustomerRef.current = selectedCustomer;
+  }, [selectedCustomer]);
+  useEffect(() => {
+    customerChatOpenRef.current = customerChatOpen;
+  }, [customerChatOpen]);
+  useEffect(() => {
+    messageRef.current = message;
+  }, [message]);
+  useEffect(() => {
+    entryModeRef.current = entryMode;
+  }, [entryMode]);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone ===
+        true;
     const installedKey = "pakki-baat-installed";
     let rememberedInstalled = false;
     try {
@@ -331,7 +459,9 @@ export default function Workspace() {
       setInstallPrompt(event as InstallPromptEvent);
     };
     const onInstalled = () => {
-      try { localStorage.setItem(installedKey, "1"); } catch {}
+      try {
+        localStorage.setItem(installedKey, "1");
+      } catch {}
       setAppInstalled(true);
       setInstallWelcomeOpen(false);
       setInstallPrompt(null);
@@ -346,7 +476,10 @@ export default function Workspace() {
   }, []);
 
   async function installPakkiBaat() {
-    if (appInstalled) { setToast("Pakki Baat is already installed on this device."); return; }
+    if (appInstalled) {
+      setToast("Pakki Baat is already installed on this device.");
+      return;
+    }
     if (installPrompt) {
       await installPrompt.prompt();
       const choice = await installPrompt.userChoice;
@@ -354,7 +487,11 @@ export default function Workspace() {
       return;
     }
     const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    setToast(isIos ? "On iPhone: tap Share, then Add to Home Screen." : "Open your browser menu and choose Install app or Add to Home screen.");
+    setToast(
+      isIos
+        ? "On iPhone: tap Share, then Add to Home Screen."
+        : "Open your browser menu and choose Install app or Add to Home screen."
+    );
   }
 
   function entryDraftKey(userId: string) {
@@ -366,7 +503,9 @@ export default function Workspace() {
   function clearEntryDraft() {
     const userId = activeUserIdRef.current;
     if (!userId) return;
-    try { localStorage.removeItem(entryDraftKey(userId)); } catch {}
+    try {
+      localStorage.removeItem(entryDraftKey(userId));
+    } catch {}
   }
 
   // Display name priority: custom name → Google/account name → email name → "there"
@@ -403,47 +542,85 @@ export default function Workspace() {
       setPaymentSubmitting(true);
       const token = await cloudToken();
       const form = new FormData();
+      const fingerprint = JSON.stringify([activeUserIdRef.current, paymentPlan?.name, paymentRef.trim(), paymentProof?.name, paymentProof?.size, paymentProof?.lastModified]);
+      if (paymentRequestAttemptRef.current?.fingerprint !== fingerprint) {
+        paymentRequestAttemptRef.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      form.append("idempotencyKey", paymentRequestAttemptRef.current.key);
       form.append("plan", paymentPlan?.name || "");
       form.append("price", paymentPlan?.price || "");
       form.append("transactionRef", paymentRef.trim());
       if (paymentProof) form.append("proof", paymentProof);
-      const response = await fetch("/api/payment-request", { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:form });
-      const result = await response.json().catch(()=>({}));
-      if (!response.ok) throw new Error(result?.error || "Could not submit payment.");
+      const response = await fetch("/api/payment-request", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(result?.error || "Could not submit payment.");
       setToast("Payment submitted ✓ We’ll verify it and activate your plan.");
       setPaymentPlan(null);
       setPaymentRef("");
       setPaymentProof(null);
+      paymentRequestAttemptRef.current = null;
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not submit payment.");
+      setToast(
+        error instanceof Error ? error.message : "Could not submit payment."
+      );
     } finally {
       setPaymentSubmitting(false);
     }
   }
 
   async function startFreeTrial() {
-    if (!loggedIn) { setToast("Please sign in to start your free trial."); return; }
+    if (!loggedIn) {
+      setToast("Please sign in to start your free trial.");
+      return;
+    }
+    if (!canOfferTrial(trialSubscription, activeUserIdRef.current)) {
+      setTrialOfferOpen(false);
+      setToast("Your subscription must be checked before starting a trial.");
+      return;
+    }
     try {
       setTrialStarting(true);
       const trial = await claimFreeTrial();
       if (!trial.allowed) {
         setTrialOfferOpen(false);
         setTab("Subscription");
-        setToast(trial.reason === "trial_already_used_on_device" ? "This device has already used its free trial. Choose a plan to continue." : "Free trial is not available for this account.");
+        setToast(
+          trial.reason === "trial_already_used_on_device"
+            ? "This device has already used its free trial. Choose a plan to continue."
+            : "Free trial is not available for this account."
+        );
         return;
       }
-      const [subscription, serverTime] = await Promise.all([loadSubscription(), loadServerTime()]);
+      const [subscription, serverTime] = await Promise.all([
+        loadSubscription(),
+        loadServerTime(),
+      ]);
       applyTrustedServerTime(serverTime);
       setSubscriptionPlan(subscription?.plan?.toLowerCase() || "trial");
       setSubscriptionStatus(subscription?.status?.toLowerCase() || "active");
       setSubscriptionPeriodEnd(subscription?.period_end || null);
+      setTrialSubscription({
+        ownerId: activeUserIdRef.current,
+        status: "existing",
+      });
       setTrialOfferOpen(false);
       setTrialActivatedOpen(true);
       setTab("Today");
       setToast("Your 30-day free trial is active ✓");
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not start your free trial.");
-    } finally { setTrialStarting(false); }
+      setToast(
+        error instanceof Error
+          ? error.message
+          : "Could not start your free trial."
+      );
+    } finally {
+      setTrialStarting(false);
+    }
   }
 
   function saveProfileDetails() {
@@ -462,7 +639,13 @@ export default function Workspace() {
     setDark(isDark);
   }, []);
   useEffect(() => {
-    const updateOnlineState = () => setIsOnline(navigator.onLine);
+    const updateOnlineState = () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+      setCloudSaveStatus((current) =>
+        clearStaleOfflineCloudSaveStatus(current, online)
+      );
+    };
     updateOnlineState();
     window.addEventListener("online", updateOnlineState);
     window.addEventListener("offline", updateOnlineState);
@@ -481,20 +664,35 @@ export default function Workspace() {
   }, []);
   useEffect(() => {
     try {
-      setReminderAlertsEnabled(localStorage.getItem("pakki-baat-reminder-alerts") === "on");
-      setReminderSoundEnabled(localStorage.getItem("pakki-baat-reminder-sound") !== "off");
-      setReminderVibrationEnabled(localStorage.getItem("pakki-baat-reminder-vibration") !== "off");
-      const fired = JSON.parse(localStorage.getItem("pakki-baat-fired-reminders") || "[]");
-      if (Array.isArray(fired)) firedReminderKeysRef.current = new Set(fired.filter((v): v is string => typeof v === "string"));
+      setReminderAlertsEnabled(
+        localStorage.getItem("pakki-baat-reminder-alerts") === "on"
+      );
+      setReminderSoundEnabled(
+        localStorage.getItem("pakki-baat-reminder-sound") !== "off"
+      );
+      setReminderVibrationEnabled(
+        localStorage.getItem("pakki-baat-reminder-vibration") !== "off"
+      );
+      const fired = JSON.parse(
+        localStorage.getItem("pakki-baat-fired-reminders") || "[]"
+      );
+      if (Array.isArray(fired))
+        firedReminderKeysRef.current = new Set(
+          fired.filter((v): v is string => typeof v === "string")
+        );
     } catch {}
-    setNotificationPermission("Notification" in window ? Notification.permission : "unsupported");
+    setNotificationPermission(
+      "Notification" in window ? Notification.permission : "unsupported"
+    );
   }, []);
   useEffect(() => {
     try {
       const key = "pakki-baat-dismissed-today-reminders:" + day();
       const saved = JSON.parse(localStorage.getItem(key) || "[]");
       setDismissedTodayReminderIds(
-        Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : []
+        Array.isArray(saved)
+          ? saved.filter((id): id is string => typeof id === "string")
+          : []
       );
     } catch {
       setDismissedTodayReminderIds([]);
@@ -525,6 +723,11 @@ export default function Workspace() {
       if (cancelled) return;
       if (session && hydratedUserId === session.user.id) return;
       const sequence = ++sessionSequence;
+      setTrialSubscription({
+        ownerId: session?.user.id || null,
+        status: "loading",
+      });
+      setTrialOfferOpen(false);
       cloudHydratedRef.current = false;
       workspaceUserIdRef.current = null;
       autosavePausedRef.current = false;
@@ -537,13 +740,22 @@ export default function Workspace() {
       setUserName(accountNameFromEmail(session));
       activeUserIdRef.current = session?.user.id || null;
 
-      if (session && chatHistoryHydratedForUserRef.current !== session.user.id) {
+      if (
+        session &&
+        chatHistoryHydratedForUserRef.current !== session.user.id
+      ) {
         chatHistoryHydratedForUserRef.current = session.user.id;
         try {
-          const rawHistory = localStorage.getItem(chatHistoryKey(session.user.id));
+          const rawHistory = localStorage.getItem(
+            chatHistoryKey(session.user.id)
+          );
           if (rawHistory) {
             const turns = JSON.parse(rawHistory);
-            const state = { turns, pending: null, step: "customer" as ChatStep };
+            const state = {
+              turns,
+              pending: null,
+              step: "customer" as ChatStep,
+            };
             if (isChatState(state)) setChatTurns(state.turns);
           }
         } catch {}
@@ -552,8 +764,15 @@ export default function Workspace() {
       if (session) {
         try {
           const key = "pakki-baat-install-prompt-seen:" + session.user.id;
-          const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-          if (!standalone && localStorage.getItem("pakki-baat-installed") !== "1" && !localStorage.getItem(key)) {
+          const standalone =
+            window.matchMedia("(display-mode: standalone)").matches ||
+            (window.navigator as Navigator & { standalone?: boolean })
+              .standalone === true;
+          if (
+            !standalone &&
+            localStorage.getItem("pakki-baat-installed") !== "1" &&
+            !localStorage.getItem(key)
+          ) {
             localStorage.setItem(key, "1");
             setInstallWelcomeOpen(true);
           }
@@ -565,7 +784,9 @@ export default function Workspace() {
       if (session && entryDraftRestoredForUserRef.current !== session.user.id) {
         entryDraftRestoredForUserRef.current = session.user.id;
         try {
-          const rawEntryDraft = localStorage.getItem(entryDraftKey(session.user.id));
+          const rawEntryDraft = localStorage.getItem(
+            entryDraftKey(session.user.id)
+          );
           if (rawEntryDraft) {
             const savedEntryDraft = JSON.parse(rawEntryDraft) as {
               customer?: string;
@@ -583,8 +804,14 @@ export default function Workspace() {
             ) {
               setSelectedCustomer(savedEntryDraft.customer);
               setPendingJob(savedEntryDraft.pending);
-              setMessage(typeof savedEntryDraft.message === "string" ? savedEntryDraft.message : "");
-              setEntryMode(savedEntryDraft.entryMode === "form" ? "form" : "quick");
+              setMessage(
+                typeof savedEntryDraft.message === "string"
+                  ? savedEntryDraft.message
+                  : ""
+              );
+              setEntryMode(
+                savedEntryDraft.entryMode === "form" ? "form" : "quick"
+              );
               setCustomerChatOpen(true);
             }
           }
@@ -595,18 +822,38 @@ export default function Workspace() {
 
       if (session) {
         try {
-          const [subscription, serverTime, voiceUsage] = await Promise.all([loadSubscription(), loadServerTime(), loadVoiceUsage()]);
-          if (!cancelled && activeUserIdRef.current === session.user.id) {
-            applyTrustedServerTime(serverTime);
+          const [result, serverTime, voiceUsage] = await Promise.all([
+            loadTrialSubscription(session.user.id, loadSubscription),
+            loadServerTime().catch(() => null),
+            loadVoiceUsage().catch(() => null),
+          ]);
+          if (
+            !cancelled &&
+            sequence === sessionSequence &&
+            activeUserIdRef.current === session.user.id
+          ) {
+            const subscription = result.subscription;
+            setTrialSubscription(result.state);
+            if (serverTime !== null) applyTrustedServerTime(serverTime);
             setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
             setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
             setSubscriptionPeriodEnd(subscription?.period_end || null);
-            setVoiceSecondsUsed((current) => Math.max(current, voiceUsage.voice_seconds));
-            setSubscriptionBonusVoiceSeconds(Math.max(0, Number(subscription?.bonus_voice_seconds || 0)));
-            setTrialOfferOpen(!subscription);
+            setVoiceSecondsUsed((current) =>
+              Math.max(current, voiceUsage?.voice_seconds || 0)
+            );
+            setSubscriptionBonusVoiceSeconds(
+              Math.max(0, Number(subscription?.bonus_voice_seconds || 0))
+            );
+            setTrialOfferOpen(canOfferTrial(result.state, session.user.id));
           }
         } catch {
-          if (!cancelled) {
+          if (
+            !cancelled &&
+            sequence === sessionSequence &&
+            activeUserIdRef.current === session.user.id
+          ) {
+            setTrialSubscription({ ownerId: session.user.id, status: "error" });
+            setTrialOfferOpen(false);
             setSubscriptionPlan(null);
             setSubscriptionStatus(null);
             setSubscriptionPeriodEnd(null);
@@ -637,22 +884,43 @@ export default function Workspace() {
       let conflict = false;
       try {
         const cloud = await loadCloudState();
-        if (cancelled || sequence !== sessionSequence || activeUserIdRef.current !== session.user.id) return;
+        if (
+          cancelled ||
+          sequence !== sessionSequence ||
+          activeUserIdRef.current !== session.user.id
+        )
+          return;
         const cloudSnapshot = cloud.snapshot;
         const localSnapshot = readLocalWorkspace(session.user.id);
-        if (cloud.ledgerEnabled && (!isSnapshot(cloudSnapshot) || cloud.revision === null)) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
+        if (
+          cloud.ledgerEnabled &&
+          (!isSnapshot(cloudSnapshot) || cloud.revision === null)
+        )
+          throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
         const decision = cloud.ledgerEnabled
-          ? reconcileLedgerHydration(cloudSnapshot as Snapshot, cloud.revision as number, localSnapshot, readLedgerDirty(session.user.id))
+          ? reconcileLedgerHydration(
+              cloudSnapshot as Snapshot,
+              cloud.revision as number,
+              localSnapshot,
+              readLedgerDirty(session.user.id)
+            )
           : null;
         conflict = decision?.conflict ?? false;
-        const snapshot = decision?.snapshot ?? (cloudSnapshot && isSnapshot(cloudSnapshot) ? cloudSnapshot : localSnapshot);
-        if (decision?.markUnknown && localSnapshot) markLedgerDirty(session.user.id, localSnapshot, 0);
+        const snapshot =
+          decision?.snapshot ??
+          (cloudSnapshot && isSnapshot(cloudSnapshot)
+            ? cloudSnapshot
+            : localSnapshot);
+        if (decision?.markUnknown && localSnapshot)
+          markLedgerDirty(session.user.id, localSnapshot, 0);
         if (decision?.clearDirty) clearLedgerDirty(session.user.id);
         if (conflict) {
           blockCloudSaves(session.user.id);
           cloudHydratedRef.current = false;
           setSyncPending(true);
-          setToast("Cloud changed since your local Hisaab edits. Your local copy is preserved; automatic sync is paused to prevent overwriting newer data.");
+          setToast(
+            "Cloud changed since your local Hisaab edits. Your local copy is preserved; automatic sync is paused to prevent overwriting newer data."
+          );
         }
         workspaceUserIdRef.current = session.user.id;
         if (snapshot) {
@@ -673,7 +941,11 @@ export default function Workspace() {
         setLoadedAccountId(session.user.id);
         loaded = true;
       } catch {
-        if (!cancelled && sequence === sessionSequence && activeUserIdRef.current === session.user.id) {
+        if (
+          !cancelled &&
+          sequence === sessionSequence &&
+          activeUserIdRef.current === session.user.id
+        ) {
           cloudHydratedRef.current = false;
           const localSnapshot = readLocalWorkspace(session.user.id);
           if (localSnapshot) {
@@ -684,7 +956,11 @@ export default function Workspace() {
           }
         }
       } finally {
-        if (!cancelled && sequence === sessionSequence && activeUserIdRef.current === session.user.id) {
+        if (
+          !cancelled &&
+          sequence === sessionSequence &&
+          activeUserIdRef.current === session.user.id
+        ) {
           cloudHydratedRef.current = loaded && !conflict;
           setReady(true);
         }
@@ -707,15 +983,19 @@ export default function Workspace() {
   }, []);
   useEffect(() => {
     const userId = activeUserIdRef.current;
-    if (!userId || !customerChatOpen || !selectedCustomer || !pendingJob) return;
+    if (!userId || !customerChatOpen || !selectedCustomer || !pendingJob)
+      return;
     try {
-      localStorage.setItem(entryDraftKey(userId), JSON.stringify({
-        customer: selectedCustomer,
-        pending: pendingJob,
-        message,
-        entryMode,
-        open: true,
-      }));
+      localStorage.setItem(
+        entryDraftKey(userId),
+        JSON.stringify({
+          customer: selectedCustomer,
+          pending: pendingJob,
+          message,
+          entryMode,
+          open: true,
+        })
+      );
     } catch {
       // Keep the in-memory form usable even when browser storage is unavailable.
     }
@@ -726,15 +1006,24 @@ export default function Workspace() {
       const userId = activeUserIdRef.current;
       const currentPending = pendingJobRef.current;
       const currentCustomer = selectedCustomerRef.current;
-      if (!userId || !customerChatOpenRef.current || !currentCustomer || !currentPending) return;
+      if (
+        !userId ||
+        !customerChatOpenRef.current ||
+        !currentCustomer ||
+        !currentPending
+      )
+        return;
       try {
-        localStorage.setItem(entryDraftKey(userId), JSON.stringify({
-          customer: currentCustomer,
-          pending: currentPending,
-          message: messageRef.current,
-          entryMode: entryModeRef.current,
-          open: true,
-        }));
+        localStorage.setItem(
+          entryDraftKey(userId),
+          JSON.stringify({
+            customer: currentCustomer,
+            pending: currentPending,
+            message: messageRef.current,
+            entryMode: entryModeRef.current,
+            open: true,
+          })
+        );
       } catch {}
     }
     function restoreCurrentEntryDraft() {
@@ -743,7 +1032,13 @@ export default function Workspace() {
       try {
         const raw = localStorage.getItem(entryDraftKey(userId));
         if (!raw) return;
-        const saved = JSON.parse(raw) as { customer?: string; pending?: Job; message?: string; entryMode?: "quick"|"form"; open?: boolean };
+        const saved = JSON.parse(raw) as {
+          customer?: string;
+          pending?: Job;
+          message?: string;
+          entryMode?: "quick" | "form";
+          open?: boolean;
+        };
         if (!saved.open || !saved.customer || !saved.pending) return;
         // On mobile the PWA can be suspended and the auth/workspace listener may
         // rehydrate saved data. Always put the unfinished entry back on top.
@@ -775,20 +1070,32 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!ready) return;
-    const snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
+    const snapshot = {
+      jobs,
+      owner,
+      business,
+      reminders,
+      payments,
+      notes,
+      customerPhones,
+    };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     if (workspaceUserIdRef.current !== storageUserId) return;
+    const effectGeneration = ++dailyBackupGenerationRef.current;
     // Signed-in expired/inactive accounts are read-only. Do not persist accidental
     // client-side mutations locally when the backend would reject the cloud save.
     if (loggedIn && !hasActiveSubscription) return;
     const ledgerMode = loggedIn && ledgerModeForAccount(storageUserId);
     if (ledgerMode) {
-      try { markLedgerDirty(storageUserId, snapshot); }
-      catch {
+      try {
+        markLedgerDirty(storageUserId, snapshot);
+      } catch {
         queueMicrotask(() => {
           if (activeUserIdRef.current !== storageUserId) return;
           setSyncPending(true);
-          setToast("This device cannot safely retain pending ledger changes. Free storage before continuing.");
+          setToast(
+            "This device cannot safely retain pending ledger changes. Free storage before continuing."
+          );
         });
         return;
       }
@@ -796,12 +1103,17 @@ export default function Workspace() {
     writeLocalWorkspace(storageUserId, snapshot);
 
     if (autosavePausedRef.current) {
-      if (!restoreTargetRef.current || !cloudSnapshotsEqual(snapshot, restoreTargetRef.current)) return;
+      if (
+        !restoreTargetRef.current ||
+        !cloudSnapshotsEqual(snapshot, restoreTargetRef.current)
+      )
+        return;
       autosavePausedRef.current = false;
       restoreTargetRef.current = null;
     }
 
-    if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current) return;
+    if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current)
+      return;
     if (!isOnline) {
       setSyncPending(true);
       return;
@@ -813,17 +1125,58 @@ export default function Workspace() {
       if (!ledgerMode || disposed || retryTimer !== undefined) return;
       retryTimer = window.setTimeout(() => {
         retryTimer = undefined;
-        if (disposed || !navigator.onLine || activeUserIdRef.current !== storageUserId || !cloudHydratedRef.current ||
-            !cloudSnapshotsEqual(readLedgerDirty(storageUserId)?.snapshot, snapshot)) return;
-        void saveCloud(snapshot, storageUserId).then(() => {
-          if (!disposed) setSyncPending(false);
-        }).catch((error) => {
-          if (error instanceof Error && error.message.includes("WORKSPACE_REVISION_CONFLICT")) {
-            cloudHydratedRef.current = false;
-            setToast("Cloud changed on another device. Your local copy is preserved; automatic sync is paused.");
-          } else if (isRetryableCloudError(error)) retryAfterNetworkError();
-          else setToast(`Hisaab was not synced: ${error instanceof Error ? error.message : "Save rejected"}. Your local copy is preserved.`);
-        });
+        if (
+          disposed ||
+          !navigator.onLine ||
+          activeUserIdRef.current !== storageUserId ||
+          !cloudHydratedRef.current ||
+          !cloudSnapshotsEqual(
+            readLedgerDirty(storageUserId)?.snapshot,
+            snapshot
+          )
+        )
+          return;
+        void saveCloud(snapshot, storageUserId)
+          .then(async () => {
+            if (
+              disposed ||
+              activeUserIdRef.current !== storageUserId ||
+              autosavePausedRef.current ||
+              !cloudHydratedRef.current ||
+              dailyBackupGenerationRef.current !== effectGeneration
+            )
+              return;
+            await scheduleDailyBackupAfterCloudSave({
+              lifecycle: dailyBackupLifecycleRef.current!,
+              snapshot,
+              ownerId: storageUserId,
+              snapshotGeneration: effectGeneration,
+              isDisposed: () => disposed,
+              activeOwnerId: () => activeUserIdRef.current,
+              isAutosavePaused: () => autosavePausedRef.current,
+              isRecoveryBlocked: () => !cloudHydratedRef.current,
+              currentSnapshotGeneration: () => dailyBackupGenerationRef.current,
+              currentSession,
+            });
+            if (!disposed) setSyncPending(false);
+          })
+          .catch((error) => {
+            if (
+              error instanceof Error &&
+              error.message.includes("WORKSPACE_REVISION_CONFLICT")
+            ) {
+              cloudHydratedRef.current = false;
+              setToast(
+                "Cloud changed on another device. Your local copy is preserved; automatic sync is paused."
+              );
+            } else if (isRetryableCloudError(error)) retryAfterNetworkError();
+            else
+              setToast(
+                `Hisaab was not synced: ${
+                  error instanceof Error ? error.message : "Save rejected"
+                }. Your local copy is preserved.`
+              );
+          });
       }, 5000);
     };
     const timer = window.setTimeout(() => {
@@ -832,7 +1185,27 @@ export default function Workspace() {
         .then(async () => {
           // Keep a separate dated recovery point. A bad current sync therefore
           // cannot erase all earlier healthy versions.
-          try { if (isSnapshot(snapshot)) await saveWorkspaceBackup(snapshot, "daily", storageUserId); } catch {}
+          if (
+            disposed ||
+            activeUserIdRef.current !== storageUserId ||
+            autosavePausedRef.current ||
+            !cloudHydratedRef.current ||
+            dailyBackupGenerationRef.current !== effectGeneration
+          )
+            return;
+          if (isSnapshot(snapshot))
+            await scheduleDailyBackupAfterCloudSave({
+              lifecycle: dailyBackupLifecycleRef.current!,
+              snapshot,
+              ownerId: storageUserId,
+              snapshotGeneration: effectGeneration,
+              isDisposed: () => disposed,
+              activeOwnerId: () => activeUserIdRef.current,
+              isAutosavePaused: () => autosavePausedRef.current,
+              isRecoveryBlocked: () => !cloudHydratedRef.current,
+              currentSnapshotGeneration: () => dailyBackupGenerationRef.current,
+              currentSession,
+            });
           if (activeUserIdRef.current !== storageUserId) return;
           if (syncPending) {
             setSyncPending(false);
@@ -845,35 +1218,61 @@ export default function Workspace() {
           if (message.includes("WORKSPACE_REVISION_CONFLICT")) {
             cloudHydratedRef.current = false;
             setSyncPending(true);
-            setToast("Cloud changed on another device. Your local copy is preserved; automatic sync is paused.");
+            setToast(
+              "Cloud changed on another device. Your local copy is preserved; automatic sync is paused."
+            );
             return;
           }
           if (ledgerMode && !isRetryableCloudError(error)) {
             setSyncPending(true);
-            setToast(`Hisaab was not synced: ${message}. Your local copy is preserved.`);
+            setToast(
+              `Hisaab was not synced: ${message}. Your local copy is preserved.`
+            );
             return;
           }
           if (message.includes("CUSTOMER_LIMIT_REACHED")) {
             const limit = message.match(/CUSTOMER_LIMIT_REACHED:(\d+)/)?.[1];
             setSyncPending(false);
             setToast(
-              `Customer limit reached${limit ? ` (${limit})` : ""}. Your existing customers are safe. Upgrade your plan to add another customer.`
+              `Customer limit reached${
+                limit ? ` (${limit})` : ""
+              }. Your existing customers are safe. Upgrade your plan to add another customer.`
             );
             return;
           }
           setSyncPending(true);
-          setToast("Saved on this device. Cloud backup will retry when you're online.");
+          setToast(
+            "Saved on this device. Cloud backup will retry when you're online."
+          );
           if (isRetryableCloudError(error)) retryAfterNetworkError();
         });
     }, 500);
-    return () => { disposed = true; window.clearTimeout(timer); if (retryTimer !== undefined) window.clearTimeout(retryTimer); };
-  }, [jobs, owner, business, reminders, payments, notes, customerPhones, ready, loggedIn, isOnline]);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
+  }, [
+    jobs,
+    owner,
+    business,
+    reminders,
+    payments,
+    notes,
+    customerPhones,
+    ready,
+    loggedIn,
+    isOnline,
+  ]);
 
   useEffect(() => {
     const userId = activeUserIdRef.current;
     if (!userId || chatHistoryHydratedForUserRef.current !== userId) return;
     try {
-      localStorage.setItem(chatHistoryKey(userId), JSON.stringify(chatTurns.slice(-80)));
+      localStorage.setItem(
+        chatHistoryKey(userId),
+        JSON.stringify(chatTurns.slice(-80))
+      );
     } catch {}
   }, [chatTurns]);
 
@@ -953,29 +1352,67 @@ export default function Workspace() {
     ["Today", "home"],
     ["Hisaab", "list"],
     ["Reminders", "bell"],
+    ["Reports", "list"],
   ];
-  const trustedClockRef = useRef<{ serverEpochMs: number; performanceMs: number } | null>(null);
-  const baseVoiceLimit = subscriptionPlan === "business" ? 60000 : subscriptionPlan === "smart" ? 30000 : 6000;
+  const trustedClockRef = useRef<{
+    serverEpochMs: number;
+    performanceMs: number;
+  } | null>(null);
+  const baseVoiceLimit =
+    subscriptionPlan === "business"
+      ? 60000
+      : subscriptionPlan === "smart"
+      ? 30000
+      : 6000;
   const voiceLimitSeconds = baseVoiceLimit + subscriptionBonusVoiceSeconds;
-  const voiceSecondsRemaining = Math.max(0, voiceLimitSeconds - voiceSecondsUsed);
-  const subscriptionEndMs = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd).getTime() : 0;
+  const voiceSecondsRemaining = Math.max(
+    0,
+    voiceLimitSeconds - voiceSecondsUsed
+  );
+  const subscriptionEndMs = subscriptionPeriodEnd
+    ? new Date(subscriptionPeriodEnd).getTime()
+    : 0;
   const trustedNowMs = trustedClockRef.current
-    ? trustedClockRef.current.serverEpochMs + (performance.now() - trustedClockRef.current.performanceMs)
+    ? trustedClockRef.current.serverEpochMs +
+      (performance.now() - trustedClockRef.current.performanceMs)
     : serverNowMs;
-  const subscriptionExpired = Boolean(subscriptionPeriodEnd) && trustedNowMs !== null && subscriptionEndMs <= trustedNowMs;
-  const hasActiveSubscription = Boolean(subscriptionPlan && subscriptionStatus === "active" && trustedNowMs !== null && !subscriptionExpired);
-  const trialDaysLeft = subscriptionPlan === "trial" && subscriptionPeriodEnd && trustedNowMs !== null ? Math.max(0, Math.ceil((subscriptionEndMs - trustedNowMs) / 86400000)) : null;
-  const trialEndingSoon = hasActiveSubscription && subscriptionPlan === "trial" && trialDaysLeft !== null && trialDaysLeft <= 2;
+  const subscriptionExpired =
+    Boolean(subscriptionPeriodEnd) &&
+    trustedNowMs !== null &&
+    subscriptionEndMs <= trustedNowMs;
+  const hasActiveSubscription = Boolean(
+    subscriptionPlan &&
+      subscriptionStatus === "active" &&
+      trustedNowMs !== null &&
+      !subscriptionExpired
+  );
+  const trialDaysLeft =
+    subscriptionPlan === "trial" &&
+    subscriptionPeriodEnd &&
+    trustedNowMs !== null
+      ? Math.max(0, Math.ceil((subscriptionEndMs - trustedNowMs) / 86400000))
+      : null;
+  const trialEndingSoon =
+    hasActiveSubscription &&
+    subscriptionPlan === "trial" &&
+    trialDaysLeft !== null &&
+    trialDaysLeft <= 2;
 
   function applyTrustedServerTime(serverTime: number) {
-    trustedClockRef.current = { serverEpochMs: serverTime, performanceMs: performance.now() };
+    trustedClockRef.current = {
+      serverEpochMs: serverTime,
+      performanceMs: performance.now(),
+    };
     setServerNowMs(serverTime);
     setTrustedClockTick((tick) => tick + 1);
   }
 
   useEffect(() => {
     if (!loggedIn || serverNowMs === null) return;
-    const timer = window.setInterval(() => setTrustedClockTick((tick) => tick + 1), 30000);
+    const timer = window.setInterval(
+      () => setTrustedClockTick((tick) => tick + 1),
+      30000
+    );
     return () => window.clearInterval(timer);
   }, [loggedIn, serverNowMs]);
 
@@ -988,7 +1425,9 @@ export default function Workspace() {
         if (!cancelled) applyTrustedServerTime(serverTime);
       } catch {}
     };
-    const onVisible = () => { if (document.visibilityState === "visible") void resync(); };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void resync();
+    };
     const onOnline = () => void resync();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
@@ -1001,14 +1440,17 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!trialEndingSoon || !subscriptionPeriodEnd) return;
-    const key = "pakki-baat-trial-ending:" + subscriptionPeriodEnd.slice(0,10) + ":" + day();
+    const key =
+      "pakki-baat-trial-ending:" +
+      subscriptionPeriodEnd.slice(0, 10) +
+      ":" +
+      day();
     try {
       if (localStorage.getItem(key)) return;
-      localStorage.setItem(key,"shown");
+      localStorage.setItem(key, "shown");
     } catch {}
     setTrialExpiryPromptOpen(true);
   }, [trialEndingSoon, subscriptionPeriodEnd]);
-
 
   const open = jobs.filter((j) => j.status !== "Completed"),
     due = open.filter((j) => j.date && j.date <= day()),
@@ -1041,22 +1483,49 @@ export default function Workspace() {
     go(t);
   }
   function go(t: Tab) {
-    if (loggedIn && !subscriptionPlan && !["Today","Subscription","Settings"].includes(t)) { setTrialOfferOpen(true); setToast("Start your free trial or choose a plan to continue."); return; }
+    if (
+      loggedIn &&
+      !subscriptionPlan &&
+      !["Today", "Subscription", "Settings"].includes(t)
+    ) {
+      const eligible = canOfferTrial(
+        trialSubscription,
+        activeUserIdRef.current
+      );
+      setTrialOfferOpen(eligible);
+      setToast(
+        eligible
+          ? "Start your free trial or choose a plan to continue."
+          : "Your subscription is still being checked. Please try again shortly."
+      );
+      return;
+    }
     if (t === tab && !selectedCustomer && !customerChatOpen) return;
     if (t === "My assistant") setSelectedCustomer(null);
-    window.history.pushState({
-      pakkiBaat: true,
-      tab: t,
-      customer: t === "Hisaab" ? selectedCustomer || undefined : undefined,
-      customerChatOpen: t === "Hisaab" ? customerChatOpen : undefined,
-      entryMode: t === "Hisaab" ? entryMode : undefined,
-    }, "");
+    window.history.pushState(
+      {
+        pakkiBaat: true,
+        tab: t,
+        customer: t === "Hisaab" ? selectedCustomer || undefined : undefined,
+        customerChatOpen: t === "Hisaab" ? customerChatOpen : undefined,
+        entryMode: t === "Hisaab" ? entryMode : undefined,
+      },
+      ""
+    );
     setTab(t);
     setQuery("");
     setFilter("All");
   }
   useEffect(() => {
-    const validTabs: Tab[] = ["Today", "Hisaab", "Reminders", "Subscription", "Admin", "Settings"];
+    const validTabs: Tab[] = [
+      "Today",
+      "Hisaab",
+      "Reminders",
+      "Subscription",
+      "Reports",
+      "Admin",
+      "Settings",
+    ];
     let restoredTab: Tab = "Today";
     let restoredCustomer: string | null = null;
     let restoredCustomerChatOpen = false;
@@ -1071,12 +1540,14 @@ export default function Workspace() {
         entryMode?: "quick" | "form";
       } | null;
       const raw = localStorage.getItem("pakki-baat-last-view");
-      const saved = raw ? JSON.parse(raw) as {
-        tab?: Tab;
-        customer?: string | null;
-        customerChatOpen?: boolean;
-        entryMode?: "quick" | "form";
-      } : null;
+      const saved = raw
+        ? (JSON.parse(raw) as {
+            tab?: Tab;
+            customer?: string | null;
+            customerChatOpen?: boolean;
+            entryMode?: "quick" | "form";
+          })
+        : null;
 
       const candidateTab =
         historyState?.pakkiBaat && historyState.tab
@@ -1084,14 +1555,17 @@ export default function Workspace() {
           : saved?.tab ||
             (localStorage.getItem("pakki-baat-last-tab") as Tab | null);
 
-      if (candidateTab && validTabs.includes(candidateTab)) restoredTab = candidateTab;
+      if (candidateTab && validTabs.includes(candidateTab))
+        restoredTab = candidateTab;
 
       const candidateCustomer =
         historyState?.pakkiBaat && typeof historyState.customer === "string"
           ? historyState.customer
           : saved?.customer;
       restoredCustomer =
-        restoredTab === "Hisaab" && typeof candidateCustomer === "string" && candidateCustomer.trim()
+        restoredTab === "Hisaab" &&
+        typeof candidateCustomer === "string" &&
+        candidateCustomer.trim()
           ? candidateCustomer
           : null;
 
@@ -1103,8 +1577,9 @@ export default function Workspace() {
             : saved?.customerChatOpen
         );
 
-      const candidateEntryMode =
-        historyState?.pakkiBaat ? historyState.entryMode : saved?.entryMode;
+      const candidateEntryMode = historyState?.pakkiBaat
+        ? historyState.entryMode
+        : saved?.entryMode;
       restoredEntryMode = candidateEntryMode === "form" ? "form" : "quick";
     } catch {
       // Fall back to Today if browser storage is unavailable or malformed.
@@ -1132,18 +1607,31 @@ export default function Workspace() {
   useEffect(() => {
     if (!navigationRestoredRef.current) return;
     const existingRaw = (() => {
-      try { return localStorage.getItem("pakki-baat-last-view"); } catch { return null; }
+      try {
+        return localStorage.getItem("pakki-baat-last-view");
+      } catch {
+        return null;
+      }
     })();
-    let previousView: { customer?: string | null; customerChatOpen?: boolean; entryMode?: "quick"|"form" } | null = null;
-    try { previousView = existingRaw ? JSON.parse(existingRaw) : null; } catch {}
+    let previousView: {
+      customer?: string | null;
+      customerChatOpen?: boolean;
+      entryMode?: "quick" | "form";
+    } | null = null;
+    try {
+      previousView = existingRaw ? JSON.parse(existingRaw) : null;
+    } catch {}
     const view = {
       tab,
       // Keep the active Hisaab customer/form while the user temporarily visits another tab.
-      customer: tab === "Hisaab" ? selectedCustomer : previousView?.customer || null,
-      customerChatOpen: tab === "Hisaab"
-        ? Boolean(selectedCustomer) && customerChatOpen
-        : Boolean(previousView?.customerChatOpen),
-      entryMode: tab === "Hisaab" ? entryMode : previousView?.entryMode || entryMode,
+      customer:
+        tab === "Hisaab" ? selectedCustomer : previousView?.customer || null,
+      customerChatOpen:
+        tab === "Hisaab"
+          ? Boolean(selectedCustomer) && customerChatOpen
+          : Boolean(previousView?.customerChatOpen),
+      entryMode:
+        tab === "Hisaab" ? entryMode : previousView?.entryMode || entryMode,
     };
     try {
       localStorage.setItem("pakki-baat-last-tab", tab);
@@ -1153,7 +1641,13 @@ export default function Workspace() {
   }, [tab, selectedCustomer, customerChatOpen, entryMode]);
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      const state = event.state as { pakkiBaat?: boolean; tab?: Tab; customer?: string; customerChatOpen?: boolean; entryMode?: "quick"|"form" } | null;
+      const state = event.state as {
+        pakkiBaat?: boolean;
+        tab?: Tab;
+        customer?: string;
+        customerChatOpen?: boolean;
+        entryMode?: "quick" | "form";
+      } | null;
       setNewCustomerOpen(false);
       setCustomerChatOpen(false);
       setPendingJob(null);
@@ -1172,7 +1666,16 @@ export default function Workspace() {
   }, []);
 
   function openCustomerFromHisaab(name: string) {
-    window.history.pushState({ pakkiBaat: true, tab: "Hisaab", customer: name, customerChatOpen: false, entryMode }, "");
+    window.history.pushState(
+      {
+        pakkiBaat: true,
+        tab: "Hisaab",
+        customer: name,
+        customerChatOpen: false,
+        entryMode,
+      },
+      ""
+    );
     setSelectedCustomer(name);
     setMessage("");
     setCustomerChatOpen(false);
@@ -1187,13 +1690,26 @@ export default function Workspace() {
   const dateForOffset = (offset: number) => {
     const d = new Date();
     d.setDate(d.getDate() + offset);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(d.getDate()).padStart(2, "0")}`;
   };
-  function persistReminderAlertSettings(enabled: boolean, sound = reminderSoundEnabled, vibration = reminderVibrationEnabled) {
+  function persistReminderAlertSettings(
+    enabled: boolean,
+    sound = reminderSoundEnabled,
+    vibration = reminderVibrationEnabled
+  ) {
     try {
-      localStorage.setItem("pakki-baat-reminder-alerts", enabled ? "on" : "off");
+      localStorage.setItem(
+        "pakki-baat-reminder-alerts",
+        enabled ? "on" : "off"
+      );
       localStorage.setItem("pakki-baat-reminder-sound", sound ? "on" : "off");
-      localStorage.setItem("pakki-baat-reminder-vibration", vibration ? "on" : "off");
+      localStorage.setItem(
+        "pakki-baat-reminder-vibration",
+        vibration ? "on" : "off"
+      );
     } catch {}
   }
   function urlBase64ToUint8Array(value: string) {
@@ -1203,12 +1719,17 @@ export default function Workspace() {
     return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
   }
   async function ensurePushSubscription() {
-    if (!loggedIn) throw new Error("Sign in first to enable closed-app reminders.");
+    if (!loggedIn)
+      throw new Error("Sign in first to enable closed-app reminders.");
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      throw new Error("This browser does not support closed-app push notifications.");
+      throw new Error(
+        "This browser does not support closed-app push notifications."
+      );
     }
 
-    const configResponse = await fetch("/api/push/config", { cache: "no-store" });
+    const configResponse = await fetch("/api/push/config", {
+      cache: "no-store",
+    });
     const config = await configResponse.json().catch(() => ({}));
     if (!configResponse.ok || !config.enabled || !config.publicKey) {
       throw new Error("Closed-app push is not configured on the server yet.");
@@ -1225,10 +1746,16 @@ export default function Workspace() {
     return subscription;
   }
   async function warnIfBackupNeedsAttention() {
-    if (!loggedIn || !reminderAlertsEnabled || !isOnline || !activeUserIdRef.current) return;
+    if (
+      !loggedIn ||
+      !reminderAlertsEnabled ||
+      !isOnline ||
+      !activeUserIdRef.current
+    )
+      return;
     try {
       const backups = await loadWorkspaceBackups();
-      const latest = backups.find(item => isSnapshot(item.payload));
+      const latest = backups.find((item) => isSnapshot(item.payload));
       if (!latest) return;
       const ageMs = Date.now() - new Date(latest.created_at).getTime();
       if (!Number.isFinite(ageMs) || ageMs < 3 * 24 * 60 * 60 * 1000) return;
@@ -1242,7 +1769,10 @@ export default function Workspace() {
       const token = await cloudToken();
       const response = await fetch("/api/push/backup-warning", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
         body: JSON.stringify({ subscription: subscription.toJSON() }),
       });
       if (!response.ok) return;
@@ -1254,16 +1784,23 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!ready || !loggedIn || !reminderAlertsEnabled || !isOnline) return;
-    const timer = window.setTimeout(() => void warnIfBackupNeedsAttention(), 2500);
+    const timer = window.setTimeout(
+      () => void warnIfBackupNeedsAttention(),
+      2500
+    );
     return () => window.clearTimeout(timer);
   }, [ready, loggedIn, reminderAlertsEnabled, isOnline]);
 
   function scheduledPushKey(reminder: Reminder, endpoint: string) {
-    return `${reminder.id}:${reminder.date}:${reminder.time || "09:00"}:${endpoint.slice(-48)}`;
+    return `${reminder.id}:${reminder.date}:${
+      reminder.time || "09:00"
+    }:${endpoint.slice(-48)}`;
   }
   function hasScheduledPush(key: string) {
     try {
-      const values = JSON.parse(localStorage.getItem("pakki-baat-push-scheduled") || "[]");
+      const values = JSON.parse(
+        localStorage.getItem("pakki-baat-push-scheduled") || "[]"
+      );
       return Array.isArray(values) && values.includes(key);
     } catch {
       return false;
@@ -1271,15 +1808,27 @@ export default function Workspace() {
   }
   function rememberScheduledPush(key: string) {
     try {
-      const values = JSON.parse(localStorage.getItem("pakki-baat-push-scheduled") || "[]");
-      const next = Array.isArray(values) ? values.filter((value): value is string => typeof value === "string") : [];
+      const values = JSON.parse(
+        localStorage.getItem("pakki-baat-push-scheduled") || "[]"
+      );
+      const next = Array.isArray(values)
+        ? values.filter((value): value is string => typeof value === "string")
+        : [];
       if (!next.includes(key)) next.push(key);
-      localStorage.setItem("pakki-baat-push-scheduled", JSON.stringify(next.slice(-500)));
+      localStorage.setItem(
+        "pakki-baat-push-scheduled",
+        JSON.stringify(next.slice(-500))
+      );
     } catch {}
   }
-  async function scheduleClosedReminder(reminder: Reminder, existingSubscription?: PushSubscription) {
-    if (!reminderAlertsEnabled || reminder.done || !reminder.date || !loggedIn) return;
-    const subscription = existingSubscription || await ensurePushSubscription();
+  async function scheduleClosedReminder(
+    reminder: Reminder,
+    existingSubscription?: PushSubscription
+  ) {
+    if (reminder.scheduler !== "v5" || !reminderAlertsEnabled || reminder.done || !reminder.date || !loggedIn)
+      return;
+    const subscription =
+      existingSubscription || (await ensurePushSubscription());
     const key = scheduledPushKey(reminder, subscription.endpoint);
     if (hasScheduledPush(key)) return;
 
@@ -1295,21 +1844,25 @@ export default function Workspace() {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify({
-        reminder,
+        reminder: { id: reminder.id, date: reminder.date, ...(reminder.time ? { time: reminder.time } : {}) },
         remindAt: due.toISOString(),
         subscription: subscription.toJSON(),
       }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(String(result.error || "Could not schedule closed-app reminder."));
+      throw new Error(
+        String(result.error || "Could not schedule closed-app reminder.")
+      );
     }
     rememberScheduledPush(key);
   }
 
   async function enableReminderAlerts() {
     if (!loggedIn) {
-      setToast("Sign in first so reminders can reach you even when Pakki Baat is closed.");
+      setToast(
+        "Sign in first so reminders can reach you even when Pakki Baat is closed."
+      );
       return;
     }
 
@@ -1348,7 +1901,11 @@ export default function Workspace() {
     } catch (error) {
       setReminderAlertsEnabled(false);
       persistReminderAlertSettings(false);
-      setToast(error instanceof Error ? error.message : "Could not enable closed-app reminders.");
+      setToast(
+        error instanceof Error
+          ? error.message
+          : "Could not enable closed-app reminders."
+      );
     }
   }
   function disableReminderAlerts() {
@@ -1359,38 +1916,55 @@ export default function Workspace() {
   }
   function setReminderSound(next: boolean) {
     setReminderSoundEnabled(next);
-    persistReminderAlertSettings(reminderAlertsEnabled, next, reminderVibrationEnabled);
+    persistReminderAlertSettings(
+      reminderAlertsEnabled,
+      next,
+      reminderVibrationEnabled
+    );
   }
   function setReminderVibration(next: boolean) {
     setReminderVibrationEnabled(next);
-    persistReminderAlertSettings(reminderAlertsEnabled, reminderSoundEnabled, next);
+    persistReminderAlertSettings(
+      reminderAlertsEnabled,
+      reminderSoundEnabled,
+      next
+    );
   }
   function playReminderAlarm() {
     if (!reminderSoundEnabled) return;
     try {
-      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       const start = ctx.currentTime + 0.02;
-      [0, .42, .84, 1.35].forEach((offset, index) => {
+      [0, 0.42, 0.84, 1.35].forEach((offset, index) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.value = index === 3 ? 740 : 880;
         gain.gain.setValueAtTime(0.0001, start + offset);
-        gain.gain.exponentialRampToValueAtTime(0.16, start + offset + .025);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + .28);
+        gain.gain.exponentialRampToValueAtTime(0.16, start + offset + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.28);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(start + offset);
-        osc.stop(start + offset + .3);
+        osc.stop(start + offset + 0.3);
       });
       window.setTimeout(() => void ctx.close(), 2200);
     } catch {}
   }
   async function showSystemReminder(reminder: Reminder) {
-    if (notificationPermission !== "granted" && (!("Notification" in window) || Notification.permission !== "granted")) return;
-    const body = `${reminder.customer ? reminder.customer + " · " : ""}${reminder.text}`;
+    if (
+      notificationPermission !== "granted" &&
+      (!("Notification" in window) || Notification.permission !== "granted")
+    )
+      return;
+    const body = `${reminder.customer ? reminder.customer + " · " : ""}${
+      reminder.text
+    }`;
     try {
       if ("serviceWorker" in navigator) {
         const registration = await navigator.serviceWorker.ready;
@@ -1403,7 +1977,11 @@ export default function Workspace() {
           data: { reminderId: reminder.id, url: "/" },
         });
       } else {
-        new Notification("Pakki Baat reminder", { body, icon: "/icon.svg", tag: "pakki-baat-reminder-" + reminder.id });
+        new Notification("Pakki Baat reminder", {
+          body,
+          icon: "/icon.svg",
+          tag: "pakki-baat-reminder-" + reminder.id,
+        });
       }
     } catch {}
   }
@@ -1418,10 +1996,10 @@ export default function Workspace() {
         );
       } catch {}
     }
-    setRingingReminder(current => current || reminder);
+    setRingingReminder((current) => current || reminder);
     playReminderAlarm();
     if (reminderVibrationEnabled && "vibrate" in navigator) {
-      navigator.vibrate([350,180,350,180,650]);
+      navigator.vibrate([350, 180, 350, 180, 650]);
     }
     void showSystemReminder(reminder);
   }
@@ -1434,29 +2012,39 @@ export default function Workspace() {
       id: "test-reminder",
       text: "Closed-app notifications are working ✓",
       date: day(),
-      time: new Date().toTimeString().slice(0,5),
+      time: new Date().toTimeString().slice(0, 5),
       repeat: "none",
       done: false,
       createdAt: new Date().toISOString(),
     };
 
     try {
-      if (!loggedIn) throw new Error("Sign in first. Closed-app reminders need your account.");
-      if (!("Notification" in window)) throw new Error("This browser does not support notifications.");
+      if (!loggedIn)
+        throw new Error(
+          "Sign in first. Closed-app reminders need your account."
+        );
+      if (!("Notification" in window))
+        throw new Error("This browser does not support notifications.");
       if (Notification.permission !== "granted") {
         const permission = await Notification.requestPermission();
         setNotificationPermission(permission);
-        if (permission !== "granted") throw new Error("Phone notification permission is not allowed.");
+        if (permission !== "granted")
+          throw new Error("Phone notification permission is not allowed.");
       }
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
         throw new Error("This browser does not support closed-app push.");
       }
 
-      const configResponse = await fetch("/api/push/config", { cache: "no-store" });
+      const configResponse = await fetch("/api/push/config", {
+        cache: "no-store",
+      });
       const config = await configResponse.json().catch(() => ({}));
-      if (!configResponse.ok) throw new Error("Could not check server push setup.");
+      if (!configResponse.ok)
+        throw new Error("Could not check server push setup.");
       if (!config.enabled) {
-        const missing = Array.isArray(config.missing) ? config.missing.join(", ") : "server push settings";
+        const missing = Array.isArray(config.missing)
+          ? config.missing.join(", ")
+          : "server push settings";
         throw new Error("Server push setup is incomplete: " + missing);
       }
 
@@ -1474,12 +2062,18 @@ export default function Workspace() {
         body: JSON.stringify({ subscription: subscription.toJSON() }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(result.error || "Server push test failed."));
+      if (!response.ok)
+        throw new Error(String(result.error || "Server push test failed."));
 
-      setPushDiagnostic("✓ Server push sent successfully. If no phone notification appears, Android/Chrome notifications are blocked for Pakki Baat.");
+      setPushDiagnostic(
+        "✓ Server push sent successfully. If no phone notification appears, Android/Chrome notifications are blocked for Pakki Baat."
+      );
       setToast("Test push sent from the server ✓");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not complete notification test.";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not complete notification test.";
       setPushDiagnostic("✕ " + message);
       setToast(message);
     } finally {
@@ -1489,16 +2083,16 @@ export default function Workspace() {
     setRingingReminder(test);
     playReminderAlarm();
     if (reminderVibrationEnabled && "vibrate" in navigator) {
-      navigator.vibrate([350,180,350,180,650]);
+      navigator.vibrate([350, 180, 350, 180, 650]);
     }
   }
   async function deleteReminder(id: string) {
     if (!requireActiveSubscriptionForSaving()) return;
-    const reminder = reminders.find(r => r.id === id);
+    const reminder = reminders.find((r) => r.id === id);
     if (!reminder) return;
     if (!(await savePreDeleteSafetyCopy())) return;
     rememberUndo("Reminder deleted");
-    setReminders(items => items.filter(r => r.id !== id));
+    setReminders((items) => items.filter((r) => r.id !== id));
     if (ringingReminder?.id === id) setRingingReminder(null);
     setToast("Reminder deleted.");
   }
@@ -1555,7 +2149,16 @@ export default function Workspace() {
   }
   function say(role: ChatTurn["role"], text: string, replyFor?: Job) {
     setChatTurns((turns) =>
-      [...turns, { id: crypto.randomUUID(), role, text, replyFor, customer: selectedCustomer || undefined }].slice(-80)
+      [
+        ...turns,
+        {
+          id: crypto.randomUUID(),
+          role,
+          text,
+          replyFor,
+          customer: selectedCustomer || undefined,
+        },
+      ].slice(-80)
     );
   }
   async function sendVoice(file: File, duration: number, transcript: string) {
@@ -1598,7 +2201,9 @@ export default function Workspace() {
   async function transcribeSentVoice(file: File, id: string, duration: number) {
     if (voiceBusy) return;
     if (!navigator.onLine) {
-      setToast("Voice transcription needs internet. Your saved hisaab still works offline.");
+      setToast(
+        "Voice transcription needs internet. Your saved hisaab still works offline."
+      );
       return;
     }
     setVoiceBusy(true);
@@ -1630,10 +2235,14 @@ export default function Workspace() {
       // authenticated server read if the response is from an older deployment.
       const authoritativeUsed = Number(result.usage?.voice_seconds);
       if (Number.isFinite(authoritativeUsed)) {
-        setVoiceSecondsUsed((current) => Math.max(current, Math.max(0, authoritativeUsed)));
+        setVoiceSecondsUsed((current) =>
+          Math.max(current, Math.max(0, authoritativeUsed))
+        );
       } else {
         const usage = await loadVoiceUsage();
-        setVoiceSecondsUsed((current) => Math.max(current, usage.voice_seconds));
+        setVoiceSecondsUsed((current) =>
+          Math.max(current, usage.voice_seconds)
+        );
       }
 
       const transcript = String(result.text || "")
@@ -1657,7 +2266,9 @@ export default function Workspace() {
       const reason =
         cause instanceof Error ? cause.message : "Transcription failed.";
       if (reason.includes("Continue with Google")) {
-        setToast("Sign in once to use voice transcription, then tap the mic again.");
+        setToast(
+          "Sign in once to use voice transcription, then tap the mic again."
+        );
       } else {
         setToast("Could not read that voice note. " + reason);
       }
@@ -1668,7 +2279,9 @@ export default function Workspace() {
 
   async function retryVoice(id: string) {
     if (voiceBusy) return;
-    setToast("Retrying a sent voice note would charge its duration again. Please record a fresh voice note instead.");
+    setToast(
+      "Retrying a sent voice note would charge its duration again. Please record a fresh voice note instead."
+    );
   }
   async function startGoogleSignIn() {
     try {
@@ -1757,7 +2370,9 @@ export default function Workspace() {
         setPendingJob(offlineDraft);
         setEntryMode("form");
         setCustomerChatOpen(true);
-        setToast("You’re offline. I kept your text — use the simple form to finish this entry.");
+        setToast(
+          "You’re offline. I kept your text — use the simple form to finish this entry."
+        );
         return;
       }
       console.log(`📨 Processing ${source} message:`, message);
@@ -1810,6 +2425,7 @@ export default function Workspace() {
             )
               ? result.reminder.repeat
               : "none",
+            scheduler: "v5",
             done: false,
             createdAt: new Date().toISOString(),
           };
@@ -1826,27 +2442,67 @@ export default function Workspace() {
       }
 
       if (result.intent === "payment") {
-        if (result.nextQuestion) { say("assistant", result.nextQuestion); return; }
+        if (result.nextQuestion) {
+          say("assistant", result.nextQuestion);
+          return;
+        }
         const amount = Number(result.payment?.amount || 0);
-        const customer = selectedCustomer || String(result.payment?.customer || "");
-        if (!customer) { say("assistant", "Which customer is this payment from?"); return; }
-        if (!(amount > 0)) { say("assistant", "How much did they pay?"); return; }
-        const latest = jobs.find(j => j.customer === customer && j.paid < j.total);
+        const customer =
+          selectedCustomer || String(result.payment?.customer || "");
+        if (!customer) {
+          say("assistant", "Which customer is this payment from?");
+          return;
+        }
+        if (!(amount > 0)) {
+          say("assistant", "How much did they pay?");
+          return;
+        }
+        const latest = jobs.find(
+          (j) => j.customer === customer && j.paid < j.total
+        );
         if (latest) {
-          const ledgerMode = ledgerModeForAccount(activeUserIdRef.current || "");
+          const ledgerMode = ledgerModeForAccount(
+            activeUserIdRef.current || ""
+          );
           if (ledgerMode && amount > latest.total - latest.paid) {
-            say("assistant", "That payment is higher than the remaining balance. Check the amount before saving.");
+            say(
+              "assistant",
+              "That payment is higher than the remaining balance. Check the amount before saving."
+            );
             return;
           }
-          const preview: Job = { ...latest, id: ledgerMode ? latest.id : crypto.randomUUID(), paid: Math.min(latest.total, latest.paid + amount), source: message };
+          const preview: Job = {
+            ...latest,
+            id: ledgerMode ? latest.id : crypto.randomUUID(),
+            paid: Math.min(latest.total, latest.paid + amount),
+            source: message,
+          };
           setPendingJob(preview);
           setChatStep("ready");
-          say("assistant", "I got the details. Check this before saving:", preview);
+          say(
+            "assistant",
+            "I got the details. Check this before saving:",
+            preview
+          );
         } else {
-          const preview: Job = { ...blank(), id: crypto.randomUUID(), customer, work: String(result.payment?.note || "Payment received"), total: amount, paid: amount, date: String(result.payment?.date || day()), source: message, status: "Confirmed" };
+          const preview: Job = {
+            ...blank(),
+            id: crypto.randomUUID(),
+            customer,
+            work: String(result.payment?.note || "Payment received"),
+            total: amount,
+            paid: amount,
+            date: String(result.payment?.date || day()),
+            source: message,
+            status: "Confirmed",
+          };
           setPendingJob(preview);
           setChatStep("ready");
-          say("assistant", "I got the payment details. Check this before saving:", preview);
+          say(
+            "assistant",
+            "I got the payment details. Check this before saving:",
+            preview
+          );
         }
         return;
       }
@@ -1854,36 +2510,94 @@ export default function Workspace() {
       if (result.intent === "note") {
         const customer = selectedCustomer;
         const text = String(result.note?.text || "").trim();
-        if (!customer) { say("assistant", "Open the customer first so I know where to save this note."); return; }
-        if (!text) { say("assistant", "What note should I remember?"); return; }
-        setNotes(items => [{ id: crypto.randomUUID(), customer, text, createdAt: new Date().toISOString() }, ...items]);
+        if (!customer) {
+          say(
+            "assistant",
+            "Open the customer first so I know where to save this note."
+          );
+          return;
+        }
+        if (!text) {
+          say("assistant", "What note should I remember?");
+          return;
+        }
+        setNotes((items) => [
+          {
+            id: crypto.randomUUID(),
+            customer,
+            text,
+            createdAt: new Date().toISOString(),
+          },
+          ...items,
+        ]);
         say("assistant", "Saved to " + customer + " ✓");
         return;
       }
 
       if (result.intent === "edit") {
-        if (!selectedCustomer) { say("assistant", "Open the customer first so I know which entry to change."); return; }
-        const latest = jobs.find(j => j.customer === selectedCustomer);
-        if (!latest) { say("assistant", "There is no order to change yet for " + selectedCustomer + "."); return; }
+        if (!selectedCustomer) {
+          say(
+            "assistant",
+            "Open the customer first so I know which entry to change."
+          );
+          return;
+        }
+        const latest = jobs.find((j) => j.customer === selectedCustomer);
+        if (!latest) {
+          say(
+            "assistant",
+            "There is no order to change yet for " + selectedCustomer + "."
+          );
+          return;
+        }
         const changes = result.changes || {};
         const next: Job = {
           ...latest,
           ...(typeof changes.work === "string" ? { work: changes.work } : {}),
-          ...(Number.isFinite(Number(changes.total)) ? { total: Number(changes.total) } : {}),
-          ...(Number.isFinite(Number(changes.paid)) ? { paid: Number(changes.paid) } : {}),
+          ...(Number.isFinite(Number(changes.total))
+            ? { total: Number(changes.total) }
+            : {}),
+          ...(Number.isFinite(Number(changes.paid))
+            ? { paid: Number(changes.paid) }
+            : {}),
           ...(typeof changes.date === "string" ? { date: changes.date } : {}),
           ...(typeof changes.time === "string" ? { time: changes.time } : {}),
-          ...(["Waiting","Confirmed","Completed"].includes(changes.status) ? { status: changes.status } : {}),
+          ...(["Waiting", "Confirmed", "Completed"].includes(changes.status)
+            ? { status: changes.status }
+            : {}),
         };
-        if (next.total < next.paid) { say("assistant", "That would make the received amount higher than the total. Tell me the correct total or payment."); return; }
-        if (ledgerModeForAccount(activeUserIdRef.current || "") && next.paid < latest.paid) {
-          say("assistant", "Received amount cannot be reduced without correcting the matching payment record. No change was saved.");
+        if (next.total < next.paid) {
+          say(
+            "assistant",
+            "That would make the received amount higher than the total. Tell me the correct total or payment."
+          );
+          return;
+        }
+        if (
+          ledgerModeForAccount(activeUserIdRef.current || "") &&
+          next.paid < latest.paid
+        ) {
+          say(
+            "assistant",
+            "To reduce the received amount, use Edit Payment in the customer view. This ensures proper financial tracking."
+          );
           return;
         }
         if (next.paid > latest.paid) {
-          setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: latest.id, amount: next.paid-latest.paid, date: day(), note: "Payment correction", createdAt: new Date().toISOString() }, ...items]);
+          setPayments((items) => [
+            {
+              id: crypto.randomUUID(),
+              customer: selectedCustomer,
+              jobId: latest.id,
+              amount: next.paid - latest.paid,
+              date: day(),
+              note: "Payment correction",
+              createdAt: new Date().toISOString(),
+            },
+            ...items,
+          ]);
         }
-        setJobs(items => items.map(j => j.id===latest.id ? next : j));
+        setJobs((items) => items.map((j) => (j.id === latest.id ? next : j)));
         say("assistant", "Updated " + selectedCustomer + " ✓");
         return;
       }
@@ -1919,16 +2633,38 @@ export default function Workspace() {
     if (savedPendingRef.current === item) return;
     const saved = { ...item, customer: selectedCustomer };
     const ledgerMode = ledgerModeForAccount(activeUserIdRef.current || "");
-    const previous = jobs.find(j => j.id === saved.id);
-    if (ledgerMode && (!Number.isFinite(saved.paid) || !Number.isFinite(saved.total) || saved.paid < (previous?.paid || 0) || saved.paid > saved.total)) {
+    const previous = jobs.find((j) => j.id === saved.id);
+    if (
+      ledgerMode &&
+      (!Number.isFinite(saved.paid) ||
+        !Number.isFinite(saved.total) ||
+        saved.paid < (previous?.paid || 0) ||
+        saved.paid > saved.total)
+    ) {
       setToast("Check the total and received amount before saving.");
       return;
     }
     savedPendingRef.current = item;
-    setJobs(items => [saved, ...items.filter(j => j.id !== saved.id)]);
-    const paymentDelta = ledgerMode ? saved.paid - (previous?.paid || 0) : saved.paid;
-    if (paymentDelta > 0 && (ledgerMode || !payments.some(p => p.jobId === saved.id))) {
-      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: paymentDelta, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    setJobs((items) => [saved, ...items.filter((j) => j.id !== saved.id)]);
+    const paymentDelta = ledgerMode
+      ? saved.paid - (previous?.paid || 0)
+      : saved.paid;
+    if (
+      paymentDelta > 0 &&
+      (ledgerMode || !payments.some((p) => p.jobId === saved.id))
+    ) {
+      setPayments((items) => [
+        {
+          id: crypto.randomUUID(),
+          customer: selectedCustomer,
+          jobId: saved.id,
+          amount: paymentDelta,
+          date: day(),
+          note: previous ? "Payment update" : "Initial payment / advance",
+          createdAt: new Date().toISOString(),
+        },
+        ...items,
+      ]);
     }
     setPendingJob(null);
     setChatStep("customer");
@@ -1944,12 +2680,24 @@ export default function Workspace() {
   function requireActiveSubscriptionForSaving() {
     if (!requireLoginForSaving()) return false;
     if (hasActiveSubscription) return true;
+    if (
+      trialSubscription.ownerId !== activeUserIdRef.current ||
+      trialSubscription.status === "loading" ||
+      trialSubscription.status === "error"
+    ) {
+      setToast(
+        "Your subscription could not yet be confirmed. Please try again shortly."
+      );
+      return false;
+    }
     if (!subscriptionPlan) {
       setTrialOfferOpen(true);
       setToast("Start your free trial or choose a plan to continue.");
     } else {
       setTab("Subscription");
-      setToast("Your plan has expired or is inactive. Your existing data is safe — choose a plan to continue editing.");
+      setToast(
+        "Your plan has expired or is inactive. Your existing data is safe — choose a plan to continue editing."
+      );
     }
     return false;
   }
@@ -1959,7 +2707,16 @@ export default function Workspace() {
     setEntryMode(mode);
     setMessage("");
     setReceivedAmountTouched(false);
-    setPendingJob(mode === "form" ? { ...blank(), id: crypto.randomUUID(), customer: selectedCustomer, status: "Confirmed" } : null);
+    setPendingJob(
+      mode === "form"
+        ? {
+            ...blank(),
+            id: crypto.randomUUID(),
+            customer: selectedCustomer,
+            status: "Confirmed",
+          }
+        : null
+    );
     setCustomerChatOpen(true);
   }
   function amountValue(value: number) {
@@ -1990,16 +2747,38 @@ export default function Workspace() {
     if (savedPendingRef.current === pendingJob) return;
     const saved = { ...pendingJob, customer: selectedCustomer };
     const ledgerMode = ledgerModeForAccount(activeUserIdRef.current || "");
-    const previous = jobs.find(j => j.id === saved.id);
-    if (ledgerMode && (!Number.isFinite(saved.paid) || !Number.isFinite(saved.total) || saved.paid < (previous?.paid || 0) || saved.paid > saved.total)) {
+    const previous = jobs.find((j) => j.id === saved.id);
+    if (
+      ledgerMode &&
+      (!Number.isFinite(saved.paid) ||
+        !Number.isFinite(saved.total) ||
+        saved.paid < (previous?.paid || 0) ||
+        saved.paid > saved.total)
+    ) {
       setToast("Check the total and received amount before saving.");
       return;
     }
     savedPendingRef.current = pendingJob;
-    setJobs(items => [saved, ...items.filter(j => j.id !== saved.id)]);
-    const paymentDelta = ledgerMode ? saved.paid - (previous?.paid || 0) : saved.paid;
-    if (paymentDelta > 0 && (ledgerMode || !payments.some(p => p.jobId === saved.id))) {
-      setPayments(items => [{ id: crypto.randomUUID(), customer: selectedCustomer, jobId: saved.id, amount: paymentDelta, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+    setJobs((items) => [saved, ...items.filter((j) => j.id !== saved.id)]);
+    const paymentDelta = ledgerMode
+      ? saved.paid - (previous?.paid || 0)
+      : saved.paid;
+    if (
+      paymentDelta > 0 &&
+      (ledgerMode || !payments.some((p) => p.jobId === saved.id))
+    ) {
+      setPayments((items) => [
+        {
+          id: crypto.randomUUID(),
+          customer: selectedCustomer,
+          jobId: saved.id,
+          amount: paymentDelta,
+          date: day(),
+          note: previous ? "Payment update" : "Initial payment / advance",
+          createdAt: new Date().toISOString(),
+        },
+        ...items,
+      ]);
     }
     setPendingJob(null);
     setPendingReminderText("");
@@ -2039,15 +2818,32 @@ export default function Workspace() {
       work: draft.work.trim(),
     };
     if (!canAddCustomer(item.customer)) return;
-    const previous = jobs.find(j => j.id === item.id);
+    const previous = jobs.find((j) => j.id === item.id);
     const previousPaid = previous?.paid || 0;
-    if (previous && ledgerModeForAccount(activeUserIdRef.current || "") && item.paid < previousPaid) {
-      setToast("Received amount cannot be reduced without correcting its payment record. No change was saved.");
+    if (
+      previous &&
+      ledgerModeForAccount(activeUserIdRef.current || "") &&
+      item.paid < previousPaid
+    ) {
+      setToast(
+        "To reduce the received amount, use Edit Payment in the customer view."
+      );
       return;
     }
     savedDraftRef.current = draft;
     if (item.paid > previousPaid) {
-      setPayments(items => [{ id: crypto.randomUUID(), customer: item.customer, jobId: item.id, amount: item.paid - previousPaid, date: day(), note: previous ? "Payment update" : "Initial payment / advance", createdAt: new Date().toISOString() }, ...items]);
+      setPayments((items) => [
+        {
+          id: crypto.randomUUID(),
+          customer: item.customer,
+          jobId: item.id,
+          amount: item.paid - previousPaid,
+          date: day(),
+          note: previous ? "Payment update" : "Initial payment / advance",
+          createdAt: new Date().toISOString(),
+        },
+        ...items,
+      ]);
     }
     setJobs((p) => [item, ...p.filter((j) => j.id !== item.id)]);
     setDraft(null);
@@ -2084,19 +2880,27 @@ export default function Workspace() {
       `Balance: ${money(baki)}`,
       j.date ? `Due: ${j.date}${j.time ? " · " + j.time : ""}` : "",
       "",
-      baki === 0 ? "Payment status: Paid in full" : "Payment status: Balance pending",
+      baki === 0
+        ? "Payment status: Paid in full"
+        : "Payment status: Balance pending",
       "",
       "Thank you.",
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
   };
   function escapeReceiptHtml(value: string) {
-    return value.replace(/[&<>"']/g, (char) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;",
-    }[char] || char));
+    return value.replace(
+      /[&<>"']/g,
+      (char) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        }[char] || char)
+    );
   }
   function openReceipt(job: Job) {
     setReceiptJob(job);
@@ -2122,7 +2926,11 @@ export default function Workspace() {
       ? escapeReceiptHtml(job.date + (job.time ? " · " + job.time : ""))
       : "Not set";
     const baki = Math.max(0, job.total - job.paid);
-    const issued = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const issued = new Date().toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
     popup.document.write(`<!doctype html>
 <html><head><meta charset="utf-8"><title>${receiptNo}</title>
 <style>
@@ -2143,9 +2951,15 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
 <div class="row"><span>Customer</span><strong>${customer}</strong></div>
 <div class="row"><span>Due</span><strong>${due}</strong></div>
 <div class="rule"></div>
-<div class="row"><span>Total</span><strong>${escapeReceiptHtml(money(job.total))}</strong></div>
-<div class="row"><span>Received</span><strong>${escapeReceiptHtml(money(job.paid))}</strong></div>
-<div class="row total"><span>Balance</span><strong class="baki">${escapeReceiptHtml(money(baki))}</strong></div>
+<div class="row"><span>Total</span><strong>${escapeReceiptHtml(
+      money(job.total)
+    )}</strong></div>
+<div class="row"><span>Received</span><strong>${escapeReceiptHtml(
+      money(job.paid)
+    )}</strong></div>
+<div class="row total"><span>Balance</span><strong class="baki">${escapeReceiptHtml(
+      money(baki)
+    )}</strong></div>
 <div class="status">${baki === 0 ? "Paid in full" : "Balance pending"}</div>
 <p class="footer">Pakki Baat by Sarrah Bharmal (Zorivo)</p>
 </div>
@@ -2154,10 +2968,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     popup.document.close();
   }
   function safeReceiptFileName(value: string) {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "receipt";
+    return (
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "receipt"
+    );
   }
   function receiptCanvasBlob(job: Job): Promise<Blob> {
     return new Promise((resolve, reject) => {
@@ -2178,9 +2994,17 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           year: "numeric",
         });
 
-        const roundRect = (x:number,y:number,w:number,h:number,r:number,fill:string,stroke?:string) => {
+        const roundRect = (
+          x: number,
+          y: number,
+          w: number,
+          h: number,
+          r: number,
+          fill: string,
+          stroke?: string
+        ) => {
           ctx.beginPath();
-          ctx.roundRect(x,y,w,h,r);
+          ctx.roundRect(x, y, w, h, r);
           ctx.fillStyle = fill;
           ctx.fill();
           if (stroke) {
@@ -2189,14 +3013,31 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             ctx.stroke();
           }
         };
-        const text = (value:string,x:number,y:number,size:number,weight:string,color:string,align:CanvasTextAlign="left") => {
+        const text = (
+          value: string,
+          x: number,
+          y: number,
+          size: number,
+          weight: string,
+          color: string,
+          align: CanvasTextAlign = "left"
+        ) => {
           ctx.font = `${weight} ${size}px Arial, sans-serif`;
           ctx.fillStyle = color;
           ctx.textAlign = align;
           ctx.textBaseline = "alphabetic";
-          ctx.fillText(value,x,y);
+          ctx.fillText(value, x, y);
         };
-        const wrapText = (value:string,x:number,y:number,maxWidth:number,lineHeight:number,size:number,weight:string,color:string) => {
+        const wrapText = (
+          value: string,
+          x: number,
+          y: number,
+          maxWidth: number,
+          lineHeight: number,
+          size: number,
+          weight: string,
+          color: string
+        ) => {
           ctx.font = `${weight} ${size}px Arial, sans-serif`;
           ctx.fillStyle = color;
           ctx.textAlign = "left";
@@ -2206,81 +3047,140 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           for (const word of words) {
             const test = line ? line + " " + word : word;
             if (ctx.measureText(test).width > maxWidth && line) {
-              ctx.fillText(line,x,yy);
+              ctx.fillText(line, x, yy);
               line = word;
               yy += lineHeight;
             } else {
               line = test;
             }
           }
-          if (line) ctx.fillText(line,x,yy);
+          if (line) ctx.fillText(line, x, yy);
           return yy;
         };
 
         ctx.fillStyle = "#f2efe7";
-        ctx.fillRect(0,0,width,height);
+        ctx.fillRect(0, 0, width, height);
 
         // Receipt sheet
-        roundRect(76,64,928,1222,38,"#fffdf8","#dfdacd");
+        roundRect(76, 64, 928, 1222, 38, "#fffdf8", "#dfdacd");
 
         // Header
-        text(businessName,122,150,44,"700","#22372f");
-        text("CUSTOMER RECEIPT",122,194,18,"700","#718079");
-        text(receiptNumber(job),958,150,20,"700","#5d6f66","right");
-        text(issued,958,187,18,"400","#8a958f","right");
+        text(businessName, 122, 150, 44, "700", "#22372f");
+        text("CUSTOMER RECEIPT", 122, 194, 18, "700", "#718079");
+        text(receiptNumber(job), 958, 150, 20, "700", "#5d6f66", "right");
+        text(issued, 958, 187, 18, "400", "#8a958f", "right");
 
         ctx.strokeStyle = "#e9e4d8";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(122,236);
-        ctx.lineTo(958,236);
+        ctx.moveTo(122, 236);
+        ctx.lineTo(958, 236);
         ctx.stroke();
 
         // Customer + status
-        text("CUSTOMER",122,294,17,"700","#8a958f");
-        text(job.customer,122,342,34,"700","#263d33");
+        text("CUSTOMER", 122, 294, 17, "700", "#8a958f");
+        text(job.customer, 122, 342, 34, "700", "#263d33");
 
         const statusLabel = baki === 0 ? "PAID IN FULL" : "BALANCE DUE";
         const statusFill = baki === 0 ? "#e7f3ec" : "#fff0e5";
         const statusColor = baki === 0 ? "#2f735e" : "#a35d43";
-        roundRect(730,282,228,62,31,statusFill);
-        text(statusLabel,844,322,16,"700",statusColor,"center");
+        roundRect(730, 282, 228, 62, 31, statusFill);
+        text(statusLabel, 844, 322, 16, "700", statusColor, "center");
 
-        text("WORK / ORDER",122,406,17,"700","#8a958f");
-        const workEnd = wrapText(job.work,122,452,836,38,28,"700","#30463c");
+        text("WORK / ORDER", 122, 406, 17, "700", "#8a958f");
+        const workEnd = wrapText(
+          job.work,
+          122,
+          452,
+          836,
+          38,
+          28,
+          "700",
+          "#30463c"
+        );
 
         // Amount cards
         const cardsY = Math.max(540, workEnd + 64);
         const cardW = 254;
         const gap = 24;
-        const amountCard = (x:number,label:string,value:string,accent=false) => {
-          roundRect(x,cardsY,cardW,154,24,accent ? "#fff5ec" : "#f4f7f3",accent ? "#ead8c7" : "#e1e7df");
-          text(label,x+24,cardsY+46,16,"700","#7f8d85");
-          text(value,x+24,cardsY+105,30,"700",accent ? "#a35d43" : "#2a4036");
+        const amountCard = (
+          x: number,
+          label: string,
+          value: string,
+          accent = false
+        ) => {
+          roundRect(
+            x,
+            cardsY,
+            cardW,
+            154,
+            24,
+            accent ? "#fff5ec" : "#f4f7f3",
+            accent ? "#ead8c7" : "#e1e7df"
+          );
+          text(label, x + 24, cardsY + 46, 16, "700", "#7f8d85");
+          text(
+            value,
+            x + 24,
+            cardsY + 105,
+            30,
+            "700",
+            accent ? "#a35d43" : "#2a4036"
+          );
         };
-        amountCard(122,"TOTAL",money(job.total));
-        amountCard(122+cardW+gap,"RECEIVED",money(job.paid));
-        amountCard(122+(cardW+gap)*2,"BALANCE",money(baki),true);
+        amountCard(122, "TOTAL", money(job.total));
+        amountCard(122 + cardW + gap, "RECEIVED", money(job.paid));
+        amountCard(122 + (cardW + gap) * 2, "BALANCE", money(baki), true);
 
         // Due row
         const dueY = cardsY + 198;
-        roundRect(122,dueY,836,92,20,"#faf9f5","#e6e1d8");
-        text("DUE",150,dueY+36,15,"700","#86928b");
-        text(job.date ? job.date + (job.time ? " · " + job.time : "") : "Not set",930,dueY+57,24,"700","#32483e","right");
+        roundRect(122, dueY, 836, 92, 20, "#faf9f5", "#e6e1d8");
+        text("DUE", 150, dueY + 36, 15, "700", "#86928b");
+        text(
+          job.date ? job.date + (job.time ? " · " + job.time : "") : "Not set",
+          930,
+          dueY + 57,
+          24,
+          "700",
+          "#32483e",
+          "right"
+        );
 
         // Footer note
         const noteY = dueY + 150;
-        text(baki === 0 ? "Payment complete ✓" : "Balance pending",122,noteY,24,"700",baki===0 ? "#2f735e" : "#a35d43");
-        text("Thank you.",122,noteY+62,28,"700","#33483f");
+        text(
+          baki === 0 ? "Payment complete ✓" : "Balance pending",
+          122,
+          noteY,
+          24,
+          "700",
+          baki === 0 ? "#2f735e" : "#a35d43"
+        );
+        text("Thank you.", 122, noteY + 62, 28, "700", "#33483f");
 
         ctx.strokeStyle = "#e9e4d8";
         ctx.beginPath();
-        ctx.moveTo(122,1168);
-        ctx.lineTo(958,1168);
+        ctx.moveTo(122, 1168);
+        ctx.lineTo(958, 1168);
         ctx.stroke();
-        text("Pakki Baat by Sarrah Bharmal (Zorivo)",540,1218,17,"400","#8a958f","center");
+        text(
+          "Pakki Baat by Sarrah Bharmal (Zorivo)",
+          540,
+          1218,
+          17,
+          "400",
+          "#8a958f",
+          "center"
+        );
 
-        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not create receipt image.")), "image/png", 0.96);
+        canvas.toBlob(
+          (blob) =>
+            blob
+              ? resolve(blob)
+              : reject(new Error("Could not create receipt image.")),
+          "image/png",
+          0.96
+        );
       } catch (error) {
         reject(error);
       }
@@ -2293,7 +3193,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${safeReceiptFileName(job.customer)}-${receiptNumber(job)}.png`;
+      link.download = `${safeReceiptFileName(job.customer)}-${receiptNumber(
+        job
+      )}.png`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setToast("Receipt image saved ✓");
@@ -2325,7 +3227,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         link.download = file.name;
         link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setToast("Image sharing is not supported here, so the receipt was downloaded.");
+        setToast(
+          "Image sharing is not supported here, so the receipt was downloaded."
+        );
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -2335,7 +3239,15 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     }
   }
   function currentSnapshot(): Snapshot {
-    return { jobs, owner, business, reminders, payments, notes, customerPhones };
+    return {
+      jobs,
+      owner,
+      business,
+      reminders,
+      payments,
+      notes,
+      customerPhones,
+    };
   }
   function rememberUndo(message: string) {
     setLastUndo({ message, snapshot: currentSnapshot() });
@@ -2346,13 +3258,22 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     const ownerId = activeUserIdRef.current;
     if (ownerId && ledgerModeForAccount(ownerId)) {
       autosavePausedRef.current = true;
+      cancelDailyBackup();
+      clearBackupStatusUi();
       try {
         await saveCloud(normalizedSnapshot(s), ownerId);
-        if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: undo was saved to the original account. Sign in again to load it.");
+        if ((await currentSession())?.user.id !== ownerId)
+          throw new Error(
+            "ACCOUNT_CHANGED: undo was saved to the original account. Sign in again to load it."
+          );
         restoreTargetRef.current = normalizedSnapshot(s);
       } catch (error) {
         autosavePausedRef.current = false;
-        setToast(`Undo was not applied: ${error instanceof Error ? error.message : "cloud save failed"}`);
+        setToast(
+          `Undo was not applied: ${
+            error instanceof Error ? error.message : "cloud save failed"
+          }`
+        );
         return;
       }
     }
@@ -2382,13 +3303,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     }
     const text = whatsappMessage.trim() || replyText(whatsappJob);
     if (saveWhatsappNumber && hasActiveSubscription) {
-      setCustomerPhones(items => ({ ...items, [whatsappJob.customer]: digits }));
+      setCustomerPhones((items) => ({
+        ...items,
+        [whatsappJob.customer]: digits,
+      }));
     }
-    const url =
-      "https://wa.me/" +
-      digits +
-      "?text=" +
-      encodeURIComponent(text);
+    const url = "https://wa.me/" + digits + "?text=" + encodeURIComponent(text);
     window.open(url, "_blank", "noopener,noreferrer");
     setWhatsappJob(null);
     setWhatsappNumber("");
@@ -2406,7 +3326,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       setToast("Enter a valid WhatsApp number with country code.");
       return;
     }
-    setCustomerPhones(items => {
+    setCustomerPhones((items) => {
       const next = { ...items };
       if (digits) next[phoneEditorCustomer] = digits;
       else delete next[phoneEditorCustomer];
@@ -2414,11 +3334,20 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     });
     setPhoneEditorCustomer(null);
     setPhoneEditorValue("");
-    setToast(digits ? "Customer WhatsApp number saved." : "Customer number removed.");
+    setToast(
+      digits ? "Customer WhatsApp number saved." : "Customer number removed."
+    );
   }
   function customerContactText() {
     return customerNames
-      .map(name => `${name} — ${customerPhones[name] ? "+" + customerPhones[name] : "No mobile number"}`)
+      .map(
+        (name) =>
+          `${name} — ${
+            customerPhones[name]
+              ? "+" + customerPhones[name]
+              : "No mobile number"
+          }`
+      )
       .join("\n");
   }
   async function copyCustomerContacts() {
@@ -2431,11 +3360,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   }
   function downloadCustomerContacts() {
     const rows = [
-      ["Customer","Mobile number"],
-      ...customerNames.map(name => [name, customerPhones[name] ? "+" + customerPhones[name] : ""]),
+      ["Customer", "Mobile number"],
+      ...customerNames.map((name) => [
+        name,
+        customerPhones[name] ? "+" + customerPhones[name] : "",
+      ]),
     ];
     const csv = rows
-      .map(row => row.map(value => `"${String(value).replace(/"/g,'""')}"`).join(","))
+      .map((row) =>
+        row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")
+      )
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -2467,25 +3401,162 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     submittedPaymentJobRef.current = paymentJob;
     const message = "Payment updated ✓";
     rememberUndo(message);
-    setJobs(items => items.map(j => j.id === paymentJob.id ? { ...j, paid: j.paid + amount } : j));
-    setPayments(items => [{
-      id: crypto.randomUUID(),
-      customer: paymentJob.customer,
-      jobId: paymentJob.id,
-      amount,
-      date: day(),
-      note: "Quick payment",
-      createdAt: new Date().toISOString()
-    }, ...items]);
+    setJobs((items) =>
+      items.map((j) =>
+        j.id === paymentJob.id ? { ...j, paid: j.paid + amount } : j
+      )
+    );
+    setPayments((items) => [
+      {
+        id: crypto.randomUUID(),
+        customer: paymentJob.customer,
+        jobId: paymentJob.id,
+        amount,
+        date: day(),
+        note: "Quick payment",
+        createdAt: new Date().toISOString(),
+      },
+      ...items,
+    ]);
     setPaymentJob(null);
     setPaymentAmount("");
     setToast(message);
   }
-  function updateJobStatus(job: Job, status: "Waiting"|"Confirmed"|"Completed") {
-    if (job.status === status || !requireActiveSubscriptionForSaving()) return;
-    const message = status === "Completed" ? "Marked done ✓" : status === "Confirmed" ? "Marked in progress ✓" : "Marked pending ✓";
+  function openEditPayment(payment: Payment) {
+    if (!requireActiveSubscriptionForSaving()) return;
+    setEditingPayment(payment);
+    setEditPaymentAmount(String(payment.amount));
+    setEditPaymentReason("wrong_amount");
+    setEditPaymentNote("");
+  }
+  function closeEditPayment() {
+    setEditingPayment(null);
+    setEditPaymentAmount("");
+    setEditPaymentReason("wrong_amount");
+    setEditPaymentNote("");
+  }
+  function savePaymentCorrection() {
+    if (!editingPayment || !requireActiveSubscriptionForSaving()) return;
+    const newAmount = Number(editPaymentAmount);
+    const originalAmount = editingPayment.amount;
+
+    // Validate new amount
+    if (!Number.isFinite(newAmount) || newAmount < 0) {
+      setToast("Enter a valid amount (₹0 or more).");
+      return;
+    }
+
+    // Check if amount actually changed
+    if (newAmount === originalAmount) {
+      setToast("The amount hasn't changed.");
+      return;
+    }
+
+    // Validate correction note length
+    if (editPaymentNote.trim().length > 500) {
+      setToast("Correction note is too long (max 500 characters).");
+      return;
+    }
+
+    // Find the associated job to validate against total
+    const relatedJob = editingPayment.jobId
+      ? jobs.find((j) => j.id === editingPayment.jobId)
+      : null;
+
+    if (relatedJob) {
+      // Calculate what the new paid amount would be
+      const otherPayments = payments
+        .filter((p) => p.jobId === relatedJob.id && p.id !== editingPayment.id)
+        .reduce((sum, p) => sum + p.amount, 0);
+      const newPaidTotal = otherPayments + newAmount;
+
+      if (newPaidTotal > relatedJob.total) {
+        setToast(
+          `Cannot exceed job total. Job total: ${money(relatedJob.total)}, ` +
+            `other payments: ${money(otherPayments)}, ` +
+            `max for this payment: ${money(relatedJob.total - otherPayments)}`
+        );
+        return;
+      }
+
+      // Update job's paid amount
+      setJobs((items) =>
+        items.map((j) =>
+          j.id === relatedJob.id ? { ...j, paid: newPaidTotal } : j
+        )
+      );
+    }
+
+    // Update the payment with correction metadata
+    const correctedPayment: Payment = {
+      ...editingPayment,
+      amount: newAmount,
+      correctionReason: editPaymentReason,
+      correctionNote: editPaymentNote.trim() || undefined,
+    };
+
+    const message =
+      newAmount === 0
+        ? "Payment removed ✓"
+        : `Payment corrected: ${money(originalAmount)} → ${money(newAmount)} ✓`;
+
     rememberUndo(message);
-    setJobs(items => items.map(item => item.id === job.id ? { ...item, status } : item));
+
+    // Update or remove the payment
+    if (newAmount === 0) {
+      // Delete the payment (will create reversal-only in ledger)
+      setPayments((items) => items.filter((p) => p.id !== editingPayment.id));
+    } else {
+      // Update the payment (will create reversal + replacement in ledger)
+      setPayments((items) =>
+        items.map((p) => (p.id === editingPayment.id ? correctedPayment : p))
+      );
+    }
+
+    closeEditPayment();
+    setToast(message);
+  }
+  function deletePayment(payment: Payment) {
+    if (!requireActiveSubscriptionForSaving()) return;
+    if (
+      !confirm(`Delete ${money(payment.amount)} payment from ${payment.date}?`)
+    ) {
+      return;
+    }
+
+    // Find related job and update its paid amount
+    if (payment.jobId) {
+      const relatedJob = jobs.find((j) => j.id === payment.jobId);
+      if (relatedJob) {
+        setJobs((items) =>
+          items.map((j) =>
+            j.id === payment.jobId
+              ? { ...j, paid: Math.max(0, j.paid - payment.amount) }
+              : j
+          )
+        );
+      }
+    }
+
+    rememberUndo("Payment deleted");
+    setPayments((items) => items.filter((p) => p.id !== payment.id));
+    setToast("Payment deleted ✓");
+  }
+  function updateJobStatus(
+    job: Job,
+    status: "Waiting" | "Confirmed" | "Completed"
+  ) {
+    if (job.status === status || !requireActiveSubscriptionForSaving()) return;
+    const message =
+      status === "Completed"
+        ? "Marked done ✓"
+        : status === "Confirmed"
+        ? "Marked in progress ✓"
+        : "Marked pending ✓";
+    rememberUndo(message);
+    setJobs((items) =>
+      items.map((item) => (item.id === job.id ? { ...item, status } : item))
+    );
     setToast(message);
   }
   function deleteEntry(job: Job) {
@@ -2494,12 +3565,23 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   async function savePreDeleteSafetyCopy() {
     if (!loggedIn) return true;
     try {
-      const current: Snapshot = { jobs, owner, business, reminders, payments, notes, customerPhones };
-      if (!isSnapshot(current)) throw new Error("Current workspace is invalid.");
+      const current: Snapshot = {
+        jobs,
+        owner,
+        business,
+        reminders,
+        payments,
+        notes,
+        customerPhones,
+      };
+      if (!isSnapshot(current))
+        throw new Error("Current workspace is invalid.");
       await saveWorkspaceBackup(current, "pre_restore");
       return true;
     } catch {
-      setToast("Could not create a safety copy. Check your internet and try again.");
+      setToast(
+        "Could not create a safety copy. Check your internet and try again."
+      );
       return false;
     }
   }
@@ -2508,13 +3590,23 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     if (!(await savePreDeleteSafetyCopy())) return;
     const name = deleteCustomer;
     rememberUndo("Customer deleted");
-    const jobIds = new Set(jobs.filter(j => j.customer === name).map(j => j.id));
-    setJobs(items => items.filter(j => j.customer !== name));
-    setPayments(items => items.filter(p => p.customer !== name && (!p.jobId || !jobIds.has(p.jobId))));
-    setReminders(items => items.filter(r => r.customer !== name && (!r.jobId || !jobIds.has(r.jobId))));
-    setNotes(items => items.filter(n => n.customer !== name));
-    setChatTurns(items => items.filter(t => t.customer !== name));
-    setCustomerPhones(items => {
+    const jobIds = new Set(
+      jobs.filter((j) => j.customer === name).map((j) => j.id)
+    );
+    setJobs((items) => items.filter((j) => j.customer !== name));
+    setPayments((items) =>
+      items.filter(
+        (p) => p.customer !== name && (!p.jobId || !jobIds.has(p.jobId))
+      )
+    );
+    setReminders((items) =>
+      items.filter(
+        (r) => r.customer !== name && (!r.jobId || !jobIds.has(r.jobId))
+      )
+    );
+    setNotes((items) => items.filter((n) => n.customer !== name));
+    setChatTurns((items) => items.filter((t) => t.customer !== name));
+    setCustomerPhones((items) => {
       const next = { ...items };
       delete next[name];
       return next;
@@ -2529,10 +3621,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     const job = deleteJob;
     const message = "Entry deleted";
     rememberUndo(message);
-    setJobs(items => items.filter(item => item.id !== job.id));
-    setPayments(items => items.filter(item => item.jobId !== job.id));
-    setReminders(items => items.filter(item => item.jobId !== job.id));
-    setChatTurns(items => items.filter(item => item.replyFor?.id !== job.id));
+    setJobs((items) => items.filter((item) => item.id !== job.id));
+    setPayments((items) => items.filter((item) => item.jobId !== job.id));
+    setReminders((items) => items.filter((item) => item.jobId !== job.id));
+    setChatTurns((items) =>
+      items.filter((item) => item.replyFor?.id !== job.id)
+    );
     if (draft?.id === job.id) setDraft(null);
     setDeleteJob(null);
     setToast(message);
@@ -2569,7 +3663,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   function sample() {
     if (!requireActiveSubscriptionForSaving()) return;
     if (ledgerModeForAccount(activeUserIdRef.current || "")) {
-      setToast("Sample data is unavailable in ledger mode because it has no matching payment history.");
+      setToast(
+        "Sample data is unavailable in ledger mode because it has no matching payment history."
+      );
       return;
     }
     setJobs([
@@ -2626,10 +3722,19 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         const ownerId = activeUserIdRef.current;
         if (ownerId && ledgerModeForAccount(ownerId)) {
           autosavePausedRef.current = true;
+          cancelDailyBackup();
+          clearBackupStatusUi();
           try {
-            await saveWorkspaceBackup(currentSnapshot(), "pre_restore", ownerId);
+            await saveWorkspaceBackup(
+              currentSnapshot(),
+              "pre_restore",
+              ownerId
+            );
             await saveCloud(normalizedSnapshot(data), ownerId);
-            if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: backup was saved to the original account. Sign in again to load it.");
+            if ((await currentSession())?.user.id !== ownerId)
+              throw new Error(
+                "ACCOUNT_CHANGED: backup was saved to the original account. Sign in again to load it."
+              );
             restoreTargetRef.current = normalizedSnapshot(data);
           } catch (error) {
             autosavePausedRef.current = false;
@@ -2648,57 +3753,123 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       <span className="job-main">
         <strong>{j.work}</strong>
         <span>{j.customer}</span>
-        <small>{j.date ? new Date(j.date + "T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"}) : "Date to be agreed"}{j.time ? " · " + j.time : ""}</small>
+        <small>
+          {j.date
+            ? new Date(j.date + "T12:00:00").toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+              })
+            : "Date to be agreed"}
+          {j.time ? " · " + j.time : ""}
+        </small>
       </span>
-      <span className="job-end"><strong>{money(j.total-j.paid)}</strong><span className={j.status==="Confirmed"?"tag green":"tag"}>{j.status}</span></span>
-      <Icon name="arrow" size={16}/>
+      <span className="job-end">
+        <strong>{money(j.total - j.paid)}</strong>
+        <span className={j.status === "Confirmed" ? "tag green" : "tag"}>
+          {j.status}
+        </span>
+      </span>
+      <Icon name="arrow" size={16} />
     </button>
   );
-  const customerNames = Array.from(new Set([...jobs.map(j=>j.customer), ...payments.map(p=>p.customer), ...notes.map(n=>n.customer), ...reminders.map(r=>r.customer || ""), ...Object.keys(customerPhones)])).filter(Boolean);
-  const customerLimit = subscriptionPlan === "business" ? Infinity : subscriptionPlan === "smart" ? 250 : 100;
+  const customerNames = Array.from(
+    new Set([
+      ...jobs.map((j) => j.customer),
+      ...payments.map((p) => p.customer),
+      ...notes.map((n) => n.customer),
+      ...reminders.map((r) => r.customer || ""),
+      ...Object.keys(customerPhones),
+    ])
+  ).filter(Boolean);
+  const customerLimit =
+    subscriptionPlan === "business"
+      ? Infinity
+      : subscriptionPlan === "smart"
+      ? 250
+      : 100;
 
   function canAddCustomer(name: string) {
     const normalized = name.trim().toLowerCase();
     if (!normalized) return false;
-    const alreadyExists = customerNames.some(customer => customer.trim().toLowerCase() === normalized);
+    const alreadyExists = customerNames.some(
+      (customer) => customer.trim().toLowerCase() === normalized
+    );
     if (alreadyExists) return true;
     if (customerNames.length >= customerLimit) {
-      setToast(`Customer limit reached (${customerLimit}). Your existing customers are safe. Upgrade your plan to add another customer.`);
+      setToast(
+        `Customer limit reached (${customerLimit}). Your existing customers are safe. Upgrade your plan to add another customer.`
+      );
       return false;
     }
     return true;
   }
 
-  const customerJobs = selectedCustomer ? jobs.filter(j=>j.customer===selectedCustomer) : [];
-  const customerReminders = selectedCustomer ? reminders.filter(r=>r.customer===selectedCustomer && !r.done) : [];
-  const selectedBaki = customerJobs.reduce((sum,j)=>sum+j.total-j.paid,0);
-  const customerPayments = selectedCustomer ? payments.filter(p=>p.customer===selectedCustomer) : [];
-  const customerNotes = selectedCustomer ? notes.filter(n=>n.customer===selectedCustomer) : [];
-  const customerOpenJob = customerJobs.find(j=>j.paid<j.total && j.status!=="Completed") || customerJobs.find(j=>j.paid<j.total) || customerJobs[0];
-  const recentCustomers = customerNames.slice(0,4);
+  const customerJobs = selectedCustomer
+    ? jobs.filter((j) => j.customer === selectedCustomer)
+    : [];
+  const customerReminders = selectedCustomer
+    ? reminders.filter((r) => r.customer === selectedCustomer && !r.done)
+    : [];
+  const selectedBaki = customerJobs.reduce(
+    (sum, j) => sum + j.total - j.paid,
+    0
+  );
+  const customerPayments = selectedCustomer
+    ? payments.filter((p) => p.customer === selectedCustomer)
+    : [];
+  const customerNotes = selectedCustomer
+    ? notes.filter((n) => n.customer === selectedCustomer)
+    : [];
+  const customerOpenJob =
+    customerJobs.find((j) => j.paid < j.total && j.status !== "Completed") ||
+    customerJobs.find((j) => j.paid < j.total) ||
+    customerJobs[0];
+  const recentCustomers = customerNames.slice(0, 4);
   const todayReminderBanners = reminders
     // Home should surface every unfinished reminder that is due today or overdue.
-    .filter(r => !r.done && Boolean(r.date) && r.date <= day() && !dismissedTodayReminderIds.includes(r.id))
-    .sort((a,b)=>`${a.date}T${a.time || "23:59"}`.localeCompare(`${b.date}T${b.time || "23:59"}`));
+    .filter(
+      (r) =>
+        !r.done &&
+        Boolean(r.date) &&
+        r.date <= day() &&
+        !dismissedTodayReminderIds.includes(r.id)
+    )
+    .sort((a, b) =>
+      `${a.date}T${a.time || "23:59"}`.localeCompare(
+        `${b.date}T${b.time || "23:59"}`
+      )
+    );
   const todayReminderBanner = todayReminderBanners[0] || null;
   function openReminder(job: Job) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const iso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
+    const iso = `${tomorrow.getFullYear()}-${String(
+      tomorrow.getMonth() + 1
+    ).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
     setReminderJob(job);
     setReminderDate(job.date || iso);
     setReminderTime(job.time || "09:00");
     setReminderRepeat("none");
     const baki = Math.max(0, job.total - job.paid);
-    setReminderText(baki > 0 ? `Collect ${money(baki)} baki from ${job.customer}` : `Follow up with ${job.customer} about ${job.work}`);
+    setReminderText(
+      baki > 0
+        ? `Collect ${money(baki)} baki from ${job.customer}`
+        : `Follow up with ${job.customer} about ${job.work}`
+    );
   }
-  function quickReminderDate(kind:"today"|"tomorrow") {
+  function quickReminderDate(kind: "today" | "tomorrow") {
     setReminderDate(dateForOffset(kind === "tomorrow" ? 1 : 0));
   }
   async function saveReminder() {
     if (!requireActiveSubscriptionForSaving()) return;
-    if ((!reminderJob && !directReminderOpen) || !reminderDate || !reminderText.trim()) return;
-    const customer = reminderJob?.customer || reminderCustomer.trim() || undefined;
+    if (
+      (!reminderJob && !directReminderOpen) ||
+      !reminderDate ||
+      !reminderText.trim()
+    )
+      return;
+    const customer =
+      reminderJob?.customer || reminderCustomer.trim() || undefined;
     const reminder: Reminder = {
       id: crypto.randomUUID(),
       text: reminderText.trim(),
@@ -2707,6 +3878,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       customer,
       jobId: reminderJob?.id || undefined,
       repeat: reminderRepeat,
+      scheduler: "v5",
       done: false,
       createdAt: new Date().toISOString(),
     };
@@ -2717,7 +3889,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     let cloudReadyForPush = true;
     if (loggedIn && isOnline) {
       try {
-        await saveCloud({ jobs, owner, business, reminders: nextReminders, payments, notes, customerPhones }, activeUserIdRef.current || undefined);
+        await saveCloud(
+          {
+            jobs,
+            owner,
+            business,
+            reminders: nextReminders,
+            payments,
+            notes,
+            customerPhones,
+          },
+          activeUserIdRef.current || undefined
+        );
       } catch {
         cloudReadyForPush = false;
       }
@@ -2725,60 +3908,94 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
 
     if (reminderAlertsEnabled) {
       if (!loggedIn) {
-        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Saved in Reminders. Sign in for closed-app alerts.`);
+        setToast(
+          `Reminder saved ✓  ${reminder.date}${
+            reminder.time ? " at " + reminder.time : ""
+          } · Saved in Reminders. Sign in for closed-app alerts.`
+        );
         return;
       }
       if (!isOnline) {
-        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders. Phone alert will schedule when online.`);
+        setToast(
+          `Reminder saved ✓  ${reminder.date}${
+            reminder.time ? " at " + reminder.time : ""
+          } · Find it in Reminders. Phone alert will schedule when online.`
+        );
         return;
       }
       if (!cloudReadyForPush) {
-        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders. Cloud alert will retry.`);
+        setToast(
+          `Reminder saved ✓  ${reminder.date}${
+            reminder.time ? " at " + reminder.time : ""
+          } · Find it in Reminders. Cloud alert will retry.`
+        );
         return;
       }
       try {
         await scheduleClosedReminder(reminder);
-        setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders.`);
+        setToast(
+          `Reminder saved ✓  ${reminder.date}${
+            reminder.time ? " at " + reminder.time : ""
+          } · Find it in Reminders.`
+        );
       } catch (error) {
-        setToast(error instanceof Error ? error.message : "Reminder saved, but phone alert could not be scheduled.");
+        setToast(
+          error instanceof Error
+            ? error.message
+            : "Reminder saved, but phone alert could not be scheduled."
+        );
       }
       return;
     }
 
-    setToast(`Reminder saved ✓  ${reminder.date}${reminder.time ? " at " + reminder.time : ""} · Find it in Reminders.`);
+    setToast(
+      `Reminder saved ✓  ${reminder.date}${
+        reminder.time ? " at " + reminder.time : ""
+      } · Find it in Reminders.`
+    );
   }
-  function completeReminder(id:string) {
+  function completeReminder(id: string) {
     if (!requireActiveSubscriptionForSaving()) return;
     const message = "Reminder updated ✓";
     rememberUndo(message);
-    setReminders(items=>items.map(r=>{
-      if(r.id!==id)return r;
-      if(!r.repeat || r.repeat==="none") return {...r,done:true};
-      const next=new Date(r.date+"T12:00:00");
-      if(r.repeat==="daily")next.setDate(next.getDate()+1);
-      if(r.repeat==="weekly")next.setDate(next.getDate()+7);
-      if(r.repeat==="monthly")next.setMonth(next.getMonth()+1);
-      const date=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`;
-      return {...r,date,done:false};
-    }));
+    setReminders((items) =>
+      items.map((r) => {
+        if (r.id !== id) return r;
+        if (!r.repeat || r.repeat === "none") return { ...r, done: true };
+        const next = new Date(r.date + "T12:00:00");
+        if (r.repeat === "daily") next.setDate(next.getDate() + 1);
+        if (r.repeat === "weekly") next.setDate(next.getDate() + 7);
+        if (r.repeat === "monthly") next.setMonth(next.getMonth() + 1);
+        const date = `${next.getFullYear()}-${String(
+          next.getMonth() + 1
+        ).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+        return { ...r, date, done: false };
+      })
+    );
     setToast(message);
   }
   function reminderLinkedJob(reminder: Reminder) {
     if (reminder.jobId) {
-      const linked = jobs.find(job => job.id === reminder.jobId);
+      const linked = jobs.find((job) => job.id === reminder.jobId);
       if (linked) return linked;
     }
     if (!reminder.customer) return null;
-    return jobs.find(job => job.customer === reminder.customer && job.total > job.paid)
-      || jobs.find(job => job.customer === reminder.customer)
-      || null;
+    return (
+      jobs.find(
+        (job) => job.customer === reminder.customer && job.total > job.paid
+      ) ||
+      jobs.find((job) => job.customer === reminder.customer) ||
+      null
+    );
   }
   function reminderFollowUpText(reminder: Reminder) {
     const job = reminderLinkedJob(reminder);
     const customer = reminder.customer || job?.customer || "there";
     const baki = job ? Math.max(0, job.total - job.paid) : 0;
     if (job && baki > 0) {
-      return `Hi ${customer}, a gentle reminder regarding ${job.work}. ₹${baki.toLocaleString("en-IN")} is pending. Thank you.`;
+      return `Hi ${customer}, a gentle reminder regarding ${
+        job.work
+      }. ₹${baki.toLocaleString("en-IN")} is pending. Thank you.`;
     }
     return `Hi ${customer}, a gentle reminder regarding: ${reminder.text}`;
   }
@@ -2790,10 +4007,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     let digits = (customerPhones[reminder.customer] || "").replace(/\D/g, "");
     if (digits.length === 10) digits = "91" + digits;
     if (digits.length < 8 || digits.length > 15) {
-      setToast(`Add ${reminder.customer}'s WhatsApp number in their Hisaab first.`);
+      setToast(
+        `Add ${reminder.customer}'s WhatsApp number in their Hisaab first.`
+      );
       return;
     }
-    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(reminderFollowUpText(reminder))}`, "_blank", "noopener,noreferrer");
+    window.open(
+      `https://wa.me/${digits}?text=${encodeURIComponent(
+        reminderFollowUpText(reminder)
+      )}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
   function callReminderCustomer(reminder: Reminder) {
     if (!reminder.customer) {
@@ -2803,25 +4028,42 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     let digits = (customerPhones[reminder.customer] || "").replace(/\D/g, "");
     if (digits.length === 10) digits = "91" + digits;
     if (digits.length < 8 || digits.length > 15) {
-      setToast(`Add ${reminder.customer}'s mobile number in their Hisaab first.`);
+      setToast(
+        `Add ${reminder.customer}'s mobile number in their Hisaab first.`
+      );
       return;
     }
     window.location.href = `tel:+${digits}`;
   }
 
-  function snoozeReminder(id:string) {
+  function snoozeReminder(id: string) {
     if (!requireActiveSubscriptionForSaving()) return;
     const message = "Reminder moved to tomorrow ✓";
     rememberUndo(message);
-    setReminders(items=>items.map(r=>{
-      if(r.id!==id)return r;
-      const next=new Date(r.date+"T12:00:00"); next.setDate(next.getDate()+1);
-      return {...r,date:`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-${String(next.getDate()).padStart(2,"0")}`};
-    }));
+    setReminders((items) =>
+      items.map((r) => {
+        if (r.id !== id) return r;
+        const next = new Date(r.date + "T12:00:00");
+        next.setDate(next.getDate() + 1);
+        return {
+          ...r,
+          date: `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(
+            2,
+            "0"
+          )}-${String(next.getDate()).padStart(2, "0")}`,
+        };
+      })
+    );
     setToast(message);
   }
   useEffect(() => {
-    if (!ready || !loggedIn || !reminderAlertsEnabled || notificationPermission !== "granted") return;
+    if (
+      !ready ||
+      !loggedIn ||
+      !reminderAlertsEnabled ||
+      notificationPermission !== "granted"
+    )
+      return;
     let cancelled = false;
     void (async () => {
       try {
@@ -2840,7 +4082,14 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     return () => {
       cancelled = true;
     };
-  }, [reminders, ready, loggedIn, reminderAlertsEnabled, notificationPermission]);
+  }, [
+    reminders,
+    ready,
+    loggedIn,
+    reminderAlertsEnabled,
+    notificationPermission,
+    cloudSaveStatus,
+  ]);
 
   useEffect(() => {
     if (!ready || !reminderAlertsEnabled) return;
@@ -2859,1635 +4108,4563 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     checkDueReminders();
     const id = window.setInterval(checkDueReminders, 15000);
     return () => window.clearInterval(id);
-  }, [reminders, ready, reminderAlertsEnabled, reminderSoundEnabled, reminderVibrationEnabled, notificationPermission]);
+  }, [
+    reminders,
+    ready,
+    reminderAlertsEnabled,
+    reminderSoundEnabled,
+    reminderVibrationEnabled,
+    notificationPermission,
+  ]);
 
   return (
     <>
-      {!navigationReady && <div className="workspace-boot-screen" aria-label="Loading Pakki Baat"><span className="workspace-boot-brand">pakki baat<span>.</span></span></div>}
-      <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
-      {!isOnline && (
-        <div className="offline-banner" role="status">
-          <span className="offline-dot" /> Offline · changes are saved on this device
+      {!navigationReady && (
+        <div className="workspace-boot-screen" aria-label="Loading Pakki Baat">
+          <span className="workspace-boot-brand">
+            pakki baat<span>.</span>
+          </span>
         </div>
       )}
-      <aside className="sidebar">
-        <button className="brand" onClick={() => go("Today")}>
-          <span className="brand-mark">
-            <Icon name="promise" size={29} />
-          </span>
-          <span className="brand-word">
-            pakki baat<span className="brand-dot">.</span>
-          </span>
-        </button>
-        <div className="workspace">
-          <span className="avatar coral">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
-          <div>
-            <strong>{displayName}</strong>
-            <small>{userEmail || "Your workspace"}</small>
+      <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
+        {!isOnline && (
+          <div className="offline-banner" role="status">
+            <span className="offline-dot" /> Offline · changes are saved on this
+            device
           </div>
-        </div>
-        <span className="eyebrow nav-label">YOUR WORKSPACE</span>
-        <nav>
-          {nav.map(([t, i]) => (
-            <button
-              key={t}
-              className={tab === t ? "active" : ""}
-              onClick={() => openMainTab(t)}
-            >
-              <Icon name={i} />
-              {t}
-              {t === "Reminders" && activeReminders.length > 0 && <b>{activeReminders.length}</b>}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="help-card">
-            <span>Small business. Big heart.</span>
-            <p>
-              A little less remembering.
-              <br />A little more doing what you love.
-            </p>
-          </div>
-          <button className="settings-button learn-pakki-button" onClick={() => setGuideOpen(true)}>
-            <span className="learn-pakki-icon">?</span>
-            Learn Pakki Baat
+        )}
+        <aside className="sidebar">
+          <button className="brand" onClick={() => go("Today")}>
+            <span className="brand-mark">
+              <Icon name="promise" size={29} />
+            </span>
+            <span className="brand-word">
+              pakki baat<span className="brand-dot">.</span>
+            </span>
           </button>
-          {!appInstalled && (
-            <button className="settings-button sidebar-install-button" onClick={()=>void installPakkiBaat()}>
-              <Icon name="download" />
-              Install Pakki Baat
-            </button>
-          )}
-          <button className="settings-button" onClick={() => go("Backup")}>
-            <Icon name="cloud" />
-            Backup
-          </button>
-          <button className="settings-button" onClick={() => go("Settings")}>
-            <Icon name="settings" />
-            Settings & feedback
-          </button>
-          {loggedIn && (
-            <button className="settings-button" onClick={() => void handleSignOut()}>
-              <Icon name="arrow" />
-              Sign out
-            </button>
-          )}
-          <div className="account">
-            <span className="avatar">
+          <div className="workspace">
+            <span className="avatar coral">
               {displayName.charAt(0).toUpperCase()}
             </span>
             <div>
               <strong>{displayName}</strong>
-              <small>{userEmail || "Local trial workspace"}</small>
+              <small>{userEmail || "Your workspace"}</small>
             </div>
           </div>
-        </div>
-      </aside>
-      <main>
-        <header className="topbar">
-          <div className="breadcrumb">
-            Your workspace <span>/</span>
-            <strong>{tab}</strong>
-          </div>
-          <div className="top-actions">
-            <button type="button" className={tab === "Subscription" ? "subscription-nav-button active" : "subscription-nav-button"} onClick={()=>go("Subscription")} title="Subscription & usage">
-              <Icon name="plan" size={18}/><span>Plan</span>
-            </button>
-            {!loggedIn && (
+          <span className="eyebrow nav-label">YOUR WORKSPACE</span>
+          <nav>
+            {nav.map(([t, i]) => (
               <button
-                type="button"
-                className="google-sign-in top-login"
-                onClick={() => void startGoogleSignIn()}
-                disabled={!cloudConfigured}
-                title={
-                  cloudConfigured
-                    ? "Login or sign up"
-                    : "Add Supabase env keys to enable login"
-                }
+                key={t}
+                className={tab === t ? "active" : ""}
+                onClick={() => openMainTab(t)}
               >
-                Login / Sign up
+                <Icon name={i} />
+                {t}
+                {t === "Reminders" && activeReminders.length > 0 && (
+                  <b>{activeReminders.length}</b>
+                )}
+              </button>
+            ))}
+          </nav>
+          <div className="sidebar-bottom">
+            <div className="help-card">
+              <span>Small business. Big heart.</span>
+              <p>
+                A little less remembering.
+                <br />A little more doing what you love.
+              </p>
+            </div>
+            <button
+              className="settings-button learn-pakki-button"
+              onClick={() => setGuideOpen(true)}
+            >
+              <span className="learn-pakki-icon">?</span>
+              Learn Pakki Baat
+            </button>
+            {!appInstalled && (
+              <button
+                className="settings-button sidebar-install-button"
+                onClick={() => void installPakkiBaat()}
+              >
+                <Icon name="download" />
+                Install Pakki Baat
               </button>
             )}
-            <button
-              type="button"
-              className={dark ? "theme-toggle is-dark" : "theme-toggle"}
-              role="switch"
-              aria-checked={dark}
-              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-              title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              onClick={toggleTheme}
-            >
-              <span className="theme-sun">
-                <Icon name="sun" size={16} />
-              </span>
-              <span className="theme-moon">
-                <Icon name="moon" size={16} />
-              </span>
-              <span className="theme-toggle-thumb" />
+            <button className="settings-button" onClick={() => go("Backup")}>
+              <Icon name="cloud" />
+              Backup
             </button>
-            <button
-              className="icon-button top-reminder-button"
-              aria-label="View reminders"
-              onClick={openReminders}
-            >
-              <Icon name="bell" />
-              {activeReminders.length>0 && <span className="top-reminder-badge">{Math.min(99,activeReminders.length)}</span>}
+            <button className="settings-button" onClick={() => go("Settings")}>
+              <Icon name="settings" />
+              Settings & feedback
             </button>
-            {loggedIn ? (
-              <div className="top-account-menu" onMouseLeave={()=>setAccountMenuOpen(false)}>
+            {loggedIn && (
+              <button
+                className="settings-button"
+                onClick={() => void handleSignOut()}
+              >
+                <Icon name="arrow" />
+                Sign out
+              </button>
+            )}
+            <div className="account">
+              <span className="avatar">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
+              <div>
+                <strong>{displayName}</strong>
+                <small>{userEmail || "Local trial workspace"}</small>
+              </div>
+            </div>
+          </div>
+        </aside>
+        <main>
+          <header className="topbar">
+            <div className="breadcrumb">
+              Your workspace <span>/</span>
+              <strong>{tab}</strong>
+            </div>
+            <div className="top-actions">
+              <button
+                type="button"
+                className={
+                  tab === "Subscription"
+                    ? "subscription-nav-button active"
+                    : "subscription-nav-button"
+                }
+                onClick={() => go("Subscription")}
+                title="Subscription & usage"
+              >
+                <Icon name="plan" size={18} />
+                <span>Plan</span>
+              </button>
+              {!loggedIn && (
                 <button
                   type="button"
-                  className="avatar small top-account-avatar"
-                  aria-label="Account menu"
-                  aria-expanded={accountMenuOpen}
-                  title={userEmail || "Account"}
-                  onMouseEnter={()=>setAccountMenuOpen(true)}
-                  onClick={()=>setAccountMenuOpen(v=>!v)}
+                  className="google-sign-in top-login"
+                  onClick={() => void startGoogleSignIn()}
+                  disabled={!cloudConfigured}
+                  title={
+                    cloudConfigured
+                      ? "Login or sign up"
+                      : "Add Supabase env keys to enable login"
+                  }
                 >
-                  {displayName.charAt(0).toUpperCase()}
+                  Login / Sign up
+                </button>
+              )}
+              <button
+                type="button"
+                className={dark ? "theme-toggle is-dark" : "theme-toggle"}
+                role="switch"
+                aria-checked={dark}
+                aria-label={
+                  dark ? "Switch to light mode" : "Switch to dark mode"
+                }
+                title={dark ? "Switch to light mode" : "Switch to dark mode"}
+                onClick={toggleTheme}
+              >
+                <span className="theme-sun">
+                  <Icon name="sun" size={16} />
+                </span>
+                <span className="theme-moon">
+                  <Icon name="moon" size={16} />
+                </span>
+                <span className="theme-toggle-thumb" />
+              </button>
+              <button
+                className="icon-button top-reminder-button"
+                aria-label="View reminders"
+                onClick={openReminders}
+              >
+                <Icon name="bell" />
+                {activeReminders.length > 0 && (
+                  <span className="top-reminder-badge">
+                    {Math.min(99, activeReminders.length)}
+                  </span>
+                )}
+              </button>
+              <div
+                className="top-account-menu"
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget))
+                    setAccountMenuOpen(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setAccountMenuOpen(false);
+                    event.currentTarget
+                      .querySelector<HTMLButtonElement>(".top-account-avatar")
+                      ?.focus();
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  className="top-account-avatar"
+                  aria-label="More pages and account menu"
+                  aria-expanded={accountMenuOpen}
+                  aria-controls="workspace-more-pages"
+                  title={userEmail || "Account"}
+                  onClick={() => setAccountMenuOpen((v) => !v)}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="24"
+                    height="24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <circle cx="5" cy="12" r="1.6" />
+                    <circle cx="12" cy="12" r="1.6" />
+                    <circle cx="19" cy="12" r="1.6" />
+                  </svg>
                 </button>
                 {accountMenuOpen && (
-                  <div className="top-account-popover">
+                  <div
+                    className="top-account-popover"
+                    id="workspace-more-pages"
+                    role="navigation"
+                    aria-label="More pages and account"
+                  >
                     <div className="top-account-info">
-                      <span className="avatar">{displayName.charAt(0).toUpperCase()}</span>
-                      <span><strong>{displayName}</strong><small>{userEmail}</small><em className={"top-account-plan "+(hasActiveSubscription?"active":"inactive")}>{hasActiveSubscription && subscriptionPlan ? (subscriptionPlan==="trial"?"Free trial":subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)) : (subscriptionPlan&&subscriptionExpired?"Plan expired":"No active plan")}</em></span>
+                      <span className="avatar">
+                        {displayName.charAt(0).toUpperCase()}
+                      </span>
+                      <span>
+                        <strong>{displayName}</strong>
+                        <small>{userEmail}</small>
+                        <em
+                          className={
+                            "top-account-plan " +
+                            (hasActiveSubscription ? "active" : "inactive")
+                          }
+                        >
+                          {hasActiveSubscription && subscriptionPlan
+                            ? subscriptionPlan === "trial"
+                              ? "Free trial"
+                              : subscriptionPlan.charAt(0).toUpperCase() +
+                                subscriptionPlan.slice(1)
+                            : subscriptionPlan && subscriptionExpired
+                            ? "Plan expired"
+                            : "No active plan"}
+                        </em>
+                      </span>
                     </div>
-                    <button type="button" onClick={()=>{setAccountMenuOpen(false);void handleSignOut();}}>
-                      <Icon name="arrow" size={17}/> Sign out
-                    </button>
+                    {(
+                      ["Reports", "Settings", "Backup", "Subscription"] as Tab[]
+                    ).map((destination) => (
+                      <button
+                        type="button"
+                        key={destination}
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          go(destination);
+                        }}
+                      >
+                        {destination === "Backup"
+                          ? "Backup & Restore"
+                          : destination}
+                      </button>
+                    ))}
+                    {loggedIn && <hr className="account-menu-divider" />}
+                    {loggedIn && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          void handleSignOut();
+                        }}
+                      >
+                        <Icon name="arrow" size={17} /> Sign out
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
-            ) : (
-              <span className="avatar small">{displayName.charAt(0).toUpperCase()}</span>
-            )}
-          </div>
-        </header>
-        {todayReminderBanner && (
-          <div className="today-reminder-banner" role="status">
-            <span className="today-reminder-banner-icon"><Icon name="bell" size={18}/></span>
-            <div className="today-reminder-banner-copy">
-              <small>TODAY'S REMINDER</small>
-              <strong>{todayReminderBanner.customer || "Reminder"}</strong>
-              <span>{todayReminderBanner.text}</span>
-              <em>{todayReminderBanner.time || "Today"}{todayReminderBanners.length > 1 ? ` · +${todayReminderBanners.length - 1} more` : ""}</em>
             </div>
-            <button
-              type="button"
-              className="today-reminder-banner-close"
-              aria-label="Dismiss today's reminder"
-              title="Dismiss this reminder banner"
-              onClick={()=>dismissTodayReminderBanner(todayReminderBanner.id)}
-            >
-              <Icon name="close" size={17}/>
-            </button>
-          </div>
-        )}
-        {trialEndingSoon && (
-          <div className="trial-ending-banner" role="status">
-            <span><strong>Your free trial ends in {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"}</strong><small>Keep your Hisaab moving without interruption.</small></span>
-            <button type="button" onClick={()=>go("Subscription")}>Upgrade plan</button>
-          </div>
-        )}
-        <div className="content">
-          {tab === "Today" && (
-            <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">A LITTLE CLARITY FOR YOUR DAY</div>
-                  <h1>
-                    Hello, {displayName} <span className="sun">☀</span>
-                  </h1>
-                  <p>Let’s make room for the work you love.</p>
-                </div>
+          </header>
+          {todayReminderBanner && (
+            <div className="today-reminder-banner" role="status">
+              <span className="today-reminder-banner-icon">
+                <Icon name="bell" size={18} />
+              </span>
+              <div className="today-reminder-banner-copy">
+                <small>TODAY'S REMINDER</small>
+                <strong>{todayReminderBanner.customer || "Reminder"}</strong>
+                <span>{todayReminderBanner.text}</span>
+                <em>
+                  {todayReminderBanner.time || "Today"}
+                  {todayReminderBanners.length > 1
+                    ? ` · +${todayReminderBanners.length - 1} more`
+                    : ""}
+                </em>
               </div>
-              {hasActiveSubscription && subscriptionPlan && (
-                <button type="button" className="home-plan-chip" onClick={()=>go("Subscription")} title="View subscription">
-                  <Icon name="plan" size={14}/>
-                  <span>{subscriptionPlan === "trial" ? "Free Trial" : subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)} Plan</span>
-                  {subscriptionPlan === "trial" && trialDaysLeft !== null && <small>{trialDaysLeft} days left</small>}
-                </button>
-              )}
-              <section className="hero">
-                <div className="hero-copy">
-                  <span className="pill">YOUR BUSINESS, A LITTLE LIGHTER</span>
-                  <h2>
-                    Every little detail.
-                    <br />
-                    Taken care of.
-                  </h2>
-                  <p>
-                    A customer message, a voice note, a promise.
-                    <br />
-                    Let’s turn it into your next clear step.
-                  </p>
+              <button
+                type="button"
+                className="today-reminder-banner-close"
+                aria-label="Dismiss today's reminder"
+                title="Dismiss this reminder banner"
+                onClick={() =>
+                  dismissTodayReminderBanner(todayReminderBanner.id)
+                }
+              >
+                <Icon name="close" size={17} />
+              </button>
+            </div>
+          )}
+          {trialEndingSoon && (
+            <div className="trial-ending-banner" role="status">
+              <span>
+                <strong>
+                  Your free trial ends in {trialDaysLeft}{" "}
+                  {trialDaysLeft === 1 ? "day" : "days"}
+                </strong>
+                <small>Keep your Hisaab moving without interruption.</small>
+              </span>
+              <button type="button" onClick={() => go("Subscription")}>
+                Upgrade plan
+              </button>
+            </div>
+          )}
+          <div className="content">
+            {tab === "Reports" && (
+              <Reports
+                key={`${accountId}:${loadedAccountId}:${ready}`}
+                ownerId={
+                  ready && loggedIn && accountId === loadedAccountId
+                    ? accountId
+                    : null
+                }
+                ledgerEnabled={Boolean(
+                  accountId && ledgerModeForAccount(accountId)
+                )}
+                snapshot={{
+                  jobs,
+                  owner,
+                  business,
+                  reminders,
+                  payments,
+                  notes,
+                  customerPhones,
+                }}
+                cloudSaveVersion={
+                  cloudSaveStatus.state === "saved"
+                    ? cloudSaveStatus.generation
+                    : 0
+                }
+                pending={
+                  syncPending ||
+                  cloudSaveStatus.state === "pending" ||
+                  cloudSaveStatus.state === "failed"
+                }
+              />
+            )}
+            {tab === "Today" && (
+              <>
+                <div className="page-heading">
+                  <div>
+                    <div className="eyebrow">A LITTLE CLARITY FOR YOUR DAY</div>
+                    <h1>
+                      Hello, {displayName} <span className="sun">☀</span>
+                    </h1>
+                    <p>Let’s make room for the work you love.</p>
+                  </div>
+                </div>
+                {hasActiveSubscription && subscriptionPlan && (
                   <button
-                    className="dark-button hero-cta"
-                    onClick={() => go("Hisaab")}
+                    type="button"
+                    className="home-plan-chip"
+                    onClick={() => go("Subscription")}
+                    title="View subscription"
                   >
-                    Tell me what’s new <Icon name="arrow" size={18} />
+                    <Icon name="plan" size={14} />
+                    <span>
+                      {subscriptionPlan === "trial"
+                        ? "Free Trial"
+                        : subscriptionPlan.charAt(0).toUpperCase() +
+                          subscriptionPlan.slice(1)}{" "}
+                      Plan
+                    </span>
+                    {subscriptionPlan === "trial" && trialDaysLeft !== null && (
+                      <small>{trialDaysLeft} days left</small>
+                    )}
                   </button>
-                </div>
-                <div className="hero-art hero-app-preview" aria-hidden="true">
-                  <div className="hero-preview-glow" />
-                  <div className="hero-preview-main">
-                    <div className="hero-preview-top">
-                      <span className="hero-preview-avatar">A</span>
-                      <span><strong>Asha</strong><small>Cake order</small></span>
-                      <Icon name="check" size={15} />
-                    </div>
-                    <div className="hero-preview-money">
-                      <small>Balance</small>
-                      <strong>₹2,000</strong>
-                      <span>baki</span>
-                    </div>
-                  </div>
-                  <div className="hero-preview-chip reminder">
-                    <span className="hero-preview-chip-icon"><Icon name="bell" size={15} /></span>
-                    <span><small>Reminder</small><strong>Tomorrow · 9:00</strong></span>
-                  </div>
-                  <div className="hero-preview-chip whatsapp">
-                    <span className="hero-preview-chip-icon"><Icon name="chat" size={15} /></span>
-                    <span><small>WhatsApp</small><strong>Reply ready</strong></span>
-                  </div>
-                </div>
-              </section>
-              <section className="stats">
-                <button
-                  onClick={() => {
-                    go("Hisaab");
-                    setFilter("Payment due");
-                  }}
-                >
-                  <span className="stat-icon peach">₹</span>
-                  <div>
-                    <span>Payments to collect</span>
-                    <strong>{money(balance)}</strong>
-                    <small>A gentle nudge goes a long way</small>
-                  </div>
-                  <Icon name="arrow" size={18} />
-                </button>
-                <button
-                  onClick={() => {
-                    go("Hisaab");
-                    setFilter("Due now");
-                  }}
-                >
-                  <span className="stat-icon mint">
-                    <Icon name="clock" />
-                  </span>
-                  <div>
-                    <span>Due today or earlier</span>
-                    <strong>
-                      {due.length} <em>commitments</em>
-                    </strong>
-                    <small>Keep your promises on time</small>
-                  </div>
-                  <Icon name="arrow" size={18} />
-                </button>
-                <button
-                  onClick={() => {
-                    go("Hisaab");
-                    setFilter("Waiting");
-                  }}
-                >
-                  <span className="stat-icon yellow">
-                    <Icon name="list" />
-                  </span>
-                  <div>
-                    <span>Pending work</span>
-                    <strong>
-                      {open.filter((j) => j.status === "Waiting").length}{" "}
-                      <em>entries</em>
-                    </strong>
-                    <small>Things that still need action</small>
-                  </div>
-                  <Icon name="arrow" size={18} />
-                </button>
-              </section>
-              {(due.length > 0 || reminders.some(r=>!r.done && r.date<=day())) && (
-                <section className="today-focus">
-                  <div className="section-heading">
-                    <div><span className="eyebrow">TODAY'S FOCUS</span><h2>What needs your attention</h2></div>
-                  </div>
-                  <div className="today-focus-list">
-                    {due.slice(0,3).map(j=><button type="button" key={j.id} className="today-focus-item" onClick={()=>{setSelectedCustomer(j.customer);setCustomerChatOpen(false);setTab("Hisaab");}}>
-                      <span className="today-focus-icon"><Icon name="clock" size={17}/></span>
-                      <span><strong>{j.customer}</strong><small>{j.work}</small></span>
-                      <b>{j.total>j.paid ? money(j.total-j.paid)+" baki" : "Due"}</b>
-                      <Icon name="arrow" size={16}/>
-                    </button>)}
-                    {reminders.filter(r=>!r.done && r.date<=day()).slice(0,3).map(r=><button type="button" key={r.id} className="today-focus-item" onClick={()=>{if(r.customer){setSelectedCustomer(r.customer);setCustomerChatOpen(false);setTab("Hisaab");}}}>
-                      <span className="today-focus-icon"><Icon name="bell" size={17}/></span>
-                      <span><strong>{r.customer || "Reminder"}</strong><small>{r.text}</small></span>
-                      <b>{r.time || "Today"}</b>
-                      <Icon name="arrow" size={16}/>
-                    </button>)}
-                  </div>
-                </section>
-              )}
-              <div className="lower-grid">
-                <section className="panel">
-                  <div className="section-heading">
+                )}
+                <section className="hero">
+                  <div className="hero-copy">
+                    <span className="pill">
+                      YOUR BUSINESS, A LITTLE LIGHTER
+                    </span>
                     <h2>
-                      Needs a little attention{" "}
-                      <span className="count">{open.length}</span>
+                      Every little detail.
+                      <br />
+                      Taken care of.
                     </h2>
+                    <p>
+                      A customer message, a voice note, a promise.
+                      <br />
+                      Let’s turn it into your next clear step.
+                    </p>
                     <button
-                      className="text-button attention-view-all"
+                      className="dark-button hero-cta"
                       onClick={() => go("Hisaab")}
                     >
-                      View all <Icon name="arrow" size={15} />
+                      Tell me what’s new <Icon name="arrow" size={18} />
                     </button>
                   </div>
-                  {open.length ? (
-                    open.slice(0, 4).map(jobCard)
-                  ) : (
-                    <div className="empty">
-                      <span className="empty-icon">
-                        <Icon name="check" size={28} />
+                  <div className="hero-art hero-app-preview" aria-hidden="true">
+                    <div className="hero-preview-glow" />
+                    <div className="hero-preview-main">
+                      <div className="hero-preview-top">
+                        <span className="hero-preview-avatar">A</span>
+                        <span>
+                          <strong>Asha</strong>
+                          <small>Cake order</small>
+                        </span>
+                        <Icon name="check" size={15} />
+                      </div>
+                      <div className="hero-preview-money">
+                        <small>Balance</small>
+                        <strong>₹2,000</strong>
+                        <span>baki</span>
+                      </div>
+                    </div>
+                    <div className="hero-preview-chip reminder">
+                      <span className="hero-preview-chip-icon">
+                        <Icon name="bell" size={15} />
                       </span>
-                      <h3>A fresh start, just for you</h3>
-                      <p>
-                        Add your first customer message.
-                        <br />
-                        We’ll help you keep the details together.
-                      </p>
-                      {!jobs.length && (
-                        <button className="text-button" onClick={sample}>
-                          Explore with sample commitments →
+                      <span>
+                        <small>Reminder</small>
+                        <strong>Tomorrow · 9:00</strong>
+                      </span>
+                    </div>
+                    <div className="hero-preview-chip whatsapp">
+                      <span className="hero-preview-chip-icon">
+                        <Icon name="chat" size={15} />
+                      </span>
+                      <span>
+                        <small>WhatsApp</small>
+                        <strong>Reply ready</strong>
+                      </span>
+                    </div>
+                  </div>
+                </section>
+                <section className="stats">
+                  <button
+                    onClick={() => {
+                      go("Hisaab");
+                      setFilter("Payment due");
+                    }}
+                  >
+                    <span className="stat-icon peach">₹</span>
+                    <div>
+                      <span>Payments to collect</span>
+                      <strong>{money(balance)}</strong>
+                      <small>A gentle nudge goes a long way</small>
+                    </div>
+                    <Icon name="arrow" size={18} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      go("Hisaab");
+                      setFilter("Due now");
+                    }}
+                  >
+                    <span className="stat-icon mint">
+                      <Icon name="clock" />
+                    </span>
+                    <div>
+                      <span>Due today or earlier</span>
+                      <strong>
+                        {due.length} <em>commitments</em>
+                      </strong>
+                      <small>Keep your promises on time</small>
+                    </div>
+                    <Icon name="arrow" size={18} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      go("Hisaab");
+                      setFilter("Waiting");
+                    }}
+                  >
+                    <span className="stat-icon yellow">
+                      <Icon name="list" />
+                    </span>
+                    <div>
+                      <span>Pending work</span>
+                      <strong>
+                        {open.filter((j) => j.status === "Waiting").length}{" "}
+                        <em>entries</em>
+                      </strong>
+                      <small>Things that still need action</small>
+                    </div>
+                    <Icon name="arrow" size={18} />
+                  </button>
+                </section>
+                {(due.length > 0 ||
+                  reminders.some((r) => !r.done && r.date <= day())) && (
+                  <section className="today-focus">
+                    <div className="section-heading">
+                      <div>
+                        <span className="eyebrow">TODAY'S FOCUS</span>
+                        <h2>What needs your attention</h2>
+                      </div>
+                    </div>
+                    <div className="today-focus-list">
+                      {due.slice(0, 3).map((j) => (
+                        <button
+                          type="button"
+                          key={j.id}
+                          className="today-focus-item"
+                          onClick={() => {
+                            setSelectedCustomer(j.customer);
+                            setCustomerChatOpen(false);
+                            setTab("Hisaab");
+                          }}
+                        >
+                          <span className="today-focus-icon">
+                            <Icon name="clock" size={17} />
+                          </span>
+                          <span>
+                            <strong>{j.customer}</strong>
+                            <small>{j.work}</small>
+                          </span>
+                          <b>
+                            {j.total > j.paid
+                              ? money(j.total - j.paid) + " baki"
+                              : "Due"}
+                          </b>
+                          <Icon name="arrow" size={16} />
+                        </button>
+                      ))}
+                      {reminders
+                        .filter((r) => !r.done && r.date <= day())
+                        .slice(0, 3)
+                        .map((r) => (
+                          <button
+                            type="button"
+                            key={r.id}
+                            className="today-focus-item"
+                            onClick={() => {
+                              if (r.customer) {
+                                setSelectedCustomer(r.customer);
+                                setCustomerChatOpen(false);
+                                setTab("Hisaab");
+                              }
+                            }}
+                          >
+                            <span className="today-focus-icon">
+                              <Icon name="bell" size={17} />
+                            </span>
+                            <span>
+                              <strong>{r.customer || "Reminder"}</strong>
+                              <small>{r.text}</small>
+                            </span>
+                            <b>{r.time || "Today"}</b>
+                            <Icon name="arrow" size={16} />
+                          </button>
+                        ))}
+                    </div>
+                  </section>
+                )}
+                <div className="lower-grid">
+                  <section className="panel">
+                    <div className="section-heading">
+                      <h2>
+                        Needs a little attention{" "}
+                        <span className="count">{open.length}</span>
+                      </h2>
+                      <button
+                        className="text-button attention-view-all"
+                        onClick={() => go("Hisaab")}
+                      >
+                        View all <Icon name="arrow" size={15} />
+                      </button>
+                    </div>
+                    {open.length ? (
+                      open.slice(0, 4).map(jobCard)
+                    ) : (
+                      <div className="empty">
+                        <span className="empty-icon">
+                          <Icon name="check" size={28} />
+                        </span>
+                        <h3>A fresh start, just for you</h3>
+                        <p>
+                          Add your first customer message.
+                          <br />
+                          We’ll help you keep the details together.
+                        </p>
+                        {!jobs.length && (
+                          <button className="text-button" onClick={sample}>
+                            Explore with sample commitments →
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                  <section className="tip-panel">
+                    <span className="eyebrow">YOUR POCKET ASSISTANT</span>
+                    <h2>
+                      “Wait, what did
+                      <br />
+                      she ask for?”
+                    </h2>
+                    <p>
+                      Sound familiar? Paste a customer’s message and keep the
+                      work, amount and date in one place.
+                    </p>
+                    <button className="outline" onClick={() => go("Hisaab")}>
+                      Let’s try it <Icon name="arrow" size={16} />
+                    </button>
+                    <span className="tiny">
+                      Made for your everyday kind of busy.
+                    </span>
+                  </section>
+                </div>
+                <footer>
+                  Pakki Baat <span className="footer-separator">·</span>
+                  by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+            {tab === "My assistant" && (
+              <>
+                <div className="page-heading">
+                  <div>
+                    <div className="eyebrow">A HELPING HAND, ALWAYS</div>
+                    <h1>Your pocket assistant</h1>
+                    <p>
+                      Type or speak naturally. Orders, payments, baki and
+                      reminders all work here.
+                    </p>
+                  </div>
+                </div>
+                <section className="chat-layout">
+                  <div className="chat-panel">
+                    <div className="chat-header">
+                      <Icon name="promise" />
+                      <div>
+                        <strong>Pakki Baat</strong>
+                        <small>Let’s get the details together</small>
+                      </div>
+                    </div>
+                    <div
+                      className="chat-body"
+                      ref={chatBodyRef}
+                      role="log"
+                      aria-label="Assistant conversation"
+                      aria-live="polite"
+                    >
+                      {!loggedIn && (
+                        <div className="assistant-login-card">
+                          <div>
+                            <strong>
+                              {cloudConfigured
+                                ? "Login to use AI voice"
+                                : "AI login setup needed"}
+                            </strong>
+                            <p>
+                              {cloudConfigured
+                                ? "Sign in or sign up with Google so Pakki Baat can listen to voice notes, write the text, and prepare the details slip."
+                                : "Add the Supabase public keys to .env.local, then restart localhost to show Google login."}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="google-sign-in compact"
+                            onClick={() => void startGoogleSignIn()}
+                            disabled={!cloudConfigured}
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path
+                                fill="#4285F4"
+                                d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"
+                              />
+                              <path
+                                fill="#34A853"
+                                d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"
+                              />
+                              <path
+                                fill="#FBBC05"
+                                d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"
+                              />
+                              <path
+                                fill="#EA4335"
+                                d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"
+                              />
+                            </svg>
+                            Continue with Google
+                          </button>
+                        </div>
+                      )}
+                      <span className="chat-date">Your conversation</span>
+                      <div className="bubble">
+                        <strong>Hi {displayName}!</strong>
+                        <p>
+                          Tell me what happened just like you would in WhatsApp
+                          — an order, payment, baki or reminder. I’ll organise
+                          it for you.
+                        </p>
+                      </div>
+                      {chatTurns
+                        .filter((turn) =>
+                          selectedCustomer
+                            ? turn.customer === selectedCustomer
+                            : !turn.customer
+                        )
+                        .map((turn) => (
+                          <div
+                            key={turn.id}
+                            className={`chat-turn ${
+                              turn.role === "me" ? "from-me" : "from-assistant"
+                            }`}
+                          >
+                            <span className="chat-speaker">
+                              {turn.role === "me"
+                                ? "You"
+                                : turn.replyFor
+                                ? "Suggested customer reply"
+                                : "Pakki Baat"}
+                            </span>
+                            <div className="chat-turn-text">{turn.text}</div>
+                            {turn.voiceId && (
+                              <div className="chat-voice">
+                                <small>
+                                  {turn.duration
+                                    ? "Recorded " +
+                                      Math.floor(turn.duration / 60) +
+                                      ":" +
+                                      String(turn.duration % 60).padStart(
+                                        2,
+                                        "0"
+                                      )
+                                    : "Sent voice note"}
+                                </small>
+                                {voiceUrls[turn.voiceId] === undefined ? (
+                                  <small>Loading voice note…</small>
+                                ) : voiceUrls[turn.voiceId] ? (
+                                  <AudioPlayer
+                                    audioBlob={
+                                      voiceFilesRef.current[turn.voiceId]
+                                    }
+                                    audioUrl={voiceUrls[turn.voiceId]}
+                                    duration={turn.duration || 0}
+                                    onTranscribe={() =>
+                                      retryVoice(turn.voiceId!)
+                                    }
+                                    onDownload={() =>
+                                      downloadVoiceInChat(turn.voiceId!)
+                                    }
+                                    onDelete={() => removeVoice(turn.voiceId!)}
+                                  />
+                                ) : (
+                                  <small>
+                                    Audio unavailable on this device.
+                                  </small>
+                                )}
+                              </div>
+                            )}
+                            {(turn.text.includes(
+                              "Please continue with Google"
+                            ) ||
+                              turn.text.includes(
+                                "Continue with Google in Settings"
+                              )) && (
+                              <div className="login-prompt-actions">
+                                <button
+                                  type="button"
+                                  className="google-sign-in compact"
+                                  onClick={() => void startGoogleSignIn()}
+                                  disabled={!cloudConfigured}
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                      fill="#4285F4"
+                                      d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"
+                                    />
+                                    <path
+                                      fill="#34A853"
+                                      d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"
+                                    />
+                                    <path
+                                      fill="#FBBC05"
+                                      d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"
+                                    />
+                                    <path
+                                      fill="#EA4335"
+                                      d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"
+                                    />
+                                  </svg>
+                                  Continue with Google
+                                </button>
+                              </div>
+                            )}
+                            {turn.replyFor && (
+                              <div className="saved-detail-card">
+                                <strong>{turn.replyFor.customer}</strong>
+                                <span>{turn.replyFor.work}</span>
+                                <dl>
+                                  <div>
+                                    <dt>Total</dt>
+                                    <dd>{money(turn.replyFor.total)}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Received</dt>
+                                    <dd>{money(turn.replyFor.paid)}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Baki</dt>
+                                    <dd>
+                                      {money(
+                                        turn.replyFor.total - turn.replyFor.paid
+                                      )}
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt>Due</dt>
+                                    <dd>
+                                      {turn.replyFor.date || "Date not set"}
+                                      {turn.replyFor.time
+                                        ? " · " + turn.replyFor.time
+                                        : ""}
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt>Status</dt>
+                                    <dd>{turn.replyFor.status}</dd>
+                                  </div>
+                                </dl>
+                              </div>
+                            )}
+                            {turn.replyFor && (
+                              <div className="chat-turn-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => copy(turn.text)}
+                                >
+                                  Copy reply
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDraft(turn.replyFor!)}
+                                >
+                                  Edit details
+                                </button>
+                                {turn.replyFor.date && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      download(
+                                        calendarFile(turn.replyFor!),
+                                        "pakki-baat-reminder.ics"
+                                      )
+                                    }
+                                  >
+                                    Add reminder
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      {!chatTurns.length && (
+                        <button
+                          className="example"
+                          onClick={() =>
+                            setMessage(
+                              "Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm."
+                            )
+                          }
+                        >
+                          Try an example{" "}
+                          <span>“Riya wants a 2 kg chocolate cake…”</span>
                         </button>
                       )}
                     </div>
-                  )}
+                    <ChatComposer
+                      message={message}
+                      onMessageChange={setMessage}
+                      onCapture={capture}
+                      onToast={setToast}
+                      onDraft={receiveAiDraft}
+                      onSendVoice={sendVoice}
+                      voiceBusy={voiceBusy}
+                      voiceSecondsRemaining={voiceSecondsRemaining}
+                    />
+                  </div>
+                  <aside className="capture-help">
+                    <h3>Talk it through.</h3>
+                    {[
+                      [
+                        "1",
+                        "Start the conversation",
+                        "Type it or say it naturally, just like sending a WhatsApp message.",
+                      ],
+                      [
+                        "2",
+                        "Answer the follow-up questions",
+                        "I’ll ask only for the missing detail, one question at a time.",
+                      ],
+                      [
+                        "3",
+                        "Done and remembered",
+                        "Orders go to Hisaab and reminders stay together on the Reminders page.",
+                      ],
+                    ].map(([n, t, d]) => (
+                      <div key={n}>
+                        <b>{n}</b>
+                        <section>
+                          <strong>{t}</strong>
+                          <p>{d}</p>
+                        </section>
+                      </div>
+                    ))}
+                    <p className="privacy-note">
+                      Screenshot and voice-note understanding need an AI service
+                      connection. Your pasted text is kept with each commitment.
+                    </p>
+                  </aside>
                 </section>
-                <section className="tip-panel">
-                  <span className="eyebrow">YOUR POCKET ASSISTANT</span>
-                  <h2>
-                    “Wait, what did
-                    <br />
-                    she ask for?”
-                  </h2>
-                  <p>
-                    Sound familiar? Paste a customer’s message and keep the
-                    work, amount and date in one place.
-                  </p>
-                  <button
-                    className="outline"
-                    onClick={() => go("Hisaab")}
+                <footer className="settings-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    Let’s try it <Icon name="arrow" size={16} />
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+            {tab === "Reminders" && (
+              <>
+                <div className="page-heading reminders-heading">
+                  <div className="reminders-heading-copy">
+                    <div className="eyebrow">NOTHING TO KEEP IN YOUR HEAD</div>
+                    <h1>Reminders</h1>
+                    <p>
+                      See what needs a follow-up, snooze it, or mark it done.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary mobile-primary-action reminder-add-primary"
+                    onClick={openNewReminder}
+                  >
+                    <Icon name="plus" size={17} />
+                    <span>Add reminder</span>
                   </button>
-                  <span className="tiny">
-                    Made for your everyday kind of busy.
-                  </span>
-                </section>
-              </div>
-              <footer>
-                Pakki Baat <span className="footer-separator">·</span>
-                by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)
-              </footer>
-            </>
-          )}
-          {tab === "My assistant" && (
-            <>
-              <div className="page-heading">
-                <div>
-                  <div className="eyebrow">A HELPING HAND, ALWAYS</div>
-                  <h1>Your pocket assistant</h1>
-                  <p>
-                    Type or speak naturally. Orders, payments, baki and
-                    reminders all work here.
-                  </p>
                 </div>
-              </div>
-              <section className="chat-layout">
-                <div className="chat-panel">
-                  <div className="chat-header">
-                    <Icon name="promise" />
+                <section className="reminder-page-summary">
+                  <div>
+                    <span className="reminder-summary-icon">
+                      <Icon name="bell" size={17} />
+                    </span>
+                    <small>Today / overdue</small>
+                    <strong>{remindersToday}</strong>
+                  </div>
+                  <div>
+                    <span className="reminder-summary-icon">
+                      <Icon name="calendar" size={17} />
+                    </span>
+                    <small>Active reminders</small>
+                    <strong>{activeReminders.length}</strong>
+                  </div>
+                  <div>
+                    <span className="reminder-summary-icon">
+                      <Icon name="check" size={17} />
+                    </span>
+                    <small>Completed</small>
+                    <strong>{completedReminders.length}</strong>
+                  </div>
+                </section>
+                <section className="reminders-page-card">
+                  <div className="section-heading reminders-page-title">
                     <div>
-                      <strong>Pakki Baat</strong>
-                      <small>Let’s get the details together</small>
+                      <span className="eyebrow">UP NEXT</span>
+                      <h2>
+                        Active reminders{" "}
+                        <span className="count">{activeReminders.length}</span>
+                      </h2>
                     </div>
                   </div>
-                  <div
-                    className="chat-body"
-                    ref={chatBodyRef}
-                    role="log"
-                    aria-label="Assistant conversation"
-                    aria-live="polite"
+                  {activeReminders.length ? (
+                    <div className="reminders-page-list">
+                      {activeReminders.map((r) => (
+                        <article
+                          className={
+                            r.date <= day()
+                              ? "reminder-page-row is-due"
+                              : "reminder-page-row"
+                          }
+                          key={r.id}
+                        >
+                          <span className="reminder-page-bell">
+                            <Icon name="bell" size={18} />
+                          </span>
+                          <div className="reminder-page-copy">
+                            {r.customer ? (
+                              <button
+                                type="button"
+                                className="reminder-customer-link"
+                                onClick={() => {
+                                  setSelectedCustomer(r.customer!);
+                                  setCustomerChatOpen(false);
+                                  setTab("Hisaab");
+                                }}
+                              >
+                                {r.customer}
+                              </button>
+                            ) : (
+                              <span className="reminder-generic-label">
+                                General reminder
+                              </span>
+                            )}
+                            <strong>{r.text}</strong>
+                            <small>
+                              {r.date}
+                              {r.time ? " · " + r.time : ""}
+                              {r.repeat && r.repeat !== "none"
+                                ? " · " + r.repeat
+                                : ""}
+                            </small>
+                          </div>
+                          <div className="reminder-page-actions">
+                            {r.customer && (
+                              <button
+                                type="button"
+                                className="outline mini reminder-list-whatsapp"
+                                onClick={() => followUpReminderOnWhatsApp(r)}
+                              >
+                                <Icon name="chat" size={14} /> WhatsApp
+                              </button>
+                            )}
+                            {r.customer && (
+                              <button
+                                type="button"
+                                className="outline mini reminder-list-call"
+                                onClick={() => callReminderCustomer(r)}
+                              >
+                                ☎ Call
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="outline mini reminder-list-tomorrow"
+                              onClick={() => snoozeReminder(r.id)}
+                            >
+                              Tomorrow
+                            </button>
+                            <button
+                              type="button"
+                              className="primary mini reminder-list-done"
+                              onClick={() => completeReminder(r.id)}
+                            >
+                              Done ✓
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="reminder-delete-button reminder-card-delete"
+                            aria-label="Delete reminder"
+                            title="Delete reminder"
+                            onClick={() => deleteReminder(r.id)}
+                          >
+                            <Icon name="close" size={15} />
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="reminders-page-empty">
+                      <span>
+                        <Icon name="bell" size={25} />
+                      </span>
+                      <h3>No active reminders</h3>
+                      <p>
+                        Add one for a payment, delivery, customer follow-up, or
+                        anything you don’t want to remember yourself.
+                      </p>
+                      <button
+                        type="button"
+                        className="primary"
+                        onClick={openNewReminder}
+                      >
+                        <Icon name="plus" size={16} /> Add reminder
+                      </button>
+                    </div>
+                  )}
+                </section>
+                {completedReminders.length > 0 && (
+                  <section className="reminders-completed">
+                    <div className="section-heading">
+                      <div>
+                        <span className="eyebrow">DONE</span>
+                        <h2>Recently completed</h2>
+                      </div>
+                    </div>
+                    <div className="completed-reminder-list">
+                      {completedReminders.slice(0, 8).map((r) => (
+                        <div className="completed-reminder-row" key={r.id}>
+                          <span className="completed-check">
+                            <Icon name="check" size={15} />
+                          </span>
+                          <span>
+                            <strong>{r.text}</strong>
+                            <small>
+                              {r.customer ? r.customer + " · " : ""}
+                              {r.date}
+                            </small>
+                          </span>
+                          <button
+                            type="button"
+                            className="reminder-delete-button completed-delete"
+                            aria-label="Delete completed reminder"
+                            title="Delete reminder"
+                            onClick={() => deleteReminder(r.id)}
+                          >
+                            <Icon name="close" size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                <footer className="settings-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    {!loggedIn && (
-                      <div className="assistant-login-card">
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+            {tab === "Hisaab" &&
+              (() => {
+                // Restore an unfinished Hisaab form when returning from another app tab.
+                if (!selectedCustomer) {
+                  try {
+                    const userId = activeUserIdRef.current;
+                    const raw = userId
+                      ? localStorage.getItem(entryDraftKey(userId))
+                      : null;
+                    const saved = raw
+                      ? (JSON.parse(raw) as {
+                          customer?: string;
+                          pending?: Job;
+                          message?: string;
+                          entryMode?: "quick" | "form";
+                          open?: boolean;
+                        })
+                      : null;
+                    if (saved?.open && saved.customer && saved.pending) {
+                      queueMicrotask(() => {
+                        setSelectedCustomer(saved.customer!);
+                        setPendingJob(saved.pending!);
+                        setMessage(saved.message || "");
+                        setEntryMode(
+                          saved.entryMode === "form" ? "form" : "quick"
+                        );
+                        setCustomerChatOpen(true);
+                      });
+                    }
+                  } catch {}
+                }
+                return (
+                  <>
+                    {!selectedCustomer ? (
+                      <>
+                        <div className="page-heading customer-heading">
+                          <div>
+                            <div className="eyebrow">
+                              YOUR DIGITAL HISAAB BOOK
+                            </div>
+                            <h1>Hisaab</h1>
+                            <p>
+                              One customer, one place. Open a name and continue
+                              where you left off.
+                            </p>
+                          </div>
+                          <div className="hisaab-heading-actions">
+                            <button
+                              type="button"
+                              className="outline customer-contacts-button"
+                              onClick={() => {
+                                setContactQuery("");
+                                setCustomerContactsOpen(true);
+                              }}
+                            >
+                              <Icon name="people" size={17} />
+                              <span>Contacts</span>
+                            </button>
+                            <button
+                              className="primary mobile-primary-action"
+                              onClick={() => {
+                                if (!requireLoginForSaving()) return;
+                                setNewCustomerName("");
+                                setNewCustomerOpen(true);
+                              }}
+                            >
+                              <Icon name="plus" />
+                              <span>New customer</span>
+                            </button>
+                          </div>
+                        </div>
+                        <label className="search customer-search">
+                          <Icon name="search" />
+                          <input
+                            aria-label="Search customers"
+                            placeholder="Search customer name…"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                          />
+                        </label>
+                        <div className="customer-list-mobile">
+                          {customerNames
+                            .filter((name) =>
+                              name.toLowerCase().includes(query.toLowerCase())
+                            )
+                            .map((name) => {
+                              const entries = jobs.filter(
+                                (j) => j.customer === name
+                              );
+                              const baki = entries.reduce(
+                                (sum, j) => sum + j.total - j.paid,
+                                0
+                              );
+                              const latest = entries[0];
+                              return (
+                                <div
+                                  className="customer-row-card customer-row-with-delete"
+                                  key={name}
+                                  role="group"
+                                >
+                                  <button
+                                    type="button"
+                                    className="customer-row-open"
+                                    onClick={() => openCustomerFromHisaab(name)}
+                                  >
+                                    <span className="avatar large">
+                                      {name[0]}
+                                    </span>
+                                    <span className="customer-row-main">
+                                      <strong>{name}</strong>
+                                      <small>
+                                        {latest?.work ||
+                                          "Ready for first entry"}{" "}
+                                        · {entries.length} saved{" "}
+                                        {entries.length === 1
+                                          ? "entry"
+                                          : "entries"}
+                                      </small>
+                                    </span>
+                                    <span className="customer-row-money">
+                                      <strong>{money(baki)}</strong>
+                                      <small>baki</small>
+                                    </span>
+                                    <Icon name="arrow" size={17} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="customer-delete-button"
+                                    aria-label={"Delete " + name}
+                                    title="Delete customer"
+                                    onClick={() => setDeleteCustomer(name)}
+                                  >
+                                    <svg
+                                      className="customer-trash-svg"
+                                      width="19"
+                                      height="19"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path d="M3 6h18" />
+                                      <path d="M8 6V4h8v2" />
+                                      <path d="M19 6l-1 14H6L5 6" />
+                                      <path d="M10 10v6M14 10v6" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                        </div>
+                        {!customerNames.length && (
+                          <div className="empty">
+                            <h3>Your hisaab book is empty</h3>
+                            <p>
+                              Tap New customer, add a name, then type or speak
+                              naturally.
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <section className="customer-detail">
+                        <div className="customer-profile-head">
+                          <span className="avatar large customer-profile-avatar">
+                            {selectedCustomer?.[0] || "?"}
+                          </span>
+                          <div className="customer-profile-copy">
+                            <span className="eyebrow">CUSTOMER HISAAB</span>
+                            <h1>{selectedCustomer}</h1>
+                            <p>
+                              {customerJobs.length} saved{" "}
+                              {customerJobs.length === 1 ? "entry" : "entries"}{" "}
+                              · {money(selectedBaki)} baki
+                            </p>
+                            <button
+                              type="button"
+                              className="customer-phone-link"
+                              onClick={() => openPhoneEditor(selectedCustomer!)}
+                            >
+                              {customerPhones[selectedCustomer!]
+                                ? "WhatsApp +" +
+                                  customerPhones[selectedCustomer!]
+                                : "+ Add WhatsApp number"}
+                            </button>
+                          </div>
+                          {!customerChatOpen && (
+                            <button
+                              type="button"
+                              className="customer-add-entry"
+                              onClick={() => startEntry("quick")}
+                            >
+                              <Icon name="plus" size={16} />
+                              <span>Add entry</span>
+                            </button>
+                          )}
+                        </div>
+                        {!customerChatOpen && (
+                          <div className="customer-action-strip">
+                            <button
+                              type="button"
+                              className="primary"
+                              onClick={() => startEntry("quick")}
+                            >
+                              <Icon name="plus" size={15} /> Add entry
+                            </button>
+                            <button
+                              type="button"
+                              className="outline"
+                              disabled={
+                                !customerOpenJob ||
+                                customerOpenJob.total <= customerOpenJob.paid
+                              }
+                              onClick={() =>
+                                customerOpenJob && openPayment(customerOpenJob)
+                              }
+                            >
+                              ₹ Payment
+                            </button>
+                            <button
+                              type="button"
+                              className="outline"
+                              disabled={!customerOpenJob}
+                              onClick={() =>
+                                customerOpenJob && openWhatsApp(customerOpenJob)
+                              }
+                            >
+                              <Icon name="chat" size={15} /> WhatsApp
+                            </button>
+                            <button
+                              type="button"
+                              className="outline"
+                              disabled={!customerOpenJob}
+                              onClick={() =>
+                                customerOpenJob && openReminder(customerOpenJob)
+                              }
+                            >
+                              <Icon name="bell" size={15} /> Reminder
+                            </button>
+                          </div>
+                        )}
+                        {customerChatOpen ? (
+                          <section className="smart-entry-panel">
+                            <div className="smart-entry-head">
+                              <div>
+                                <span className="eyebrow">NEW ENTRY</span>
+                                <h2>
+                                  {entryMode === "quick"
+                                    ? `Tell me what happened with ${selectedCustomer}`
+                                    : `Add details for ${selectedCustomer}`}
+                                </h2>
+                                <p>
+                                  {entryMode === "quick"
+                                    ? "Type or speak naturally. Pakki Baat will fill the details for you."
+                                    : "Fill only what you know. Date and time are optional."}
+                                </p>
+                              </div>
+                              <button
+                                className="icon-button"
+                                aria-label="Close entry"
+                                onClick={() => {
+                                  setCustomerChatOpen(false);
+                                  setPendingJob(null);
+                                  setMessage("");
+                                  clearEntryDraft();
+                                }}
+                              >
+                                <Icon name="close" />
+                              </button>
+                            </div>
+                            <div
+                              className="entry-mode-tabs"
+                              role="tablist"
+                              aria-label="Entry method"
+                            >
+                              <button
+                                type="button"
+                                className={
+                                  entryMode === "quick" ? "active" : ""
+                                }
+                                onClick={() => startEntry("quick")}
+                              >
+                                ✨ Quick entry
+                              </button>
+                              <button
+                                type="button"
+                                className={entryMode === "form" ? "active" : ""}
+                                onClick={() => startEntry("form")}
+                              >
+                                Form
+                              </button>
+                            </div>
+                            {entryMode === "quick" ? (
+                              <>
+                                <ChatComposer
+                                  message={message}
+                                  onMessageChange={setMessage}
+                                  onCapture={capture}
+                                  onToast={setToast}
+                                  onDraft={receiveAiDraft}
+                                  onSendVoice={sendVoice}
+                                  voiceBusy={voiceBusy}
+                                  voiceSecondsRemaining={voiceSecondsRemaining}
+                                />
+                                <p className="smart-example">
+                                  Try: “2 kg chocolate cake, ₹5,000 total,
+                                  ₹2,000 received, Sunday 5 PM.”
+                                </p>
+                                {pendingJob?.work?.trim() && (
+                                  <article className="smart-preview-card">
+                                    <div className="smart-preview-title">
+                                      <div>
+                                        <span className="eyebrow">
+                                          PAKKI BAAT FILLED THIS
+                                        </span>
+                                        <h3>{pendingJob.work}</h3>
+                                      </div>
+                                      <div className="smart-preview-actions">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEntryMode("form")}
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="smart-preview-discard"
+                                          aria-label="Discard transcription"
+                                          title="Discard transcription"
+                                          onClick={() => {
+                                            setPendingJob(null);
+                                            setPendingReminderText("");
+                                            setChatStep("customer");
+                                            setReceivedAmountTouched(false);
+                                          }}
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <dl>
+                                      <div>
+                                        <dt>Total</dt>
+                                        <dd>{money(pendingJob.total)}</dd>
+                                      </div>
+                                      <div>
+                                        <dt>Received</dt>
+                                        <dd>{money(pendingJob.paid)}</dd>
+                                      </div>
+                                      <div className="baki">
+                                        <dt>Baki</dt>
+                                        <dd>
+                                          {money(
+                                            Math.max(
+                                              0,
+                                              pendingJob.total - pendingJob.paid
+                                            )
+                                          )}
+                                        </dd>
+                                      </div>
+                                      <div>
+                                        <dt>Due</dt>
+                                        <dd>{pendingJob.date || "Optional"}</dd>
+                                      </div>
+                                      <div>
+                                        <dt>Time</dt>
+                                        <dd>{pendingJob.time || "Optional"}</dd>
+                                      </div>
+                                    </dl>
+                                    <button
+                                      type="button"
+                                      className="primary smart-save"
+                                      onClick={finishCustomerChat}
+                                    >
+                                      Save to {selectedCustomer}{" "}
+                                      <Icon name="check" size={17} />
+                                    </button>
+                                  </article>
+                                )}
+                              </>
+                            ) : (
+                              pendingJob && (
+                                <form
+                                  className="inline-entry-form"
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    finishCustomerChat();
+                                  }}
+                                >
+                                  <label className="full">
+                                    What’s the work? *
+                                    <textarea
+                                      autoFocus
+                                      required
+                                      maxLength={500}
+                                      placeholder="e.g. 2 kg chocolate cake"
+                                      value={pendingJob.work || ""}
+                                      onChange={(e) =>
+                                        setPendingJob({
+                                          ...pendingJob,
+                                          work: e.target.value,
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                  <div className="inline-form-grid">
+                                    <label>
+                                      Total amount (₹)
+                                      <input
+                                        inputMode="decimal"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="e.g. 2000"
+                                        value={amountValue(pendingJob.total)}
+                                        onChange={(e) =>
+                                          updatePendingAmount(
+                                            "total",
+                                            e.target.value
+                                          )
+                                        }
+                                      />
+                                    </label>
+                                    <label>
+                                      Amount received (₹)
+                                      <input
+                                        inputMode="decimal"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0 if nothing received"
+                                        value={
+                                          pendingJob.paid === 0 &&
+                                          receivedAmountTouched
+                                            ? "0"
+                                            : amountValue(pendingJob.paid)
+                                        }
+                                        onChange={(e) => {
+                                          setReceivedAmountTouched(
+                                            e.target.value !== ""
+                                          );
+                                          updatePendingAmount(
+                                            "paid",
+                                            e.target.value
+                                          );
+                                        }}
+                                      />
+                                    </label>
+                                    <label>
+                                      Due date <span>optional</span>
+                                      <input
+                                        type="date"
+                                        value={pendingJob.date || ""}
+                                        onChange={(e) =>
+                                          setPendingJob({
+                                            ...pendingJob,
+                                            date: e.target.value,
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                    <label>
+                                      Due time <span>optional</span>
+                                      <input
+                                        type="time"
+                                        value={pendingJob.time || ""}
+                                        onChange={(e) =>
+                                          setPendingJob({
+                                            ...pendingJob,
+                                            time: e.target.value,
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                  </div>
+                                  <button
+                                    type="submit"
+                                    className="primary smart-save"
+                                    disabled={
+                                      !pendingJob.work.trim() ||
+                                      pendingJob.paid > pendingJob.total
+                                    }
+                                  >
+                                    Save to {selectedCustomer}{" "}
+                                    <Icon name="check" size={17} />
+                                  </button>
+                                  {pendingJob.paid > pendingJob.total && (
+                                    <p className="form-error">
+                                      Received amount cannot be more than the
+                                      total.
+                                    </p>
+                                  )}
+                                </form>
+                              )
+                            )}
+                          </section>
+                        ) : (
+                          <div className="entry-choice">
+                            <div>
+                              <span className="eyebrow">NEW ENTRY</span>
+                              <h3>Add something to {selectedCustomer}</h3>
+                              <p>Speak naturally or use the simple form.</p>
+                            </div>
+                            <div className="entry-choice-actions">
+                              <button
+                                className="primary"
+                                type="button"
+                                onClick={() => startEntry("quick")}
+                              >
+                                ✨ Type or speak
+                              </button>
+                              <button
+                                className="outline"
+                                type="button"
+                                onClick={() => startEntry("form")}
+                              >
+                                Fill a form
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="customer-book-section">
+                          <div className="section-title-row">
+                            <div>
+                              <span className="eyebrow">SAVED ENTRIES</span>
+                              <h2>History</h2>
+                            </div>
+                          </div>
+                          <div className="saved-entry-grid">
+                            {customerJobs.map((j, index) => (
+                              <details
+                                className="saved-detail-card customer-saved-card hisaab-history-card"
+                                key={`${accountId}-${selectedCustomer}-${
+                                  j.id || "entry"
+                                }-${j.date || "saved"}-${index}`}
+                              >
+                                <summary className="hisaab-history-summary">
+                                  <small className="saved-entry-created-date">
+                                    Added{" "}
+                                    {j.createdAt
+                                      ? new Date(
+                                          j.createdAt
+                                        ).toLocaleDateString("en-IN", {
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric",
+                                        })
+                                      : "—"}
+                                  </small>
+                                  <strong>{j.work}</strong>
+                                  <dl>
+                                    <div>
+                                      <dt>Total</dt>
+                                      <dd>{money(j.total)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Received</dt>
+                                      <dd>{money(j.paid)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Baki</dt>
+                                      <dd>{money(j.total - j.paid)}</dd>
+                                    </div>
+                                  </dl>
+                                  <span className="hisaab-card-statuses">
+                                    <span>
+                                      Work:{" "}
+                                      {j.status === "Waiting"
+                                        ? "Pending"
+                                        : j.status === "Confirmed"
+                                        ? "In progress"
+                                        : j.status === "Completed"
+                                        ? "Done"
+                                        : j.status}
+                                    </span>
+                                    <span>
+                                      Payment:{" "}
+                                      {j.paid > j.total
+                                        ? "Overpaid"
+                                        : j.paid === j.total
+                                        ? "Settled"
+                                        : j.paid === 0
+                                        ? "Unpaid"
+                                        : "Part received"}
+                                    </span>
+                                  </span>
+                                  <span className="hisaab-expand-hint">
+                                    Details & actions{" "}
+                                    <span aria-hidden="true">⌄</span>
+                                  </span>
+                                </summary>
+                                <div className="hisaab-history-expanded">
+                                  <p className="hisaab-due-detail">
+                                    Due: {j.date || "Not set"}
+                                    {j.time ? " · " + j.time : ""}
+                                  </p>
+                                  <div
+                                    className="entry-status-chips"
+                                    aria-label="Work status"
+                                  >
+                                    <button
+                                      type="button"
+                                      className={
+                                        j.status === "Waiting" ? "active" : ""
+                                      }
+                                      onClick={() =>
+                                        updateJobStatus(j, "Waiting")
+                                      }
+                                    >
+                                      Pending
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={
+                                        j.status === "Confirmed" ? "active" : ""
+                                      }
+                                      onClick={() =>
+                                        updateJobStatus(j, "Confirmed")
+                                      }
+                                    >
+                                      In progress
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={
+                                        j.status === "Completed" ? "active" : ""
+                                      }
+                                      onClick={() =>
+                                        updateJobStatus(j, "Completed")
+                                      }
+                                    >
+                                      Done
+                                    </button>
+                                  </div>
+                                  <div className="chat-turn-actions saved-card-actions">
+                                    {j.paid < j.total && (
+                                      <button
+                                        type="button"
+                                        className="card-action payment-action"
+                                        onClick={() => openPayment(j)}
+                                      >
+                                        ₹ Payment
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="card-action receipt-action"
+                                      onClick={() => openReceipt(j)}
+                                    >
+                                      Receipt
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="card-action whatsapp-action"
+                                      onClick={() => openWhatsApp(j)}
+                                    >
+                                      <Icon name="chat" size={15} /> WhatsApp
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="card-action"
+                                      onClick={() => setDraft(j)}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="card-action reminder-action"
+                                      onClick={() => openReminder(j)}
+                                    >
+                                      <Icon name="bell" size={15} /> Reminder
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="card-action delete-action"
+                                      onClick={() => deleteEntry(j)}
+                                    >
+                                      <Icon name="close" size={14} /> Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              </details>
+                            ))}
+                          </div>
+                        </div>
+                        {customerReminders.length > 0 && (
+                          <div className="customer-book-section">
+                            <span className="eyebrow">REMINDERS</span>
+                            {customerReminders.map((r) => (
+                              <div
+                                className="customer-mini-reminder"
+                                key={r.id}
+                              >
+                                <Icon name="bell" size={16} />
+                                <span>{r.text}</span>
+                                <small>
+                                  {r.date}
+                                  {r.time ? " · " + r.time : ""}
+                                </small>
+                                <button
+                                  className="text-button"
+                                  onClick={() => completeReminder(r.id)}
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </section>
+                    )}
+                  </>
+                );
+              })()}
+            {false && tab === "Customers" && (
+              <>
+                {!selectedCustomer ? (
+                  <>
+                    <div className="page-heading customer-heading">
+                      <div>
+                        <div className="eyebrow">YOUR CUSTOMER BOOK</div>
+                        <h1>Customers</h1>
+                        <p>
+                          Open a customer to see their orders, payments, baki
+                          and reminders together.
+                        </p>
+                      </div>
+                      <button
+                        className="primary mobile-add-customer"
+                        onClick={() => {
+                          go("Hisaab");
+                          setMessage("New customer: ");
+                        }}
+                      >
+                        + Add new
+                      </button>
+                    </div>
+                    <label className="search customer-search">
+                      <Icon name="search" />
+                      <input
+                        aria-label="Search customers"
+                        placeholder="Search customer name…"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                    </label>
+                    <div className="customer-list-mobile">
+                      {customerNames
+                        .filter((name) =>
+                          name.toLowerCase().includes(query.toLowerCase())
+                        )
+                        .map((name) => {
+                          const entries = jobs.filter(
+                            (j) => j.customer === name
+                          );
+                          const baki = entries.reduce(
+                            (sum, j) => sum + j.total - j.paid,
+                            0
+                          );
+                          const latest = entries[0];
+                          return (
+                            <button
+                              className="customer-row-card"
+                              key={name}
+                              onClick={() => openCustomerFromHisaab(name)}
+                            >
+                              <span className="avatar large">{name[0]}</span>
+                              <span className="customer-row-main">
+                                <strong>{name}</strong>
+                                <small>
+                                  {latest?.work || "Customer"} ·{" "}
+                                  {entries.length}{" "}
+                                  {entries.length === 1 ? "entry" : "entries"}
+                                </small>
+                              </span>
+                              <span className="customer-row-money">
+                                <strong>{money(baki)}</strong>
+                                <small>baki</small>
+                              </span>
+                              <Icon name="arrow" size={17} />
+                            </button>
+                          );
+                        })}
+                    </div>
+                    {!customerNames.length && (
+                      <div className="empty">
+                        <h3>No customers yet</h3>
+                        <p>
+                          Tap Add new and tell Pakki Baat the customer name and
+                          what happened.
+                        </p>
+                        <button
+                          className="primary"
+                          onClick={() => {
+                            go("Hisaab");
+                            setMessage("New customer: ");
+                          }}
+                        >
+                          + Add first customer
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <section className="customer-detail">
+                    <button
+                      className="text-button customer-back"
+                      onClick={() => setSelectedCustomer(null)}
+                    >
+                      ← All customers
+                    </button>
+                    <div className="customer-profile-head">
+                      <span className="avatar large">
+                        {selectedCustomer?.[0] || "?"}
+                      </span>
+                      <div>
+                        <h1>{selectedCustomer}</h1>
+                        <p>
+                          {customerJobs.length}{" "}
+                          {customerJobs.length === 1 ? "entry" : "entries"} in
+                          this customer book
+                        </p>
+                      </div>
+                    </div>
+                    <div className="customer-summary-strip">
+                      <div>
+                        <small>Total business</small>
+                        <strong>
+                          {money(customerJobs.reduce((s, j) => s + j.total, 0))}
+                        </strong>
+                      </div>
+                      <div>
+                        <small>Received</small>
+                        <strong>
+                          {money(customerJobs.reduce((s, j) => s + j.paid, 0))}
+                        </strong>
+                      </div>
+                      <div className="baki">
+                        <small>Baki</small>
+                        <strong>{money(selectedBaki)}</strong>
+                      </div>
+                    </div>
+                    <div className="customer-quick-actions">
+                      <button
+                        className="primary"
+                        onClick={() => openCustomerAssistant()}
+                      >
+                        + Add update
+                      </button>
+                      <button
+                        className="outline"
+                        onClick={() => openCustomerAssistant("Received ₹")}
+                      >
+                        ₹ Add payment
+                      </button>
+                      <button
+                        className="outline"
+                        onClick={() => openCustomerAssistant("Remind me ")}
+                      >
+                        <Icon name="bell" size={17} /> Add reminder
+                      </button>
+                      <button
+                        className="outline"
+                        onClick={() => openCustomerAssistant("Note: ")}
+                      >
+                        Add note
+                      </button>
+                    </div>
+                    <div className="customer-book-section">
+                      <div className="section-title-row">
                         <div>
-                          <strong>
-                            {cloudConfigured
-                              ? "Login to use AI voice"
-                              : "AI login setup needed"}
-                          </strong>
+                          <span className="eyebrow">HISAAB & WORK</span>
+                          <h2>History</h2>
+                        </div>
+                      </div>
+                      <div className="customer-timeline">
+                        {customerJobs.map((j) => (
+                          <button
+                            className="customer-timeline-entry"
+                            key={j.id}
+                            onClick={() => setDraft(j)}
+                          >
+                            <span className="timeline-dot" />
+                            <span className="timeline-content">
+                              <strong>{j.work}</strong>
+                              <small>
+                                {j.date || "No date"}
+                                {j.time ? " · " + j.time : ""}
+                              </small>
+                              <span>
+                                Total {money(j.total)} · Received{" "}
+                                {money(j.paid)}
+                              </span>
+                            </span>
+                            <span className="timeline-baki">
+                              <strong>{money(j.total - j.paid)}</strong>
+                              <small>baki</small>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {customerPayments.length > 0 && (
+                      <div className="customer-book-section">
+                        <span className="eyebrow">PAYMENTS</span>
+                        <div className="customer-timeline">
+                          {customerPayments.map((p) => (
+                            <div className="customer-history-row" key={p.id}>
+                              <span>
+                                <strong>Payment received</strong>
+                                <small>
+                                  {p.date}
+                                  {p.note ? " · " + p.note : ""}
+                                  {p.correctionReason && " · Corrected"}
+                                </small>
+                              </span>
+                              <strong>+{money(p.amount)}</strong>
+                              {ledgerModeForAccount(
+                                activeUserIdRef.current || ""
+                              ) && (
+                                <button
+                                  type="button"
+                                  className="text-button"
+                                  onClick={() => openEditPayment(p)}
+                                  style={{
+                                    marginLeft: "8px",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {customerNotes.length > 0 && (
+                      <div className="customer-book-section">
+                        <span className="eyebrow">NOTES</span>
+                        <div className="customer-timeline">
+                          {customerNotes.map((n) => (
+                            <div className="customer-history-row" key={n.id}>
+                              <span>
+                                <strong>{n.text}</strong>
+                                <small>
+                                  {new Date(n.createdAt).toLocaleDateString(
+                                    "en-IN",
+                                    { day: "numeric", month: "short" }
+                                  )}
+                                </small>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {customerReminders.length > 0 && (
+                      <div className="customer-book-section">
+                        <span className="eyebrow">REMINDERS</span>
+                        {customerReminders.map((r) => (
+                          <div className="customer-mini-reminder" key={r.id}>
+                            <Icon name="bell" size={16} />
+                            <span>{r.text}</span>
+                            <small>
+                              {r.date}
+                              {r.time ? " · " + r.time : ""}
+                            </small>
+                            <button
+                              className="text-button"
+                              onClick={() => completeReminder(r.id)}
+                            >
+                              Done
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+                <footer className="settings-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+            {tab === "Subscription" && (
+              <>
+                <div className="page-heading subscription-heading">
+                  <div>
+                    <div className="eyebrow">PLAN & USAGE</div>
+                    <h1>Subscription</h1>
+                    <p>
+                      See your plan, monthly voice allowance and upgrade
+                      options.
+                    </p>
+                  </div>
+                </div>
+                <section className="subscription-summary panel">
+                  <div className="subscription-summary-main">
+                    <span className="subscription-plan-icon">
+                      <Icon name="plan" size={21} />
+                    </span>
+                    <div>
+                      <small>CURRENT PLAN</small>
+                      <h2>
+                        {!subscriptionPlan
+                          ? "No active plan"
+                          : subscriptionPlan === "trial"
+                          ? "30-Day Free Trial"
+                          : subscriptionPlan.charAt(0).toUpperCase() +
+                            subscriptionPlan.slice(1)}
+                      </h2>
+                      <p>
+                        {!subscriptionPlan
+                          ? "Start free or choose a plan to continue."
+                          : subscriptionPlan === "business"
+                          ? "Unlimited customers · 1,000 shared voice minutes"
+                          : subscriptionPlan === "smart"
+                          ? "250 customers · 500 voice minutes"
+                          : "100 customers · 100 voice minutes"}
+                      </p>
+                      {subscriptionPeriodEnd && (
+                        <small className="subscription-expiry">
+                          {subscriptionExpired ? "Expired" : "Active"} ·{" "}
+                          {subscriptionExpired ? "Ended" : "Ends"}{" "}
+                          {new Date(subscriptionPeriodEnd).toLocaleDateString(
+                            "en-IN"
+                          )}
+                          {trialDaysLeft !== null && !subscriptionExpired
+                            ? " · " + trialDaysLeft + " days left"
+                            : ""}
+                        </small>
+                      )}
+                    </div>
+                  </div>
+                  <div className="subscription-summary-usage">
+                    <div>
+                      <span>Voice usage</span>
+                      <strong>
+                        {hasActiveSubscription
+                          ? `${voiceSecondsUsed.toLocaleString(
+                              "en-IN"
+                            )} / ${voiceLimitSeconds.toLocaleString(
+                              "en-IN"
+                            )} sec used`
+                          : "—"}
+                      </strong>
+                    </div>
+                    <div className="usage-track">
+                      <span
+                        style={{
+                          width: hasActiveSubscription
+                            ? Math.min(
+                                100,
+                                (voiceSecondsUsed /
+                                  Math.max(1, voiceLimitSeconds)) *
+                                  100
+                              ) + "%"
+                            : "0%",
+                        }}
+                      />
+                    </div>
+                    <small>
+                      {hasActiveSubscription
+                        ? `${voiceSecondsRemaining.toLocaleString(
+                            "en-IN"
+                          )} sec remaining`
+                        : "Your existing data stays safe. Start free or choose a plan to continue."}
+                    </small>
+                  </div>
+                </section>
+                {!subscriptionPlan && (
+                  <section className="trial-value-banner">
+                    <div>
+                      <span className="trial-value-kicker">
+                        FREE FOR 30 DAYS
+                      </span>
+                      <h2>Try Pakki Baat free for 30 days</h2>
+                      <p>
+                        Start with your real customers and see how easy daily
+                        Hisaab feels — no payment needed.
+                      </p>
+                      <div className="trial-limit-row">
+                        <span>
+                          <small>CUSTOMERS</small>
+                          <strong>100</strong>
+                        </span>
+                        <span>
+                          <small>VOICE + AI</small>
+                          <strong>100 min</strong>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="primary"
+                        disabled={trialStarting}
+                        onClick={() => void startFreeTrial()}
+                      >
+                        {trialStarting
+                          ? "Starting…"
+                          : "Start 30-day free trial"}
+                      </button>
+                    </div>
+                  </section>
+                )}
+                <div className="subscription-section-title">
+                  <div>
+                    <h2>Choose what fits your business</h2>
+                    <p>
+                      Start small and upgrade only when your customer list
+                      grows.
+                    </p>
+                  </div>
+                </div>
+                <div className="plan-grid clean-plan-grid value-plan-grid">
+                  {[
+                    {
+                      name: "Basic",
+                      price: "₹99",
+                      perDay: "₹3.30/day",
+                      copy: "Everything you need to get organised",
+                      customers: "Up to 100 customers",
+                      team: "1 user",
+                      voice: "100 voice minutes included",
+                      voiceCopy: "Speak entries instead of typing",
+                    },
+                    {
+                      name: "Smart",
+                      price: "₹179",
+                      perDay: "Less than ₹6/day",
+                      copy: "Best value for a growing business",
+                      customers: "Up to 250 customers",
+                      team: "1 user",
+                      voice: "500 voice minutes included",
+                      voiceCopy: "More freedom to enter Hisaab by voice",
+                    },
+                    {
+                      name: "Business",
+                      price: "₹299",
+                      perDay: "Less than ₹10/day",
+                      copy: "For busy businesses and small teams",
+                      customers: "Unlimited customers",
+                      team: "1 business · Up to 3 team members",
+                      voice: "1,000 shared voice minutes",
+                      voiceCopy: "Shared across your whole team",
+                    },
+                  ].map((plan) => (
+                    <article
+                      className={
+                        "plan-card value-plan-card " +
+                        (plan.name === "Smart" ? "recommended" : "")
+                      }
+                      key={plan.name}
+                    >
+                      <div className="plan-card-head">
+                        <div>
+                          <h3>{plan.name}</h3>
+                          <small>{plan.copy}</small>
+                        </div>
+                        {plan.name === "Smart" && (
+                          <span className="recommended-tag">BEST VALUE</span>
+                        )}
+                      </div>
+                      <div className="plan-price-row">
+                        <div className="plan-price">
+                          {plan.price}
+                          <small>/month</small>
+                        </div>
+                        <span className="plan-daily-price">{plan.perDay}</span>
+                      </div>
+                      <div className="plan-limit-grid">
+                        <div>
+                          <small>CUSTOMERS</small>
+                          <strong>{plan.customers}</strong>
+                        </div>
+                        <div>
+                          <small>VOICE + AI</small>
+                          <strong>{plan.voice}</strong>
+                        </div>
+                      </div>
+                      <div className="plan-team-line">{plan.team}</div>
+                      <ul>
+                        <li>Unlimited Hisaab entries</li>
+                        <li>Track payments & baki</li>
+                        <li>Reminders & WhatsApp follow-ups</li>
+                        <li>Receipts & customer history</li>
+                      </ul>
+                      <div className="plan-voice-value">
+                        <small>{plan.voiceCopy}</small>
+                      </div>
+                      <button
+                        type="button"
+                        className={
+                          plan.name === "Smart" ? "primary" : "outline"
+                        }
+                        onClick={() => {
+                          setPaymentPlan({
+                            name: plan.name,
+                            price: plan.price,
+                          });
+                          setPaymentRef("");
+                          setPaymentProof(null);
+                        }}
+                      >
+                        Choose {plan.name}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+                <section className="subscription-help">
+                  <Icon name="shield" size={19} />
+                  <div>
+                    <strong>What happens if voice minutes finish?</strong>
+                    <p>
+                      You can keep using Hisaab and type entries. Voice/AI usage
+                      resumes after renewal or when extra minutes are added.
+                    </p>
+                  </div>
+                </section>
+                <footer className="settings-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+            {tab === "Admin" && (
+              <>
+                <div className="page-heading">
+                  <div>
+                    <div className="eyebrow">PAKKI BAAT CONTROL</div>
+                    <h1>Admin</h1>
+                    <p>Subscription controls for the Pakki Baat owner.</p>
+                  </div>
+                </div>
+                <section className="admin-home">
+                  <div className="admin-welcome panel">
+                    <span className="admin-gate-icon">
+                      <Icon name="shield" size={25} />
+                    </span>
+                    <div>
+                      <span className="eyebrow">OWNER ONLY</span>
+                      <h2>Simple controls, all in one place</h2>
+                      <p>
+                        Manage customers, payments and subscriptions without
+                        touching the database.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="admin-stat-row admin-overview">
+                    <button type="button">
+                      <small>Total users</small>
+                      <strong>—</strong>
+                      <span>View customers</span>
+                    </button>
+                    <button type="button">
+                      <small>Pending payments</small>
+                      <strong>—</strong>
+                      <span>Review requests</span>
+                    </button>
+                    <button type="button">
+                      <small>Active plans</small>
+                      <strong>—</strong>
+                      <span>Subscriptions</span>
+                    </button>
+                    <button type="button">
+                      <small>Voice used</small>
+                      <strong>—</strong>
+                      <span>This month</span>
+                    </button>
+                  </div>
+                  <div className="admin-section-grid">
+                    <section className="panel admin-action-card">
+                      <div className="admin-card-title">
+                        <span className="admin-action-icon">
+                          <Icon name="check" size={19} />
+                        </span>
+                        <div>
+                          <h3>Pending payments</h3>
                           <p>
-                            {cloudConfigured
-                              ? "Sign in or sign up with Google so Pakki Baat can listen to voice notes, write the text, and prepare the details slip."
-                              : "Add the Supabase public keys to .env.local, then restart localhost to show Google login."}
+                            Approve UPI payments and activate the selected plan.
                           </p>
+                        </div>
+                      </div>
+                      <div className="admin-empty-state">
+                        <strong>No payment requests loaded yet</strong>
+                        <small>
+                          New payment requests will appear here for one-tap
+                          approval.
+                        </small>
+                      </div>
+                    </section>
+                    <section className="panel admin-action-card">
+                      <div className="admin-card-title">
+                        <span className="admin-action-icon">
+                          <Icon name="plan" size={19} />
+                        </span>
+                        <div>
+                          <h3>Users & plans</h3>
+                          <p>See each user's plan, expiry and voice usage.</p>
+                        </div>
+                      </div>
+                      <div className="admin-quick-actions">
+                        <span>
+                          <strong>Change plan</strong>
+                          <small>Basic · Smart · Business</small>
+                        </span>
+                        <span>
+                          <strong>Add voice minutes</strong>
+                          <small>Give bonus usage when needed</small>
+                        </span>
+                        <span>
+                          <strong>Extend / suspend</strong>
+                          <small>Simple account controls</small>
+                        </span>
+                      </div>
+                    </section>
+                  </div>
+                </section>
+                <footer className="settings-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+            {tab === "Backup" && (
+              <>
+                <div className="page-heading settings-heading">
+                  <div>
+                    <div className="eyebrow">BACKUP</div>
+                    <h1>Protect your business data</h1>
+                    <p>
+                      Simple dated backups you can verify, restore or keep on
+                      your device.
+                    </p>
+                  </div>
+                </div>
+                <section className="panel backup-main-panel">
+                  <CloudSettings
+                    snapshot={{
+                      jobs,
+                      owner,
+                      business,
+                      reminders,
+                      payments,
+                      notes,
+                      customerPhones,
+                    }}
+                    onRestore={(saved) => {
+                      restoreTargetRef.current = normalizedSnapshot(saved);
+                      restore(saved);
+                    }}
+                    onPauseAutosave={(paused) => {
+                      autosavePausedRef.current = paused;
+                      if (paused) {
+                        cancelDailyBackup();
+                        clearBackupStatusUi();
+                      }
+                      if (!paused) restoreTargetRef.current = null;
+                    }}
+                    ownerId={
+                      ready && loadedAccountId === accountId ? accountId : null
+                    }
+                    cloudSaveStatus={cloudSaveStatus}
+                    dailyBackupStatus={dailyBackupStatus}
+                    dailyBackupGeneration={dailyBackupGenerationRef.current}
+                    dark={dark}
+                    onToggleTheme={toggleTheme}
+                  />
+                </section>
+                <footer className="settings-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+            {tab === "Settings" && (
+              <>
+                <div className="page-heading settings-heading">
+                  <div>
+                    <div className="eyebrow">SETTINGS</div>
+                    <h1>Your workspace</h1>
+                    <p>Account, alerts and your Pakki Baat data.</p>
+                  </div>
+                </div>
+                <div className="settings-top-cards">
+                  {!appInstalled && (
+                    <section className="settings-subscription-card settings-install-card">
+                      <span className="settings-subscription-icon">
+                        <Icon name="download" size={20} />
+                      </span>
+                      <span>
+                        <strong>Install Pakki Baat</strong>
+                        <small>
+                          Keep it on your home screen and open it like an app.
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        className="primary"
+                        onClick={() => void installPakkiBaat()}
+                      >
+                        Install app
+                      </button>
+                    </section>
+                  )}
+                  <section className="settings-subscription-card">
+                    <span className="settings-subscription-icon">
+                      <Icon name="plan" size={20} />
+                    </span>
+                    <span>
+                      <strong>Subscription & usage</strong>
+                      <small>Your plan, voice minutes and renewal.</small>
+                    </span>
+                    <button
+                      type="button"
+                      className="outline"
+                      onClick={() => go("Subscription")}
+                    >
+                      View plan
+                    </button>
+                  </section>
+                  {userEmail?.trim().toLowerCase() ===
+                    "zorivoworks@gmail.com" && (
+                    <section className="settings-subscription-card settings-owner-admin">
+                      <span className="settings-subscription-icon">
+                        <Icon name="settings" size={20} />
+                      </span>
+                      <span>
+                        <strong>Owner admin panel</strong>
+                        <small>Users, plans and payments.</small>
+                      </span>
+                      <button
+                        type="button"
+                        className="outline"
+                        onClick={() => {
+                          window.location.href = "/admin";
+                        }}
+                      >
+                        Open admin
+                      </button>
+                    </section>
+                  )}
+                </div>
+                <div className="settings-section-list">
+                  <section className="settings-group">
+                    <div className="settings-group-head">
+                      <span className="settings-group-icon">
+                        <Icon name="settings" size={18} />
+                      </span>
+                      <span>
+                        <strong>Account</strong>
+                        <small>Your profile and sign-in.</small>
+                      </span>
+                    </div>
+                    <div className="settings-fields-grid">
+                      <label>
+                        Display name
+                        <input
+                          value={profileOwnerDraft}
+                          maxLength={60}
+                          onChange={(e) => setProfileOwnerDraft(e.target.value)}
+                          placeholder={userName || "Your name"}
+                        />
+                      </label>
+                      <label>
+                        Business name
+                        <input
+                          value={profileBusinessDraft}
+                          maxLength={100}
+                          onChange={(e) =>
+                            setProfileBusinessDraft(e.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="primary settings-profile-save"
+                      onClick={saveProfileDetails}
+                      disabled={
+                        profileOwnerDraft.trim() === owner.trim() &&
+                        profileBusinessDraft.trim() === business.trim()
+                      }
+                    >
+                      Save changes
+                    </button>
+                    {loggedIn && (
+                      <div className="settings-account-row">
+                        <span>
+                          <small>SIGNED IN AS</small>
+                          <strong>{userEmail}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          className="outline"
+                          onClick={() => void handleSignOut()}
+                        >
+                          <Icon name="arrow" size={16} /> Sign out
+                        </button>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="settings-group">
+                    <div className="settings-group-head">
+                      <span className="settings-group-icon">
+                        <Icon name="bell" size={18} />
+                      </span>
+                      <span>
+                        <strong>Notifications</strong>
+                        <small>Reminder alerts on this device.</small>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Reminder alerts"
+                        className={
+                          reminderAlertsEnabled
+                            ? "setting-switch is-on"
+                            : "setting-switch"
+                        }
+                        role="switch"
+                        aria-checked={reminderAlertsEnabled}
+                        onClick={() =>
+                          reminderAlertsEnabled
+                            ? disableReminderAlerts()
+                            : void enableReminderAlerts()
+                        }
+                      >
+                        <span />
+                      </button>
+                    </div>
+                    {reminderAlertsEnabled && (
+                      <div className="settings-compact-options">
+                        <label>
+                          <span>
+                            <strong>Alarm sound</strong>
+                            <small>While Pakki Baat is open</small>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={reminderSoundEnabled}
+                            onChange={(e) => setReminderSound(e.target.checked)}
+                          />
+                        </label>
+                        <label>
+                          <span>
+                            <strong>Vibrate</strong>
+                            <small>When supported by your phone</small>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={reminderVibrationEnabled}
+                            onChange={(e) =>
+                              setReminderVibration(e.target.checked)
+                            }
+                          />
+                        </label>
+                        <div className="settings-notification-status">
+                          <span>System notifications</span>
+                          <strong
+                            className={
+                              notificationPermission === "granted" ? "ok" : ""
+                            }
+                          >
+                            {notificationPermission === "granted"
+                              ? "Allowed"
+                              : notificationPermission === "denied"
+                              ? "Blocked"
+                              : notificationPermission === "unsupported"
+                              ? "Not supported"
+                              : "Not allowed yet"}
+                          </strong>
                         </div>
                         <button
                           type="button"
-                          className="google-sign-in compact"
-                          onClick={() => void startGoogleSignIn()}
-                          disabled={!cloudConfigured}
+                          className="outline"
+                          disabled={pushDiagnosticBusy}
+                          onClick={() => void testReminderAlert()}
                         >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              fill="#4285F4"
-                              d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"
-                            />
-                            <path
-                              fill="#34A853"
-                              d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"
-                            />
-                            <path
-                              fill="#FBBC05"
-                              d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"
-                            />
-                            <path
-                              fill="#EA4335"
-                              d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"
-                            />
-                          </svg>
-                          Continue with Google
+                          {pushDiagnosticBusy
+                            ? "Checking…"
+                            : "Send test notification"}
                         </button>
+                        {pushDiagnostic && (
+                          <div
+                            className={
+                              pushDiagnostic.startsWith("✓")
+                                ? "push-diagnostic ok"
+                                : "push-diagnostic error"
+                            }
+                          >
+                            {pushDiagnostic}
+                          </div>
+                        )}
                       </div>
                     )}
-                    <span className="chat-date">Your conversation</span>
-                    <div className="bubble">
-                      <strong>Hi {displayName}!</strong>
-                      <p>
-                        Tell me what happened just like you would in WhatsApp —
-                        an order, payment, baki or reminder. I’ll organise it
-                        for you.
-                      </p>
+                  </section>
+
+                  <section className="settings-group">
+                    <div className="settings-group-head">
+                      <span className="settings-group-icon">
+                        <Icon name="cloud" size={18} />
+                      </span>
+                      <span>
+                        <strong>Backup</strong>
+                        <small>
+                          Automatic recovery, restore and downloads.
+                        </small>
+                      </span>
                     </div>
-                    {chatTurns.filter(turn => selectedCustomer ? turn.customer === selectedCustomer : !turn.customer).map((turn) => (
-                      <div
-                        key={turn.id}
-                        className={`chat-turn ${
-                          turn.role === "me" ? "from-me" : "from-assistant"
-                        }`}
-                      >
-                        <span className="chat-speaker">
-                          {turn.role === "me"
-                            ? "You"
-                            : turn.replyFor
-                            ? "Suggested customer reply"
-                            : "Pakki Baat"}
-                        </span>
-                        <div className="chat-turn-text">{turn.text}</div>
-                        {turn.voiceId && (
-                          <div className="chat-voice">
-                            <small>
-                              {turn.duration
-                                ? "Recorded " +
-                                  Math.floor(turn.duration / 60) +
-                                  ":" +
-                                  String(turn.duration % 60).padStart(2, "0")
-                                : "Sent voice note"}
-                            </small>
-                            {voiceUrls[turn.voiceId] === undefined ? (
-                              <small>Loading voice note…</small>
-                            ) : voiceUrls[turn.voiceId] ? (
-                              <AudioPlayer
-                                audioBlob={voiceFilesRef.current[turn.voiceId]}
-                                audioUrl={voiceUrls[turn.voiceId]}
-                                duration={turn.duration || 0}
-                                onTranscribe={() => retryVoice(turn.voiceId!)}
-                                onDownload={() =>
-                                  downloadVoiceInChat(turn.voiceId!)
-                                }
-                                onDelete={() => removeVoice(turn.voiceId!)}
-                              />
-                            ) : (
-                              <small>Audio unavailable on this device.</small>
-                            )}
-                          </div>
-                        )}
-                        {(turn.text.includes("Please continue with Google") ||
-                          turn.text.includes(
-                            "Continue with Google in Settings"
-                          )) && (
-                          <div className="login-prompt-actions">
-                            <button
-                              type="button"
-                              className="google-sign-in compact"
-                              onClick={() => void startGoogleSignIn()}
-                              disabled={!cloudConfigured}
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path
-                                  fill="#4285F4"
-                                  d="M21.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.5Z"
-                                />
-                                <path
-                                  fill="#34A853"
-                                  d="M12 22c2.7 0 5-.9 6.7-2.3l-3.3-2.6c-.9.6-2.1 1-3.4 1a5.9 5.9 0 0 1-5.5-4.1H3.1v2.7A10 10 0 0 0 12 22Z"
-                                />
-                                <path
-                                  fill="#FBBC05"
-                                  d="M6.5 14a6 6 0 0 1 0-3.9V7.3H3.1a10 10 0 0 0 0 9.4L6.5 14Z"
-                                />
-                                <path
-                                  fill="#EA4335"
-                                  d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.7 9.7 0 0 0 3.1 7.3l3.4 2.8A5.9 5.9 0 0 1 12 5.9Z"
-                                />
-                              </svg>
-                              Continue with Google
-                            </button>
-                          </div>
-                        )}
-                        {turn.replyFor && (
-                          <div className="saved-detail-card"><strong>{turn.replyFor.customer}</strong><span>{turn.replyFor.work}</span><dl><div><dt>Total</dt><dd>{money(turn.replyFor.total)}</dd></div><div><dt>Received</dt><dd>{money(turn.replyFor.paid)}</dd></div><div><dt>Baki</dt><dd>{money(turn.replyFor.total-turn.replyFor.paid)}</dd></div><div><dt>Due</dt><dd>{turn.replyFor.date||"Date not set"}{turn.replyFor.time?" · "+turn.replyFor.time:""}</dd></div><div><dt>Status</dt><dd>{turn.replyFor.status}</dd></div></dl></div>
-                        )}
-                        {turn.replyFor && (
-                          <div className="chat-turn-actions">
-                            <button
-                              type="button"
-                              onClick={() => copy(turn.text)}
-                            >
-                              Copy reply
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDraft(turn.replyFor!)}
-                            >
-                              Edit details
-                            </button>
-                            {turn.replyFor.date && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  download(
-                                    calendarFile(turn.replyFor!),
-                                    "pakki-baat-reminder.ics"
-                                  )
-                                }
-                              >
-                                Add reminder
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {!chatTurns.length && (
+                    <button
+                      type="button"
+                      className="how-it-works-card settings-help-row"
+                      onClick={() => go("Backup")}
+                    >
+                      <span>
+                        <strong>Open Backup</strong>
+                        <small>
+                          View verified backups and choose 15 or 30 days.
+                        </small>
+                      </span>
+                      <Icon name="arrow" size={17} />
+                    </button>
+                  </section>
+
+                  <section className="settings-group">
+                    <div className="settings-group-head">
+                      <span className="settings-group-icon">?</span>
+                      <span>
+                        <strong>Help & feedback</strong>
+                        <small>Guide and product feedback.</small>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="how-it-works-card settings-help-row"
+                      onClick={() => setGuideOpen(true)}
+                    >
+                      <span>
+                        <strong>How Pakki Baat works</strong>
+                        <small>
+                          Quick guide to entries, payments and reminders.
+                        </small>
+                      </span>
+                      <Icon name="arrow" size={17} />
+                    </button>
+                    <label className="settings-feedback">
+                      Tell us what could be better
+                      <textarea
+                        value={feedback}
+                        onChange={(e) => setFeedback(e.target.value)}
+                        placeholder="Share your feedback…"
+                      />
+                    </label>
+                    <div className="settings-feedback-actions">
                       <button
-                        className="example"
-                        onClick={() =>
-                          setMessage(
-                            "Riya wants a 2 kg chocolate cake. Total ₹2400. ₹1000 advance. Delivery on Saturday at 5 pm."
-                          )
-                        }
+                        className="outline"
+                        disabled={!feedback.trim()}
+                        onClick={shareFeedback}
                       >
-                        Try an example{" "}
-                        <span>“Riya wants a 2 kg chocolate cake…”</span>
+                        Share feedback
                       </button>
-                    )}
-                  </div>
-                  <ChatComposer
-                    message={message}
-                    onMessageChange={setMessage}
-                    onCapture={capture}
-                    onToast={setToast}
-                    onDraft={receiveAiDraft}
-                    onSendVoice={sendVoice}
-                    voiceBusy={voiceBusy}
-                    voiceSecondsRemaining={voiceSecondsRemaining}
-                  />
-                </div>
-                <aside className="capture-help">
-                  <h3>Talk it through.</h3>
-                  {[
-                    [
-                      "1",
-                      "Start the conversation",
-                      "Type it or say it naturally, just like sending a WhatsApp message.",
-                    ],
-                    [
-                      "2",
-                      "Answer the follow-up questions",
-                      "I’ll ask only for the missing detail, one question at a time.",
-                    ],
-                    [
-                      "3",
-                      "Done and remembered",
-                      "Orders go to Hisaab and reminders stay together on the Reminders page.",
-                    ],
-                  ].map(([n, t, d]) => (
-                    <div key={n}>
-                      <b>{n}</b>
-                      <section>
-                        <strong>{t}</strong>
-                        <p>{d}</p>
-                      </section>
+                      <button
+                        className="primary"
+                        disabled={!feedback.trim()}
+                        onClick={() => {
+                          download(feedback, "pakki-baat-feedback.txt");
+                          setFeedback("");
+                          setToast("Feedback downloaded.");
+                        }}
+                      >
+                        Download
+                      </button>
                     </div>
-                  ))}
-                  <p className="privacy-note">
-                    Screenshot and voice-note understanding need an AI service
-                    connection. Your pasted text is kept with each commitment.
-                  </p>
-                </aside>
-              </section>
-              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
-            </>
-          )}
-          {tab === "Reminders" && (
-            <>
-              <div className="page-heading reminders-heading">
-                <div className="reminders-heading-copy">
-                  <div className="eyebrow">NOTHING TO KEEP IN YOUR HEAD</div>
-                  <h1>Reminders</h1>
-                  <p>See what needs a follow-up, snooze it, or mark it done.</p>
+                  </section>
                 </div>
-                <button type="button" className="primary mobile-primary-action reminder-add-primary" onClick={openNewReminder}>
-                  <Icon name="plus" size={17}/><span>Add reminder</span>
+                <footer className="settings-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (
+                  <a
+                    href="https://zorivo.in"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Zorivo
+                  </a>
+                  )
+                </footer>
+              </>
+            )}
+          </div>
+        </main>
+        <nav className="mobile-nav" aria-label="Main navigation">
+          {nav.map(([t, i], index) => (
+            <span key={t} style={{ display: "contents" }}>
+              {index === 2 && (
+                <button
+                  type="button"
+                  className="mobile-add-entry"
+                  aria-label="Add new entry"
+                  title="Add new entry"
+                  onClick={openNewEntry}
+                >
+                  <Icon name="plus" size={25} />
+                </button>
+              )}
+              <button
+                aria-label={t}
+                className={
+                  tab === t ? "active mobile-nav-item" : "mobile-nav-item"
+                }
+                onClick={() => openMainTab(t)}
+              >
+                <span className="mobile-nav-icon-wrap">
+                  <Icon name={i} size={23} />
+                  {t === "Reminders" && activeReminders.length > 0 && (
+                    <b className="mobile-reminder-badge">
+                      {Math.min(99, activeReminders.length)}
+                    </b>
+                  )}
+                </span>
+                <span className="mobile-nav-label">{t}</span>
+              </button>
+            </span>
+          ))}
+        </nav>
+        {ringingReminder && (
+          <div
+            className="modal-backdrop reminder-alarm-backdrop"
+            onClick={() => setRingingReminder(null)}
+          >
+            <section
+              className="reminder-alarm-modal"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="reminder-alarm-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="reminder-alarm-icon">
+                <Icon name="bell" size={27} />
+              </span>
+              <span className="eyebrow">REMINDER NOW</span>
+              <h2 id="reminder-alarm-title">
+                {ringingReminder.customer || "Pakki Baat reminder"}
+              </h2>
+              <p>{ringingReminder.text}</p>
+              <small>
+                {ringingReminder.date}
+                {ringingReminder.time ? " · " + ringingReminder.time : ""}
+              </small>
+              {ringingReminder.customer && (
+                <div className="reminder-followup-card">
+                  <strong>Follow up now</strong>
+                  {reminderLinkedJob(ringingReminder) && (
+                    <small>
+                      {reminderLinkedJob(ringingReminder)!.work}
+                      {Math.max(
+                        0,
+                        reminderLinkedJob(ringingReminder)!.total -
+                          reminderLinkedJob(ringingReminder)!.paid
+                      ) > 0
+                        ? ` · ${money(
+                            Math.max(
+                              0,
+                              reminderLinkedJob(ringingReminder)!.total -
+                                reminderLinkedJob(ringingReminder)!.paid
+                            )
+                          )} baki`
+                        : ""}
+                    </small>
+                  )}
+                  <div>
+                    <button
+                      type="button"
+                      className="reminder-whatsapp-action"
+                      onClick={() =>
+                        followUpReminderOnWhatsApp(ringingReminder)
+                      }
+                    >
+                      <Icon name="chat" size={17} /> WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      className="reminder-call-action"
+                      onClick={() => callReminderCustomer(ringingReminder)}
+                    >
+                      ☎ Call
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="reminder-alarm-actions">
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => {
+                    snoozeReminder(ringingReminder.id);
+                    setRingingReminder(null);
+                  }}
+                >
+                  Remind tomorrow
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => {
+                    completeReminder(ringingReminder.id);
+                    setRingingReminder(null);
+                  }}
+                >
+                  Done ✓
                 </button>
               </div>
-              <section className="reminder-page-summary">
-                <div><span className="reminder-summary-icon"><Icon name="bell" size={17}/></span><small>Today / overdue</small><strong>{remindersToday}</strong></div>
-                <div><span className="reminder-summary-icon"><Icon name="calendar" size={17}/></span><small>Active reminders</small><strong>{activeReminders.length}</strong></div>
-                <div><span className="reminder-summary-icon"><Icon name="check" size={17}/></span><small>Completed</small><strong>{completedReminders.length}</strong></div>
-              </section>
-              <section className="reminders-page-card">
-                <div className="section-heading reminders-page-title">
-                  <div><span className="eyebrow">UP NEXT</span><h2>Active reminders <span className="count">{activeReminders.length}</span></h2></div>
-                </div>
-                {activeReminders.length ? (
-                  <div className="reminders-page-list">
-                    {activeReminders.map(r=>(
-                      <article className={r.date<=day() ? "reminder-page-row is-due" : "reminder-page-row"} key={r.id}>
-                        <span className="reminder-page-bell"><Icon name="bell" size={18}/></span>
-                        <div className="reminder-page-copy">
-                          {r.customer ? <button type="button" className="reminder-customer-link" onClick={()=>{setSelectedCustomer(r.customer!);setCustomerChatOpen(false);setTab("Hisaab");}}>{r.customer}</button> : <span className="reminder-generic-label">General reminder</span>}
-                          <strong>{r.text}</strong>
-                          <small>{r.date}{r.time ? " · "+r.time : ""}{r.repeat && r.repeat!=="none" ? " · "+r.repeat : ""}</small>
-                        </div>
-                        <div className="reminder-page-actions">
-                          {r.customer && <button type="button" className="outline mini reminder-list-whatsapp" onClick={()=>followUpReminderOnWhatsApp(r)}><Icon name="chat" size={14}/> WhatsApp</button>}
-                          {r.customer && <button type="button" className="outline mini reminder-list-call" onClick={()=>callReminderCustomer(r)}>☎ Call</button>}
-                          <button type="button" className="outline mini reminder-list-tomorrow" onClick={()=>snoozeReminder(r.id)}>Tomorrow</button>
-                          <button type="button" className="primary mini reminder-list-done" onClick={()=>completeReminder(r.id)}>Done ✓</button>
-                        </div>
-                        <button type="button" className="reminder-delete-button reminder-card-delete" aria-label="Delete reminder" title="Delete reminder" onClick={()=>deleteReminder(r.id)}><Icon name="close" size={15}/></button>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="reminders-page-empty">
-                    <span><Icon name="bell" size={25}/></span>
-                    <h3>No active reminders</h3>
-                    <p>Add one for a payment, delivery, customer follow-up, or anything you don’t want to remember yourself.</p>
-                    <button type="button" className="primary" onClick={openNewReminder}><Icon name="plus" size={16}/> Add reminder</button>
-                  </div>
-                )}
-              </section>
-              {completedReminders.length>0 && (
-                <section className="reminders-completed">
-                  <div className="section-heading"><div><span className="eyebrow">DONE</span><h2>Recently completed</h2></div></div>
-                  <div className="completed-reminder-list">
-                    {completedReminders.slice(0,8).map(r=>(
-                      <div className="completed-reminder-row" key={r.id}>
-                        <span className="completed-check"><Icon name="check" size={15}/></span>
-                        <span><strong>{r.text}</strong><small>{r.customer ? r.customer+" · " : ""}{r.date}</small></span>
-                        <button type="button" className="reminder-delete-button completed-delete" aria-label="Delete completed reminder" title="Delete reminder" onClick={()=>deleteReminder(r.id)}><Icon name="close" size={14}/></button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
-            </>
-          )}
-          {tab === "Hisaab" && (() => {
-            // Restore an unfinished Hisaab form when returning from another app tab.
-            if (!selectedCustomer) {
-              try {
-                const userId = activeUserIdRef.current;
-                const raw = userId ? localStorage.getItem(entryDraftKey(userId)) : null;
-                const saved = raw ? JSON.parse(raw) as { customer?: string; pending?: Job; message?: string; entryMode?: "quick"|"form"; open?: boolean } : null;
-                if (saved?.open && saved.customer && saved.pending) {
-                  queueMicrotask(() => {
-                    setSelectedCustomer(saved.customer!);
-                    setPendingJob(saved.pending!);
-                    setMessage(saved.message || "");
-                    setEntryMode(saved.entryMode === "form" ? "form" : "quick");
-                    setCustomerChatOpen(true);
-                  });
-                }
-              } catch {}
-            }
-            return (
-            <>
-              {!selectedCustomer ? (
-                <>
-                  <div className="page-heading customer-heading">
-                    <div>
-                      <div className="eyebrow">YOUR DIGITAL HISAAB BOOK</div>
-                      <h1>Hisaab</h1>
-                      <p>One customer, one place. Open a name and continue where you left off.</p>
-                    </div>
-                    <div className="hisaab-heading-actions">
-                      <button type="button" className="outline customer-contacts-button" onClick={()=>{setContactQuery("");setCustomerContactsOpen(true);}}>
-                        <Icon name="people" size={17}/><span>Contacts</span>
-                      </button>
-                      <button className="primary mobile-primary-action" onClick={() => { if (!requireLoginForSaving()) return; setNewCustomerName(""); setNewCustomerOpen(true); }}><Icon name="plus" /><span>New customer</span></button>
-                    </div>
-                  </div>
-                  <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
-                  <div className="customer-list-mobile">
-                    {customerNames.filter(name=>name.toLowerCase().includes(query.toLowerCase())).map(name=>{
-                      const entries=jobs.filter(j=>j.customer===name);
-                      const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
-                      const latest=entries[0];
-                      return <div className="customer-row-card customer-row-with-delete" key={name} role="group">
-                        <button type="button" className="customer-row-open" onClick={()=>openCustomerFromHisaab(name)}>
-                          <span className="avatar large">{name[0]}</span>
-                          <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Ready for first entry"} · {entries.length} saved {entries.length===1?"entry":"entries"}</small></span>
-                          <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
-                          <Icon name="arrow" size={17}/>
-                        </button>
-                        <button type="button" className="customer-delete-button" aria-label={"Delete " + name} title="Delete customer" onClick={()=>setDeleteCustomer(name)}><svg className="customer-trash-svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 10v6M14 10v6"/></svg></button>
-                      </div>;
-                    })}
-                  </div>
-                  {!customerNames.length && <div className="empty"><h3>Your hisaab book is empty</h3><p>Tap New customer, add a name, then type or speak naturally.</p></div>}
-                </>
-              ) : (
-                <section className="customer-detail">
-                  <div className="customer-profile-head">
-                    <span className="avatar large customer-profile-avatar">{selectedCustomer?.[0] || "?"}</span>
-                    <div className="customer-profile-copy">
-                      <span className="eyebrow">CUSTOMER HISAAB</span>
-                      <h1>{selectedCustomer}</h1>
-                      <p>{customerJobs.length} saved {customerJobs.length===1?"entry":"entries"} · {money(selectedBaki)} baki</p>
-                      <button type="button" className="customer-phone-link" onClick={()=>openPhoneEditor(selectedCustomer!)}>
-                        {customerPhones[selectedCustomer!] ? "WhatsApp +" + customerPhones[selectedCustomer!] : "+ Add WhatsApp number"}
-                      </button>
-                    </div>
-                    {!customerChatOpen && <button type="button" className="customer-add-entry" onClick={()=>startEntry("quick")}><Icon name="plus" size={16}/><span>Add entry</span></button>}
-                  </div>
-                  {!customerChatOpen && (
-                    <div className="customer-action-strip">
-                      <button type="button" className="primary" onClick={()=>startEntry("quick")}><Icon name="plus" size={15}/> Add entry</button>
-                      <button type="button" className="outline" disabled={!customerOpenJob || customerOpenJob.total<=customerOpenJob.paid} onClick={()=>customerOpenJob && openPayment(customerOpenJob)}>₹ Payment</button>
-                      <button type="button" className="outline" disabled={!customerOpenJob} onClick={()=>customerOpenJob && openWhatsApp(customerOpenJob)}><Icon name="chat" size={15}/> WhatsApp</button>
-                      <button type="button" className="outline" disabled={!customerOpenJob} onClick={()=>customerOpenJob && openReminder(customerOpenJob)}><Icon name="bell" size={15}/> Reminder</button>
-                    </div>
-                  )}
-                  {customerChatOpen ? (
-                    <section className="smart-entry-panel">
-                      <div className="smart-entry-head">
-                        <div><span className="eyebrow">NEW ENTRY</span><h2>{entryMode==="quick" ? `Tell me what happened with ${selectedCustomer}` : `Add details for ${selectedCustomer}`}</h2><p>{entryMode==="quick" ? "Type or speak naturally. Pakki Baat will fill the details for you." : "Fill only what you know. Date and time are optional."}</p></div>
-                        <button className="icon-button" aria-label="Close entry" onClick={()=>{setCustomerChatOpen(false);setPendingJob(null);setMessage("");clearEntryDraft();}}><Icon name="close"/></button>
-                      </div>
-                      <div className="entry-mode-tabs" role="tablist" aria-label="Entry method">
-                        <button type="button" className={entryMode==="quick"?"active":""} onClick={()=>startEntry("quick")}>✨ Quick entry</button>
-                        <button type="button" className={entryMode==="form"?"active":""} onClick={()=>startEntry("form")}>Form</button>
-                      </div>
-                      {entryMode==="quick" ? (
-                        <>
-                          <ChatComposer message={message} onMessageChange={setMessage} onCapture={capture} onToast={setToast} onDraft={receiveAiDraft} onSendVoice={sendVoice} voiceBusy={voiceBusy} voiceSecondsRemaining={voiceSecondsRemaining}/>
-                          <p className="smart-example">Try: “2 kg chocolate cake, ₹5,000 total, ₹2,000 received, Sunday 5 PM.”</p>
-                          {pendingJob?.work?.trim() && (
-                            <article className="smart-preview-card">
-                              <div className="smart-preview-title"><div><span className="eyebrow">PAKKI BAAT FILLED THIS</span><h3>{pendingJob.work}</h3></div><div className="smart-preview-actions"><button type="button" onClick={()=>setEntryMode("form")}>Edit</button><button type="button" className="smart-preview-discard" aria-label="Discard transcription" title="Discard transcription" onClick={()=>{setPendingJob(null);setPendingReminderText("");setChatStep("customer");setReceivedAmountTouched(false);}}>×</button></div></div>
-                              <dl><div><dt>Total</dt><dd>{money(pendingJob.total)}</dd></div><div><dt>Received</dt><dd>{money(pendingJob.paid)}</dd></div><div className="baki"><dt>Baki</dt><dd>{money(Math.max(0,pendingJob.total-pendingJob.paid))}</dd></div><div><dt>Due</dt><dd>{pendingJob.date || "Optional"}</dd></div><div><dt>Time</dt><dd>{pendingJob.time || "Optional"}</dd></div></dl>
-                              <button type="button" className="primary smart-save" onClick={finishCustomerChat}>Save to {selectedCustomer} <Icon name="check" size={17}/></button>
-                            </article>
-                          )}
-                        </>
-                      ) : pendingJob && (
-                        <form className="inline-entry-form" onSubmit={e=>{e.preventDefault();finishCustomerChat();}}>
-                          <label className="full">What’s the work? *<textarea autoFocus required maxLength={500} placeholder="e.g. 2 kg chocolate cake" value={pendingJob.work || ""} onChange={e=>setPendingJob({...pendingJob,work:e.target.value})}/></label>
-                          <div className="inline-form-grid">
-                            <label>Total amount (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="e.g. 2000" value={amountValue(pendingJob.total)} onChange={e=>updatePendingAmount("total",e.target.value)}/></label>
-                            <label>Amount received (₹)<input inputMode="decimal" type="number" min="0" step="0.01" placeholder="0 if nothing received" value={pendingJob.paid === 0 && receivedAmountTouched ? "0" : amountValue(pendingJob.paid)} onChange={e=>{setReceivedAmountTouched(e.target.value !== "");updatePendingAmount("paid",e.target.value);}}/></label>
-                            <label>Due date <span>optional</span><input type="date" value={pendingJob.date || ""} onChange={e=>setPendingJob({...pendingJob,date:e.target.value})}/></label>
-                            <label>Due time <span>optional</span><input type="time" value={pendingJob.time || ""} onChange={e=>setPendingJob({...pendingJob,time:e.target.value})}/></label>
-                          </div>
-                          <button type="submit" className="primary smart-save" disabled={!pendingJob.work.trim() || pendingJob.paid>pendingJob.total}>Save to {selectedCustomer} <Icon name="check" size={17}/></button>
-                          {pendingJob.paid>pendingJob.total && <p className="form-error">Received amount cannot be more than the total.</p>}
-                        </form>
-                      )}
-                    </section>
-                  ) : (
-                    <div className="entry-choice">
-                      <div><span className="eyebrow">NEW ENTRY</span><h3>Add something to {selectedCustomer}</h3><p>Speak naturally or use the simple form.</p></div>
-                      <div className="entry-choice-actions"><button className="primary" type="button" onClick={()=>startEntry("quick")}>✨ Type or speak</button><button className="outline" type="button" onClick={()=>startEntry("form")}>Fill a form</button></div>
-                    </div>
-                  )}
-                  <div className="customer-book-section"><div className="section-title-row"><div><span className="eyebrow">SAVED ENTRIES</span><h2>History</h2></div></div>
-                    <div className="saved-entry-grid">{customerJobs.map((j,index)=><article className="saved-detail-card customer-saved-card" key={`${j.id || "entry"}-${j.date || "saved"}-${index}`}><small className="saved-entry-created-date">Added {j.createdAt ? new Date(j.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}) : "—"}</small><strong>{j.work}</strong><dl><div><dt>Total</dt><dd>{money(j.total)}</dd></div><div><dt>Received</dt><dd>{money(j.paid)}</dd></div><div><dt>Baki</dt><dd>{money(j.total-j.paid)}</dd></div><div><dt>Due</dt><dd>{j.date||"Not set"}{j.time?" · "+j.time:""}</dd></div></dl><div className="entry-status-chips" aria-label="Entry status"><button type="button" className={j.status==="Waiting"?"active":""} onClick={()=>updateJobStatus(j,"Waiting")}>Pending</button><button type="button" className={j.status==="Confirmed"?"active":""} onClick={()=>updateJobStatus(j,"Confirmed")}>In progress</button><button type="button" className={j.status==="Completed"?"active":""} onClick={()=>updateJobStatus(j,"Completed")}>Done</button></div><div className="chat-turn-actions saved-card-actions">{j.paid<j.total && <button type="button" className="card-action payment-action" onClick={()=>openPayment(j)}>₹ Payment</button>}<button type="button" className="card-action receipt-action" onClick={()=>openReceipt(j)}>Receipt</button><button type="button" className="card-action whatsapp-action" onClick={()=>openWhatsApp(j)}><Icon name="chat" size={15}/> WhatsApp</button><button type="button" className="card-action" onClick={()=>setDraft(j)}>Edit</button><button type="button" className="card-action reminder-action" onClick={()=>openReminder(j)}><Icon name="bell" size={15}/> Reminder</button><button type="button" className="card-action delete-action" onClick={()=>deleteEntry(j)}><Icon name="close" size={14}/> Delete</button></div></article>)}</div>
-                  </div>
-                  {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
-                </section>
-              )}
-            </>
-            );
-          })()}
-          {false && tab === "Customers" && (
-            <>
-              {!selectedCustomer ? (
-                <>
-                  <div className="page-heading customer-heading">
-                    <div>
-                      <div className="eyebrow">YOUR CUSTOMER BOOK</div>
-                      <h1>Customers</h1>
-                      <p>Open a customer to see their orders, payments, baki and reminders together.</p>
-                    </div>
-                    <button className="primary mobile-add-customer" onClick={() => { go("Hisaab"); setMessage("New customer: "); }}>+ Add new</button>
-                  </div>
-                  <label className="search customer-search"><Icon name="search"/><input aria-label="Search customers" placeholder="Search customer name…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
-                  <div className="customer-list-mobile">
-                    {customerNames.filter(name=>name.toLowerCase().includes(query.toLowerCase())).map(name=>{
-                      const entries=jobs.filter(j=>j.customer===name);
-                      const baki=entries.reduce((sum,j)=>sum+j.total-j.paid,0);
-                      const latest=entries[0];
-                      return <button className="customer-row-card" key={name} onClick={()=>openCustomerFromHisaab(name)}>
-                        <span className="avatar large">{name[0]}</span>
-                        <span className="customer-row-main"><strong>{name}</strong><small>{latest?.work || "Customer"} · {entries.length} {entries.length===1?"entry":"entries"}</small></span>
-                        <span className="customer-row-money"><strong>{money(baki)}</strong><small>baki</small></span>
-                        <Icon name="arrow" size={17}/>
-                      </button>;
-                    })}
-                  </div>
-                  {!customerNames.length && <div className="empty"><h3>No customers yet</h3><p>Tap Add new and tell Pakki Baat the customer name and what happened.</p><button className="primary" onClick={()=>{go("Hisaab");setMessage("New customer: ");}}>+ Add first customer</button></div>}
-                </>
-              ) : (
-                <section className="customer-detail">
-                  <button className="text-button customer-back" onClick={()=>setSelectedCustomer(null)}>← All customers</button>
-                  <div className="customer-profile-head">
-                    <span className="avatar large">{selectedCustomer?.[0] || "?"}</span>
-                    <div><h1>{selectedCustomer}</h1><p>{customerJobs.length} {customerJobs.length===1?"entry":"entries"} in this customer book</p></div>
-                  </div>
-                  <div className="customer-summary-strip">
-                    <div><small>Total business</small><strong>{money(customerJobs.reduce((s,j)=>s+j.total,0))}</strong></div>
-                    <div><small>Received</small><strong>{money(customerJobs.reduce((s,j)=>s+j.paid,0))}</strong></div>
-                    <div className="baki"><small>Baki</small><strong>{money(selectedBaki)}</strong></div>
-                  </div>
-                  <div className="customer-quick-actions">
-                    <button className="primary" onClick={()=>openCustomerAssistant()}>+ Add update</button>
-                    <button className="outline" onClick={()=>openCustomerAssistant("Received ₹")} >₹ Add payment</button>
-                    <button className="outline" onClick={()=>openCustomerAssistant("Remind me ")}><Icon name="bell" size={17}/> Add reminder</button>
-                    <button className="outline" onClick={()=>openCustomerAssistant("Note: ")}>Add note</button>
-                  </div>
-                  <div className="customer-book-section">
-                    <div className="section-title-row"><div><span className="eyebrow">HISAAB & WORK</span><h2>History</h2></div></div>
-                    <div className="customer-timeline">
-                      {customerJobs.map(j=><button className="customer-timeline-entry" key={j.id} onClick={()=>setDraft(j)}>
-                        <span className="timeline-dot"/>
-                        <span className="timeline-content"><strong>{j.work}</strong><small>{j.date || "No date"}{j.time?" · "+j.time:""}</small><span>Total {money(j.total)} · Received {money(j.paid)}</span></span>
-                        <span className="timeline-baki"><strong>{money(j.total-j.paid)}</strong><small>baki</small></span>
-                      </button>)}
-                    </div>
-                  </div>
-                  {customerPayments.length>0 && <div className="customer-book-section"><span className="eyebrow">PAYMENTS</span><div className="customer-timeline">{customerPayments.map(p=><div className="customer-history-row" key={p.id}><span><strong>Payment received</strong><small>{p.date}{p.note?" · "+p.note:""}</small></span><strong>+{money(p.amount)}</strong></div>)}</div></div>}
-                  {customerNotes.length>0 && <div className="customer-book-section"><span className="eyebrow">NOTES</span><div className="customer-timeline">{customerNotes.map(n=><div className="customer-history-row" key={n.id}><span><strong>{n.text}</strong><small>{new Date(n.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</small></span></div>)}</div></div>}
-                  {customerReminders.length>0 && <div className="customer-book-section"><span className="eyebrow">REMINDERS</span>{customerReminders.map(r=><div className="customer-mini-reminder" key={r.id}><Icon name="bell" size={16}/><span>{r.text}</span><small>{r.date}{r.time?" · "+r.time:""}</small><button className="text-button" onClick={()=>completeReminder(r.id)}>Done</button></div>)}</div>}
-                </section>
-              )}
-              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
-            </>
-          )}
-          {tab === "Subscription" && (
-            <>
-              <div className="page-heading subscription-heading">
-                <div><div className="eyebrow">PLAN & USAGE</div><h1>Subscription</h1><p>See your plan, monthly voice allowance and upgrade options.</p></div>
-              </div>
-              <section className="subscription-summary panel">
-                <div className="subscription-summary-main">
-                  <span className="subscription-plan-icon"><Icon name="plan" size={21}/></span>
-                  <div><small>CURRENT PLAN</small><h2>{!subscriptionPlan?"No active plan":subscriptionPlan==="trial"?"30-Day Free Trial":subscriptionPlan.charAt(0).toUpperCase()+subscriptionPlan.slice(1)}</h2><p>{!subscriptionPlan?"Start free or choose a plan to continue.":subscriptionPlan==="business"?"Unlimited customers · 1,000 shared voice minutes":subscriptionPlan==="smart"?"250 customers · 500 voice minutes":"100 customers · 100 voice minutes"}</p>{subscriptionPeriodEnd&&<small className="subscription-expiry">{subscriptionExpired?"Expired":"Active"} · {subscriptionExpired?"Ended":"Ends"} {new Date(subscriptionPeriodEnd).toLocaleDateString("en-IN")}{trialDaysLeft!==null&&!subscriptionExpired?" · "+trialDaysLeft+" days left":""}</small>}</div>
-                </div>
-                <div className="subscription-summary-usage">
-                  <div><span>Voice usage</span><strong>{hasActiveSubscription?`${voiceSecondsUsed.toLocaleString("en-IN")} / ${voiceLimitSeconds.toLocaleString("en-IN")} sec used`:"—"}</strong></div>
-                  <div className="usage-track"><span style={{width:hasActiveSubscription?Math.min(100,(voiceSecondsUsed/Math.max(1,voiceLimitSeconds))*100)+"%":"0%"}}/></div>
-                  <small>{hasActiveSubscription?`${voiceSecondsRemaining.toLocaleString("en-IN")} sec remaining`:"Your existing data stays safe. Start free or choose a plan to continue."}</small>
-                </div>
-              </section>
-              {!subscriptionPlan&&<section className="trial-value-banner">
-                <div><span className="trial-value-kicker">FREE FOR 30 DAYS</span><h2>Try Pakki Baat free for 30 days</h2><p>Start with your real customers and see how easy daily Hisaab feels — no payment needed.</p><div className="trial-limit-row"><span><small>CUSTOMERS</small><strong>100</strong></span><span><small>VOICE + AI</small><strong>100 min</strong></span></div><button type="button" className="primary" disabled={trialStarting} onClick={()=>void startFreeTrial()}>{trialStarting?"Starting…":"Start 30-day free trial"}</button></div>
-              </section>}
-              <div className="subscription-section-title"><div><h2>Choose what fits your business</h2><p>Start small and upgrade only when your customer list grows.</p></div></div>
-              <div className="plan-grid clean-plan-grid value-plan-grid">
-                {[
-                  {name:"Basic",price:"₹99",perDay:"₹3.30/day",copy:"Everything you need to get organised",customers:"Up to 100 customers",team:"1 user",voice:"100 voice minutes included",voiceCopy:"Speak entries instead of typing"},
-                  {name:"Smart",price:"₹179",perDay:"Less than ₹6/day",copy:"Best value for a growing business",customers:"Up to 250 customers",team:"1 user",voice:"500 voice minutes included",voiceCopy:"More freedom to enter Hisaab by voice"},
-                  {name:"Business",price:"₹299",perDay:"Less than ₹10/day",copy:"For busy businesses and small teams",customers:"Unlimited customers",team:"1 business · Up to 3 team members",voice:"1,000 shared voice minutes",voiceCopy:"Shared across your whole team"},
-                ].map(plan=><article className={"plan-card value-plan-card "+(plan.name==="Smart"?"recommended":"")} key={plan.name}>
-                  <div className="plan-card-head"><div><h3>{plan.name}</h3><small>{plan.copy}</small></div>{plan.name==="Smart"&&<span className="recommended-tag">BEST VALUE</span>}</div>
-                  <div className="plan-price-row"><div className="plan-price">{plan.price}<small>/month</small></div><span className="plan-daily-price">{plan.perDay}</span></div>
-                  <div className="plan-limit-grid"><div><small>CUSTOMERS</small><strong>{plan.customers}</strong></div><div><small>VOICE + AI</small><strong>{plan.voice}</strong></div></div><div className="plan-team-line">{plan.team}</div>
-                  <ul>
-                    <li>Unlimited Hisaab entries</li>
-                    <li>Track payments & baki</li>
-                    <li>Reminders & WhatsApp follow-ups</li>
-                    <li>Receipts & customer history</li>
-                  </ul>
-                  <div className="plan-voice-value"><small>{plan.voiceCopy}</small></div>
-                  <button type="button" className={plan.name==="Smart"?"primary":"outline"} onClick={()=>{setPaymentPlan({name:plan.name,price:plan.price});setPaymentRef("");setPaymentProof(null);}}>Choose {plan.name}</button>
-                </article>)}
-              </div>
-              <section className="subscription-help">
-                <Icon name="shield" size={19}/><div><strong>What happens if voice minutes finish?</strong><p>You can keep using Hisaab and type entries. Voice/AI usage resumes after renewal or when extra minutes are added.</p></div>
-              </section>
-              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
-            </>
-          )}
-          {tab === "Admin" && (
-            <>
-              <div className="page-heading"><div><div className="eyebrow">PAKKI BAAT CONTROL</div><h1>Admin</h1><p>Subscription controls for the Pakki Baat owner.</p></div></div>
-              <section className="admin-home">
-                <div className="admin-welcome panel">
-                  <span className="admin-gate-icon"><Icon name="shield" size={25}/></span>
-                  <div><span className="eyebrow">OWNER ONLY</span><h2>Simple controls, all in one place</h2><p>Manage customers, payments and subscriptions without touching the database.</p></div>
-                </div>
-                <div className="admin-stat-row admin-overview">
-                  <button type="button"><small>Total users</small><strong>—</strong><span>View customers</span></button>
-                  <button type="button"><small>Pending payments</small><strong>—</strong><span>Review requests</span></button>
-                  <button type="button"><small>Active plans</small><strong>—</strong><span>Subscriptions</span></button>
-                  <button type="button"><small>Voice used</small><strong>—</strong><span>This month</span></button>
-                </div>
-                <div className="admin-section-grid">
-                  <section className="panel admin-action-card">
-                    <div className="admin-card-title"><span className="admin-action-icon"><Icon name="check" size={19}/></span><div><h3>Pending payments</h3><p>Approve UPI payments and activate the selected plan.</p></div></div>
-                    <div className="admin-empty-state"><strong>No payment requests loaded yet</strong><small>New payment requests will appear here for one-tap approval.</small></div>
-                  </section>
-                  <section className="panel admin-action-card">
-                    <div className="admin-card-title"><span className="admin-action-icon"><Icon name="plan" size={19}/></span><div><h3>Users & plans</h3><p>See each user's plan, expiry and voice usage.</p></div></div>
-                    <div className="admin-quick-actions"><span><strong>Change plan</strong><small>Basic · Smart · Business</small></span><span><strong>Add voice minutes</strong><small>Give bonus usage when needed</small></span><span><strong>Extend / suspend</strong><small>Simple account controls</small></span></div>
-                  </section>
-                </div>
-              </section>
-              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
-            </>
-          )}
-          {tab === "Backup" && (
-            <>
-              <div className="page-heading settings-heading">
-                <div>
-                  <div className="eyebrow">BACKUP</div>
-                  <h1>Protect your business data</h1>
-                  <p>Simple dated backups you can verify, restore or keep on your device.</p>
-                </div>
-              </div>
-              <section className="panel backup-main-panel">
-                <CloudSettings snapshot={{jobs,owner,business,reminders,payments,notes,customerPhones}} onRestore={(saved) => { restoreTargetRef.current = normalizedSnapshot(saved); restore(saved); }} onPauseAutosave={(paused) => { autosavePausedRef.current = paused; if (!paused) restoreTargetRef.current = null; }} ownerId={ready && loadedAccountId === accountId ? accountId : null} dark={dark} onToggleTheme={toggleTheme}/>
-              </section>
-              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
-            </>
-          )}
-          {tab === "Settings" && (
-            <>
-              <div className="page-heading settings-heading">
-                <div>
-                  <div className="eyebrow">SETTINGS</div>
-                  <h1>Your workspace</h1>
-                  <p>Account, alerts and your Pakki Baat data.</p>
-                </div>
-              </div>
-              <div className="settings-top-cards">
-                {!appInstalled && (
-                  <section className="settings-subscription-card settings-install-card">
-                    <span className="settings-subscription-icon"><Icon name="download" size={20}/></span>
-                    <span><strong>Install Pakki Baat</strong><small>Keep it on your home screen and open it like an app.</small></span>
-                    <button type="button" className="primary" onClick={()=>void installPakkiBaat()}>Install app</button>
-                  </section>
-                )}
-                <section className="settings-subscription-card">
-                  <span className="settings-subscription-icon"><Icon name="plan" size={20}/></span>
-                  <span><strong>Subscription & usage</strong><small>Your plan, voice minutes and renewal.</small></span>
-                  <button type="button" className="outline" onClick={()=>go("Subscription")}>View plan</button>
-                </section>
-                {userEmail?.trim().toLowerCase() === "zorivoworks@gmail.com" && (
-                  <section className="settings-subscription-card settings-owner-admin">
-                    <span className="settings-subscription-icon"><Icon name="settings" size={20}/></span>
-                    <span><strong>Owner admin panel</strong><small>Users, plans and payments.</small></span>
-                    <button type="button" className="outline" onClick={()=>{ window.location.href="/admin"; }}>Open admin</button>
-                  </section>
-                )}
-              </div>
-              <div className="settings-section-list">
-                <section className="settings-group">
-                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="settings" size={18}/></span><span><strong>Account</strong><small>Your profile and sign-in.</small></span></div>
-                  <div className="settings-fields-grid">
-                    <label>Display name<input value={profileOwnerDraft} maxLength={60} onChange={(e)=>setProfileOwnerDraft(e.target.value)} placeholder={userName||"Your name"}/></label>
-                    <label>Business name<input value={profileBusinessDraft} maxLength={100} onChange={(e)=>setProfileBusinessDraft(e.target.value)}/></label>
-                  </div>
-                  <button type="button" className="primary settings-profile-save" onClick={saveProfileDetails} disabled={profileOwnerDraft.trim()===owner.trim()&&profileBusinessDraft.trim()===business.trim()}>Save changes</button>
-                  {loggedIn&&<div className="settings-account-row"><span><small>SIGNED IN AS</small><strong>{userEmail}</strong></span><button type="button" className="outline" onClick={()=>void handleSignOut()}><Icon name="arrow" size={16}/> Sign out</button></div>}
-                </section>
-
-                <section className="settings-group">
-                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="bell" size={18}/></span><span><strong>Notifications</strong><small>Reminder alerts on this device.</small></span><button type="button" className={reminderAlertsEnabled?"setting-switch is-on":"setting-switch"} role="switch" aria-checked={reminderAlertsEnabled} onClick={()=>reminderAlertsEnabled?disableReminderAlerts():void enableReminderAlerts()}><span/></button></div>
-                  {reminderAlertsEnabled&&<div className="settings-compact-options">
-                    <label><span><strong>Alarm sound</strong><small>While Pakki Baat is open</small></span><input type="checkbox" checked={reminderSoundEnabled} onChange={e=>setReminderSound(e.target.checked)}/></label>
-                    <label><span><strong>Vibrate</strong><small>When supported by your phone</small></span><input type="checkbox" checked={reminderVibrationEnabled} onChange={e=>setReminderVibration(e.target.checked)}/></label>
-                    <div className="settings-notification-status"><span>System notifications</span><strong className={notificationPermission==="granted"?"ok":""}>{notificationPermission==="granted"?"Allowed":notificationPermission==="denied"?"Blocked":notificationPermission==="unsupported"?"Not supported":"Not allowed yet"}</strong></div>
-                    <button type="button" className="outline" disabled={pushDiagnosticBusy} onClick={()=>void testReminderAlert()}>{pushDiagnosticBusy?"Checking…":"Send test notification"}</button>
-                    {pushDiagnostic&&<div className={pushDiagnostic.startsWith("✓")?"push-diagnostic ok":"push-diagnostic error"}>{pushDiagnostic}</div>}
-                  </div>}
-                </section>
-
-                <section className="settings-group">
-                  <div className="settings-group-head"><span className="settings-group-icon"><Icon name="cloud" size={18}/></span><span><strong>Backup</strong><small>Automatic recovery, restore and downloads.</small></span></div>
-                  <button type="button" className="how-it-works-card settings-help-row" onClick={()=>go("Backup")}><span><strong>Open Backup</strong><small>View verified backups and choose 15 or 30 days.</small></span><Icon name="arrow" size={17}/></button>
-                </section>
-
-                <section className="settings-group">
-                  <div className="settings-group-head"><span className="settings-group-icon">?</span><span><strong>Help & feedback</strong><small>Guide and product feedback.</small></span></div>
-                  <button type="button" className="how-it-works-card settings-help-row" onClick={()=>setGuideOpen(true)}><span><strong>How Pakki Baat works</strong><small>Quick guide to entries, payments and reminders.</small></span><Icon name="arrow" size={17}/></button>
-                  <label className="settings-feedback">Tell us what could be better<textarea value={feedback} onChange={(e)=>setFeedback(e.target.value)} placeholder="Share your feedback…"/></label>
-                  <div className="settings-feedback-actions"><button className="outline" disabled={!feedback.trim()} onClick={shareFeedback}>Share feedback</button><button className="primary" disabled={!feedback.trim()} onClick={()=>{download(feedback,"pakki-baat-feedback.txt");setFeedback("");setToast("Feedback downloaded.");}}>Download</button></div>
-                </section>
-              </div>
-              <footer className="settings-brand-footer">Pakki Baat by Sarrah Bharmal (<a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a>)</footer>
-            </>
-          )}
-        </div>
-      </main>
-      <nav className="mobile-nav" aria-label="Main navigation">
-        {nav.map(([t, i], index) => (
-          <span key={t} style={{ display: "contents" }}>
-            {index === 2 && (
               <button
                 type="button"
-                className="mobile-add-entry"
-                aria-label="Add new entry"
-                title="Add new entry"
-                onClick={openNewEntry}
+                className="reminder-alarm-dismiss"
+                onClick={() => setRingingReminder(null)}
               >
-                <Icon name="plus" size={25} />
+                Dismiss alert
               </button>
-            )}
-            <button
-              aria-label={t}
-              className={tab === t ? "active mobile-nav-item" : "mobile-nav-item"}
-              onClick={() => openMainTab(t)}
+            </section>
+          </div>
+        )}
+        {(reminderJob || directReminderOpen) && (
+          <div className="modal-backdrop" onClick={closeReminderEditor}>
+            <section
+              className="reminder-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reminder-title"
+              onClick={(e) => e.stopPropagation()}
             >
-              <span className="mobile-nav-icon-wrap">
-                <Icon name={i} size={23} />
-                {t==="Reminders" && activeReminders.length>0 && <b className="mobile-reminder-badge">{Math.min(99,activeReminders.length)}</b>}
-              </span>
-              <span className="mobile-nav-label">{t}</span>
-            </button>
-          </span>
-        ))}
-        <button
-          aria-label="Settings"
-          className={tab === "Settings" ? "active mobile-nav-item" : "mobile-nav-item"}
-          onClick={() => go("Settings")}
-        >
-          <span className="mobile-nav-icon-wrap"><Icon name="settings" size={23} /></span>
-          <span className="mobile-nav-label">Settings</span>
-        </button>
-      </nav>
-      {ringingReminder && (
-        <div className="modal-backdrop reminder-alarm-backdrop" onClick={()=>setRingingReminder(null)}>
-          <section className="reminder-alarm-modal" role="alertdialog" aria-modal="true" aria-labelledby="reminder-alarm-title" onClick={e=>e.stopPropagation()}>
-            <span className="reminder-alarm-icon"><Icon name="bell" size={27}/></span>
-            <span className="eyebrow">REMINDER NOW</span>
-            <h2 id="reminder-alarm-title">{ringingReminder.customer || "Pakki Baat reminder"}</h2>
-            <p>{ringingReminder.text}</p>
-            <small>{ringingReminder.date}{ringingReminder.time ? " · "+ringingReminder.time : ""}</small>
-            {ringingReminder.customer && (
-              <div className="reminder-followup-card">
-                <strong>Follow up now</strong>
-                {reminderLinkedJob(ringingReminder) && <small>{reminderLinkedJob(ringingReminder)!.work}{Math.max(0,reminderLinkedJob(ringingReminder)!.total-reminderLinkedJob(ringingReminder)!.paid)>0 ? ` · ${money(Math.max(0,reminderLinkedJob(ringingReminder)!.total-reminderLinkedJob(ringingReminder)!.paid))} baki` : ""}</small>}
+              <div className="reminder-sheet-head">
                 <div>
-                  <button type="button" className="reminder-whatsapp-action" onClick={()=>followUpReminderOnWhatsApp(ringingReminder)}><Icon name="chat" size={17}/> WhatsApp</button>
-                  <button type="button" className="reminder-call-action" onClick={()=>callReminderCustomer(ringingReminder)}>☎ Call</button>
+                  <span className="new-customer-icon">
+                    <Icon name="bell" size={22} />
+                  </span>
+                  <span className="eyebrow">REMINDER</span>
+                  <h2 id="reminder-title">
+                    {reminderJob
+                      ? `Remind me about ${reminderJob.customer}`
+                      : "Add a reminder"}
+                  </h2>
+                  <p>
+                    {reminderJob
+                      ? reminderJob.work
+                      : "Write it once. Pakki Baat will keep it here for you."}
+                  </p>
                 </div>
+                <button
+                  className="icon-button"
+                  aria-label="Close reminder"
+                  onClick={closeReminderEditor}
+                >
+                  <Icon name="close" />
+                </button>
               </div>
-            )}
-            <div className="reminder-alarm-actions">
-              <button type="button" className="outline" onClick={()=>{snoozeReminder(ringingReminder.id);setRingingReminder(null);}}>Remind tomorrow</button>
-              <button type="button" className="primary" onClick={()=>{completeReminder(ringingReminder.id);setRingingReminder(null);}}>Done ✓</button>
-            </div>
-            <button type="button" className="reminder-alarm-dismiss" onClick={()=>setRingingReminder(null)}>Dismiss alert</button>
-          </section>
-        </div>
-      )}
-      {(reminderJob || directReminderOpen) && (
-        <div className="modal-backdrop" onClick={closeReminderEditor}>
-          <section className="reminder-sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-title" onClick={e=>e.stopPropagation()}>
-            <div className="reminder-sheet-head">
-              <div>
-                <span className="new-customer-icon"><Icon name="bell" size={22}/></span>
-                <span className="eyebrow">REMINDER</span>
-                <h2 id="reminder-title">{reminderJob ? `Remind me about ${reminderJob.customer}` : "Add a reminder"}</h2>
-                <p>{reminderJob ? reminderJob.work : "Write it once. Pakki Baat will keep it here for you."}</p>
-              </div>
-              <button className="icon-button" aria-label="Close reminder" onClick={closeReminderEditor}><Icon name="close"/></button>
-            </div>
-            {directReminderOpen && (
-              <label className="reminder-customer-select">Customer <span>optional</span>
-                <select value={reminderCustomer} onChange={e=>setReminderCustomer(e.target.value)}>
-                  <option value="">General reminder</option>
-                  {customerNames.map(name=><option key={name} value={name}>{name}</option>)}
-                </select>
-              </label>
-            )}
-            <label className="reminder-text-label">What should I remind you?<input autoFocus={directReminderOpen} value={reminderText} onChange={e=>setReminderText(e.target.value)} maxLength={500} placeholder="e.g. Call Asha about pending payment"/></label>
-            <div className="reminder-block"><strong>When?</strong><div className="reminder-chips"><button type="button" className={reminderDate===dateForOffset(0)?"selected":""} onClick={()=>quickReminderDate("today")}><span className="chip-check">✓</span>Today</button><button type="button" className={reminderDate===dateForOffset(1)?"selected":""} onClick={()=>quickReminderDate("tomorrow")}><span className="chip-check">✓</span>Tomorrow</button><label className={reminderDate && reminderDate!==dateForOffset(0) && reminderDate!==dateForOffset(1) ? "date-chip selected" : "date-chip"}><Icon name="calendar" size={16}/><input aria-label="Pick reminder date" type="date" min={day()} value={reminderDate} onChange={e=>setReminderDate(e.target.value)}/></label></div></div>
-            <div className="reminder-block"><strong>Time</strong><div className="reminder-chips"><button type="button" className={reminderTime==="09:00"?"selected":""} onClick={()=>setReminderTime("09:00")}><span className="chip-check">✓</span>Morning</button><button type="button" className={reminderTime==="15:00"?"selected":""} onClick={()=>setReminderTime("15:00")}><span className="chip-check">✓</span>Afternoon</button><button type="button" className={reminderTime==="19:00"?"selected":""} onClick={()=>setReminderTime("19:00")}><span className="chip-check">✓</span>Evening</button><label className={!["09:00","15:00","19:00"].includes(reminderTime) ? "date-chip selected reminder-time-chip" : "date-chip reminder-time-chip"}><Icon name="clock" size={16}/><input aria-label="Pick reminder time" type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)}/></label></div></div>
-            <div className="reminder-block"><strong>Repeat?</strong><div className="reminder-chips">{([["none","Once"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]] as const).map(([value,label])=><button type="button" key={value} className={reminderRepeat===value?"selected":""} onClick={()=>setReminderRepeat(value)}><span className="chip-check">✓</span>{label}</button>)}</div></div>
-            <div className="reminder-sheet-actions"><button type="button" onClick={closeReminderEditor}>Cancel</button><button type="button" className="primary" disabled={!reminderDate || !reminderText.trim()} onClick={()=>void saveReminder()}>Save reminder</button></div>
-          </section>
-        </div>
-      )}
-      {receiptJob && (
-        <div className="modal-backdrop" onClick={()=>setReceiptJob(null)}>
-          <section className="receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receipt-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button receipt-close" aria-label="Close receipt" onClick={()=>setReceiptJob(null)}><Icon name="close"/></button>
-            <span className="eyebrow">CUSTOMER RECEIPT</span>
-            <div className="receipt-paper">
-              <div className="receipt-head">
-                <div><strong>{business?.trim() || "Pakki Baat"}</strong><small>{receiptNumber(receiptJob)}</small></div>
-                <span className={receiptJob.total<=receiptJob.paid ? "receipt-status paid" : "receipt-status"}>{receiptJob.total<=receiptJob.paid ? "PAID" : "BALANCE DUE"}</span>
-              </div>
-              <div className="receipt-customer">
-                <small>Customer</small>
-                <strong>{receiptJob.customer}</strong>
-                <span>{receiptJob.work}</span>
-              </div>
-              <div className="receipt-values">
-                <div><small>Total</small><strong>{money(receiptJob.total)}</strong></div>
-                <div><small>Received</small><strong>{money(receiptJob.paid)}</strong></div>
-                <div className="receipt-balance"><small>Balance</small><strong>{money(Math.max(0,receiptJob.total-receiptJob.paid))}</strong></div>
-              </div>
-              <div className="receipt-due"><span>Due</span><strong>{receiptJob.date || "Not set"}{receiptJob.time ? " · "+receiptJob.time : ""}</strong></div>
-              <p>Thank you.</p>
-              <small className="receipt-brand-footer">Pakki Baat by Sarrah Bharmal (Zorivo)</small>
-            </div>
-            <p className="receipt-help">Print it directly, save it as PDF from the print screen, or send the receipt details through WhatsApp.</p>
-            <div className="receipt-actions">
-              <button type="button" className="outline receipt-image-button" disabled={receiptImageBusy} onClick={()=>void downloadReceiptImage(receiptJob)}>{receiptImageBusy ? "Preparing…" : "Save image"}</button>
-              <button type="button" className="outline receipt-image-button" disabled={receiptImageBusy} onClick={()=>void shareReceiptImage(receiptJob)}>{receiptImageBusy ? "Preparing…" : "Share image"}</button>
-              <button type="button" className="outline" onClick={()=>printReceipt(receiptJob)}>Print / Save PDF</button>
-              <button type="button" className="whatsapp-open-button" disabled={!isOnline} onClick={()=>sendReceiptOnWhatsApp(receiptJob)}><Icon name="chat" size={17}/> {isOnline ? "Send text on WhatsApp" : "WhatsApp needs internet"}</button>
-            </div>
-          </section>
-        </div>
-      )}
-      {trialActivatedOpen && (
-        <div className="trial-welcome-backdrop" role="dialog" aria-modal="true" aria-label="Free trial activated">
-          <section className="trial-welcome-card trial-activated-card">
-            <span className="trial-activated-icon"><Icon name="check" size={26}/></span>
-            <span className="trial-value-kicker">YOU'RE ALL SET</span>
-            <h2>Welcome to Pakki Baat!</h2>
-            <p>Your <strong>30-day free trial is now active.</strong> You can start adding customers, keeping Hisaab, setting reminders and using AI voice.</p>
-            <div className="trial-welcome-limits"><strong>100 customers</strong><strong>100 voice minutes</strong></div>
-            <button type="button" className="primary" onClick={()=>setTrialActivatedOpen(false)}>Start using Pakki Baat</button>
-          </section>
-        </div>
-      )}
-      {trialExpiryPromptOpen && trialEndingSoon && (
-        <div className="trial-welcome-backdrop" role="dialog" aria-modal="true" aria-label="Trial ending soon">
-          <section className="trial-welcome-card trial-ending-modal">
-            <span className="trial-value-kicker">TRIAL ENDING SOON</span>
-            <h2>{trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left on your free trial</h2>
-            <p>Your Hisaab and customer data stay safe. Upgrade now to keep adding customers and using voice/AI without interruption.</p>
-            <button type="button" className="primary" onClick={()=>{setTrialExpiryPromptOpen(false);setTab("Subscription");}}>View plans</button>
-            <button type="button" className="text-button" onClick={()=>setTrialExpiryPromptOpen(false)}>Remind me later</button>
-          </section>
-        </div>
-      )}
-      {loggedIn && trialOfferOpen && (
-        <div className="trial-welcome-backdrop" role="dialog" aria-modal="true" aria-label="Start your free trial">
-          <section className="trial-welcome-card">
-            <button type="button" className="icon-button trial-welcome-close" aria-label="Close free trial offer" onClick={()=>setTrialOfferOpen(false)}><Icon name="close" size={18}/></button>
-            <span className="trial-value-kicker">WELCOME TO PAKKI BAAT</span>
-            <h2>Try everything free for 30 days</h2>
-            <p>No payment needed. Use Pakki Baat with your real business before choosing a plan.</p>
-            <div className="trial-feature-list">
-              <span><Icon name="check" size={16}/> Customer Hisaab & baki</span>
-              <span><Icon name="check" size={16}/> Payments & reminders</span>
-              <span><Icon name="check" size={16}/> AI voice transcription</span>
-              <span><Icon name="check" size={16}/> WhatsApp sharing & receipts</span>
-            </div>
-            <div className="trial-welcome-limits"><strong>100 customers</strong><strong>100 voice minutes</strong></div>
-            <button type="button" className="primary" disabled={trialStarting} onClick={()=>void startFreeTrial()}>{trialStarting?"Starting your trial…":"Start my 30-day free trial"}</button>
-            <button type="button" className="text-button" onClick={()=>{setTrialOfferOpen(false);setTab("Subscription");}}>View plans instead</button>
-          </section>
-        </div>
-      )}
-      {paymentPlan && (
-        <div className="modal-backdrop payment-backdrop" onClick={()=>setPaymentPlan(null)}>
-          <div className="modal payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button payment-close" aria-label="Close payment" onClick={()=>setPaymentPlan(null)}><Icon name="close"/></button>
-            <span className="eyebrow">PAY WITH UPI</span>
-            <h2 id="payment-title">{paymentPlan.name} · {paymentPlan.price}</h2>
-            <p className="payment-intro">Scan this QR with any UPI app, or save it and pay from another app.</p>
-            <div className="payment-qr-frame">
-              <img src="/QR%20zorivo-icic.jpg" alt="Zorivo UPI QR code for Pakki Baat subscription payment"/>
-            </div>
-            <div className="payment-upi-row"><span><small>UPI ID</small><strong>zorivoworks-1@okicici</strong></span><button type="button" className="outline" onClick={()=>void copyUpiId()}>Copy</button></div>
-            <div className="payment-actions"><button type="button" className="outline" onClick={downloadPaymentQr}>Download QR</button></div>
-            <div className="payment-confirm">
-              <div className="payment-done-title"><strong>Payment done? ✓</strong><small>Upload the payment-success screenshot. This is the easiest way.</small></div>
-              <label className="payment-proof-upload">
-                <input type="file" accept="image/*" onChange={e=>setPaymentProof(e.target.files?.[0] || null)}/>
-                <span><Icon name="image" size={18}/><b>{paymentProof ? "Screenshot selected ✓" : "Upload payment screenshot"}</b></span>
-                {paymentProof && <small>{paymentProof.name}</small>}
-              </label>
-              <div className="payment-or"><span>or</span></div>
-              <label className="payment-ref-label"><span>Enter transaction ID instead</span><input value={paymentRef} onChange={e=>setPaymentRef(e.target.value)} placeholder="UPI transaction / reference ID" maxLength={80}/></label>
-              <button type="button" className="primary" disabled={paymentSubmitting || (!paymentProof && !paymentRef.trim())} onClick={()=>void submitPaymentReference()}>{paymentSubmitting ? "Submitting…" : "Yes, I’ve Paid"}</button>
-              <small className="payment-review-note">Your plan will activate after payment verification. No need to message us.</small>
-            </div>
-          </div>
-        </div>
-      )}
-      {deleteCustomer && (
-        <div className="modal-backdrop delete-confirm-backdrop" onClick={()=>setDeleteCustomer(null)}>
-          <div className="modal delete-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-customer-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button delete-confirm-close" aria-label="Close" onClick={()=>setDeleteCustomer(null)}><Icon name="close"/></button>
-            <div className="delete-confirm-icon"><Icon name="trash" size={22}/></div>
-            <span className="eyebrow">DELETE CUSTOMER</span>
-            <h2 id="delete-customer-title">Delete {deleteCustomer}?</h2>
-            <p>This removes this customer and their hisaab entries, payments, notes and reminders.</p>
-            <div className="modal-actions">
-              <button type="button" className="outline" onClick={()=>setDeleteCustomer(null)}>Keep customer</button>
-              <button type="button" className="danger-button" onClick={confirmDeleteCustomer}>Delete customer</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {deleteJob && (
-        <div className="modal-backdrop delete-confirm-backdrop" onClick={()=>setDeleteJob(null)}>
-          <section className="delete-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-entry-title" aria-describedby="delete-entry-description" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button delete-confirm-close" aria-label="Close" onClick={()=>setDeleteJob(null)}><Icon name="close"/></button>
-            <span className="delete-confirm-icon"><Icon name="close" size={21}/></span>
-            <span className="eyebrow">DELETE ENTRY</span>
-            <h2 id="delete-entry-title">Remove this from {deleteJob.customer}’s hisaab?</h2>
-            <div className="delete-entry-preview">
-              <strong>{deleteJob.work}</strong>
-              <span>{money(deleteJob.total)} total · {money(deleteJob.paid)} received · {money(Math.max(0,deleteJob.total-deleteJob.paid))} baki</span>
-            </div>
-            <p id="delete-entry-description">Any payment history and reminders linked to this entry will also be removed. You can still undo immediately after deleting.</p>
-            <div className="delete-confirm-actions">
-              <button type="button" className="outline" onClick={()=>setDeleteJob(null)}>Keep entry</button>
-              <button type="button" className="delete-confirm-button" onClick={confirmDeleteEntry}>Delete entry</button>
-            </div>
-          </section>
-        </div>
-      )}
-      {guideOpen && (
-        <div className="modal-backdrop guide-backdrop" onClick={()=>closeGuide()}>
-          <section className="app-guide-modal" role="dialog" aria-modal="true" aria-labelledby="app-guide-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button app-guide-close" aria-label="Close guide" onClick={()=>closeGuide()}><Icon name="close"/></button>
-            <span className="eyebrow">PAKKI BAAT IN 30 SECONDS</span>
-            <h2 id="app-guide-title">Your hisaab, without the notebook confusion.</h2>
-            <p className="app-guide-intro">Start with a customer. Pakki Baat keeps the work, money, reminders and follow-up together.</p>
-            <div className="app-guide-steps">
-              <div className="app-guide-step"><b>1</b><span><strong>Add a customer</strong><small>Each customer gets one simple hisaab folder.</small></span></div>
-              <div className="app-guide-step"><b>2</b><span><strong>Add what happened</strong><small>Speak, type naturally, or fill the form. We turn it into a clean entry.</small></span></div>
-              <div className="app-guide-step"><b>3</b><span><strong>Payment = record money received</strong><small>Tap Payment when a customer has already paid you. It only updates Received and Baki — it never takes money.</small></span></div>
-              <div className="app-guide-step"><b>4</b><span><strong>Follow up without remembering everything</strong><small>Set a reminder or open WhatsApp with an editable message already prepared.</small></span></div>
-            </div>
-            <div className="app-guide-actions">
-              <button type="button" className="outline" onClick={()=>closeGuide()}>Got it</button>
-              <button type="button" className="primary" onClick={()=>closeGuide("Hisaab")}>Open Hisaab <Icon name="arrow" size={16}/></button>
-            </div>
-          </section>
-        </div>
-      )}
-      {paymentJob && (
-        <div className="modal-backdrop" onClick={()=>setPaymentJob(null)}>
-          <section className="quick-payment-modal" role="dialog" aria-modal="true" aria-labelledby="quick-payment-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button quick-payment-close" aria-label="Close" onClick={()=>setPaymentJob(null)}><Icon name="close"/></button>
-            <span className="eyebrow">PAYMENT RECEIVED</span>
-            <h2 id="quick-payment-title">{paymentJob.customer}</h2>
-            <p>{paymentJob.work}</p>
-            <div className="payment-explainer"><strong>What this does</strong><span>Records money you already received and reduces the baki. Pakki Baat does not collect or transfer money.</span></div>
-            <div className="quick-payment-baki"><small>Current baki</small><strong>{money(Math.max(0,paymentJob.total-paymentJob.paid))}</strong></div>
-            <form onSubmit={e=>{e.preventDefault();saveQuickPayment();}}>
-              <label>Amount received (₹)
-                <input autoFocus inputMode="decimal" type="number" min="0" step="0.01" max={Math.max(0,paymentJob.total-paymentJob.paid)} placeholder="e.g. 500" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/>
-              </label>
-              <button type="submit" className="primary" disabled={!paymentAmount || Number(paymentAmount)<=0}>Save payment</button>
-            </form>
-          </section>
-        </div>
-      )}
-      {customerContactsOpen && (
-        <div className="modal-backdrop" onClick={()=>setCustomerContactsOpen(false)}>
-          <section className="customer-contacts-modal" role="dialog" aria-modal="true" aria-labelledby="customer-contacts-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button customer-contacts-close" aria-label="Close contacts" onClick={()=>setCustomerContactsOpen(false)}><Icon name="close"/></button>
-            <span className="eyebrow">CUSTOMER DIRECTORY</span>
-            <h2 id="customer-contacts-title">Customer contacts</h2>
-            <p>{customerNames.length} {customerNames.length===1 ? "customer" : "customers"} · {customerNames.filter(name=>customerPhones[name]).length} with mobile number</p>
-            <label className="customer-contacts-search"><Icon name="search" size={17}/><input autoFocus placeholder="Search customer…" value={contactQuery} onChange={e=>setContactQuery(e.target.value)}/></label>
-            <div className="customer-contacts-list">
-              {customerNames.filter(name=>name.toLowerCase().includes(contactQuery.toLowerCase())).map(name=>(
-                <div className="customer-contact-row" key={name}>
-                  <span className="avatar">{name[0]?.toUpperCase()}</span>
-                  <span className="customer-contact-main"><strong>{name}</strong><small>{customerPhones[name] ? "+"+customerPhones[name] : "No mobile number saved"}</small></span>
-                  <button type="button" className="customer-contact-edit" onClick={()=>{setCustomerContactsOpen(false);openPhoneEditor(name);}}>
-                    {customerPhones[name] ? "Edit" : "Add number"}
-                  </button>
-                </div>
-              ))}
-              {!customerNames.length && <div className="customer-contacts-empty">No customers yet.</div>}
-            </div>
-            <div className="customer-contacts-actions">
-              <button type="button" className="outline" disabled={!customerNames.length} onClick={()=>void copyCustomerContacts()}>Copy list</button>
-              <button type="button" className="primary" disabled={!customerNames.length} onClick={downloadCustomerContacts}>Download CSV</button>
-            </div>
-          </section>
-        </div>
-      )}
-      {phoneEditorCustomer && (
-        <div className="modal-backdrop" onClick={()=>setPhoneEditorCustomer(null)}>
-          <section className="phone-editor-modal" role="dialog" aria-modal="true" aria-labelledby="phone-editor-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button phone-editor-close" aria-label="Close" onClick={()=>setPhoneEditorCustomer(null)}><Icon name="close"/></button>
-            <span className="eyebrow">CUSTOMER WHATSAPP</span>
-            <h2 id="phone-editor-title">{phoneEditorCustomer}</h2>
-            <p>Save the number once so WhatsApp is one tap next time.</p>
-            <form onSubmit={e=>{e.preventDefault();saveCustomerPhone();}}>
-              <label>WhatsApp number
-                <input autoFocus type="tel" inputMode="tel" autoComplete="tel" placeholder="e.g. 9876543210" value={phoneEditorValue} onChange={e=>setPhoneEditorValue(e.target.value)} maxLength={20}/>
-              </label>
-              <button type="submit" className="primary">{phoneEditorValue.trim() ? "Save number" : "Remove number"}</button>
-            </form>
-          </section>
-        </div>
-      )}
-      {whatsappJob && (
-        <div className="modal-backdrop" onClick={() => setWhatsappJob(null)}>
-          <section className="whatsapp-send-modal" role="dialog" aria-modal="true" aria-labelledby="whatsapp-send-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button whatsapp-send-close" aria-label="Close" onClick={()=>setWhatsappJob(null)}><Icon name="close"/></button>
-            <span className="whatsapp-send-icon"><Icon name="chat" size={23}/></span>
-            <span className="eyebrow">SEND ON WHATSAPP</span>
-            <h2 id="whatsapp-send-title">Message {whatsappJob.customer}</h2>
-            <p>Edit the message any way you like. We’ll open WhatsApp with it already filled in.</p>
-            <form onSubmit={e=>{e.preventDefault();sendWhatsApp();}}>
-              <label>WhatsApp number
+              {directReminderOpen && (
+                <label className="reminder-customer-select">
+                  Customer <span>optional</span>
+                  <select
+                    value={reminderCustomer}
+                    onChange={(e) => setReminderCustomer(e.target.value)}
+                  >
+                    <option value="">General reminder</option>
+                    {customerNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label className="reminder-text-label">
+                What should I remind you?
                 <input
-                  autoFocus
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="e.g. 9876543210"
-                  value={whatsappNumber}
-                  onChange={e=>setWhatsappNumber(e.target.value)}
-                  maxLength={20}
+                  autoFocus={directReminderOpen}
+                  value={reminderText}
+                  onChange={(e) => setReminderText(e.target.value)}
+                  maxLength={500}
+                  placeholder="e.g. Call Asha about pending payment"
                 />
               </label>
-              <label className="whatsapp-save-number">
-                <input type="checkbox" checked={saveWhatsappNumber} onChange={e=>setSaveWhatsappNumber(e.target.checked)}/>
-                <span>Save this number for {whatsappJob.customer}</span>
-              </label>
-              <label>Message
-                <textarea
-                  value={whatsappMessage}
-                  onChange={e=>setWhatsappMessage(e.target.value)}
-                  maxLength={4000}
-                  placeholder="Write anything you want to send…"
-                />
-              </label>
-              <button type="button" className="whatsapp-reset-message" onClick={()=>setWhatsappMessage(replyText(whatsappJob))}>Use saved entry details</button>
-              <small>Indian 10-digit numbers automatically get +91. For other countries, include the country code.</small>
-              <button className="whatsapp-open-button" type="submit" disabled={!whatsappNumber.trim() || !whatsappMessage.trim()}>
-                <Icon name="chat" size={18}/> Open WhatsApp
-              </button>
-            </form>
-          </section>
-        </div>
-      )}
-      {installWelcomeOpen && !appInstalled && (
-        <div className="modal-backdrop" onClick={()=>setInstallWelcomeOpen(false)}>
-          <section className="save-login-modal install-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="install-welcome-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button save-login-close" aria-label="Close" onClick={()=>setInstallWelcomeOpen(false)}><Icon name="close"/></button>
-            <span className="save-login-icon"><Icon name="download" size={24}/></span>
-            <span className="eyebrow">QUICK ACCESS</span>
-            <h2 id="install-welcome-title">Install Pakki Baat?</h2>
-            <p>Add Pakki Baat to your home screen and open it like a regular app whenever you need your Hisaab.</p>
-            <button type="button" className="primary save-login-google" onClick={()=>{setInstallWelcomeOpen(false);void installPakkiBaat();}}><Icon name="download" size={18}/> Install Pakki Baat</button>
-            <button type="button" className="save-login-later" onClick={()=>setInstallWelcomeOpen(false)}>Not now</button>
-          </section>
-        </div>
-      )}
-      {saveLoginPromptOpen && (
-        <div className="modal-backdrop" onClick={() => setSaveLoginPromptOpen(false)}>
-          <section className="save-login-modal" role="dialog" aria-modal="true" aria-labelledby="save-login-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button save-login-close" aria-label="Close" onClick={()=>setSaveLoginPromptOpen(false)}><Icon name="close"/></button>
-            <span className="save-login-icon"><Icon name="check" size={24}/></span>
-            <span className="eyebrow">KEEP YOUR HISAAB SAFE</span>
-            <h2 id="save-login-title">Sign in to save your entries</h2>
-            <p>Your customers, payments and reminders will stay connected to your account and can be restored on another device.</p>
-            <button type="button" className="google-sign-in save-login-google" onClick={()=>{setSaveLoginPromptOpen(false);void startGoogleSignIn();}}>
-              Continue with Google
-            </button>
-            <button type="button" className="save-login-later" onClick={()=>setSaveLoginPromptOpen(false)}>Not now</button>
-          </section>
-        </div>
-      )}
-      {newCustomerOpen && (
-        <div className="modal-backdrop" onClick={() => setNewCustomerOpen(false)}>
-          <section className="new-customer-modal" role="dialog" aria-modal="true" aria-labelledby="new-customer-title" onClick={e=>e.stopPropagation()}>
-            <button className="icon-button new-customer-close" aria-label="Close" onClick={()=>setNewCustomerOpen(false)}><Icon name="close"/></button>
-            <span className="new-customer-icon"><Icon name="people" size={24}/></span>
-            <span className="eyebrow">NEW HISAAB</span>
-            <h2 id="new-customer-title">Who is this for?</h2>
-            <p>Add the customer name. You can tell Pakki Baat the rest naturally.</p>
-            {recentCustomers.length>0 && (
-              <div className="recent-customers">
-                <small>Recent customers</small>
-                <div>{recentCustomers.map(name=><button type="button" key={name} onClick={()=>{setSelectedCustomer(name);setMessage("");setCustomerChatOpen(false);setNewCustomerOpen(false);}}>{name}</button>)}</div>
+              <div className="reminder-block">
+                <strong>When?</strong>
+                <div className="reminder-chips">
+                  <button
+                    type="button"
+                    className={
+                      reminderDate === dateForOffset(0) ? "selected" : ""
+                    }
+                    onClick={() => quickReminderDate("today")}
+                  >
+                    <span className="chip-check">✓</span>Today
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      reminderDate === dateForOffset(1) ? "selected" : ""
+                    }
+                    onClick={() => quickReminderDate("tomorrow")}
+                  >
+                    <span className="chip-check">✓</span>Tomorrow
+                  </button>
+                  <label
+                    className={
+                      reminderDate &&
+                      reminderDate !== dateForOffset(0) &&
+                      reminderDate !== dateForOffset(1)
+                        ? "date-chip selected"
+                        : "date-chip"
+                    }
+                  >
+                    <Icon name="calendar" size={16} />
+                    <input
+                      aria-label="Pick reminder date"
+                      type="date"
+                      min={day()}
+                      value={reminderDate}
+                      onChange={(e) => setReminderDate(e.target.value)}
+                    />
+                  </label>
+                </div>
               </div>
-            )}
-            <form onSubmit={e=>{
-              e.preventDefault();
-              const customer=newCustomerName.trim();
-              if(!customer)return;
-              if(!requireActiveSubscriptionForSaving())return;
-              if(!canAddCustomer(customer))return;
-              setNotes(items=>items.some(n=>n.customer===customer)?items:[{id:crypto.randomUUID(),customer,text:"Customer created",createdAt:new Date().toISOString()},...items]);
-              setSelectedCustomer(customer);
-              setMessage("");
-              setCustomerChatOpen(false);
-              setEntryMode("quick");
-              setNewCustomerOpen(false);
-            }}>
-              <label>Customer name<input autoFocus maxLength={100} placeholder="e.g. Asha" value={newCustomerName} onChange={e=>setNewCustomerName(e.target.value)}/></label>
-              <button className="primary" type="submit" disabled={!newCustomerName.trim()}>Continue <Icon name="arrow" size={17}/></button>
-            </form>
-          </section>
-        </div>
-      )}
-      {draft && (
-        <div className="modal-backdrop" onClick={() => setDraft(null)}>
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="review-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow">YOU’RE IN CONTROL</span>
-                <h2 id="review-title">Edit details</h2>
+              <div className="reminder-block">
+                <strong>Time</strong>
+                <div className="reminder-chips">
+                  <button
+                    type="button"
+                    className={reminderTime === "09:00" ? "selected" : ""}
+                    onClick={() => setReminderTime("09:00")}
+                  >
+                    <span className="chip-check">✓</span>Morning
+                  </button>
+                  <button
+                    type="button"
+                    className={reminderTime === "15:00" ? "selected" : ""}
+                    onClick={() => setReminderTime("15:00")}
+                  >
+                    <span className="chip-check">✓</span>Afternoon
+                  </button>
+                  <button
+                    type="button"
+                    className={reminderTime === "19:00" ? "selected" : ""}
+                    onClick={() => setReminderTime("19:00")}
+                  >
+                    <span className="chip-check">✓</span>Evening
+                  </button>
+                  <label
+                    className={
+                      !["09:00", "15:00", "19:00"].includes(reminderTime)
+                        ? "date-chip selected reminder-time-chip"
+                        : "date-chip reminder-time-chip"
+                    }
+                  >
+                    <Icon name="clock" size={16} />
+                    <input
+                      aria-label="Pick reminder time"
+                      type="time"
+                      value={reminderTime}
+                      onChange={(e) => setReminderTime(e.target.value)}
+                    />
+                  </label>
+                </div>
               </div>
+              <div className="reminder-block">
+                <strong>Repeat?</strong>
+                <div className="reminder-chips">
+                  {(
+                    [
+                      ["none", "Once"],
+                      ["daily", "Daily"],
+                      ["weekly", "Weekly"],
+                      ["monthly", "Monthly"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      type="button"
+                      key={value}
+                      className={reminderRepeat === value ? "selected" : ""}
+                      onClick={() => setReminderRepeat(value)}
+                    >
+                      <span className="chip-check">✓</span>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="reminder-sheet-actions">
+                <button type="button" onClick={closeReminderEditor}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!reminderDate || !reminderText.trim()}
+                  onClick={() => void saveReminder()}
+                >
+                  Save reminder
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+        {receiptJob && (
+          <div className="modal-backdrop" onClick={() => setReceiptJob(null)}>
+            <section
+              className="receipt-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="receipt-title"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
-                className="icon-button"
-                aria-label="Close review"
-                onClick={() => setDraft(null)}
+                className="icon-button receipt-close"
+                aria-label="Close receipt"
+                onClick={() => setReceiptJob(null)}
               >
                 <Icon name="close" />
               </button>
-            </div>
-            <p>Fill in anything missing. Nothing is sent automatically.</p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                save();
-              }}
+              <span className="eyebrow">CUSTOMER RECEIPT</span>
+              <div className="receipt-paper">
+                <div className="receipt-head">
+                  <div>
+                    <strong>{business?.trim() || "Pakki Baat"}</strong>
+                    <small>{receiptNumber(receiptJob)}</small>
+                  </div>
+                  <span
+                    className={
+                      receiptJob.total <= receiptJob.paid
+                        ? "receipt-status paid"
+                        : "receipt-status"
+                    }
+                  >
+                    {receiptJob.total <= receiptJob.paid
+                      ? "PAID"
+                      : "BALANCE DUE"}
+                  </span>
+                </div>
+                <div className="receipt-customer">
+                  <small>Customer</small>
+                  <strong>{receiptJob.customer}</strong>
+                  <span>{receiptJob.work}</span>
+                </div>
+                <div className="receipt-values">
+                  <div>
+                    <small>Total</small>
+                    <strong>{money(receiptJob.total)}</strong>
+                  </div>
+                  <div>
+                    <small>Received</small>
+                    <strong>{money(receiptJob.paid)}</strong>
+                  </div>
+                  <div className="receipt-balance">
+                    <small>Balance</small>
+                    <strong>
+                      {money(Math.max(0, receiptJob.total - receiptJob.paid))}
+                    </strong>
+                  </div>
+                </div>
+                <div className="receipt-due">
+                  <span>Due</span>
+                  <strong>
+                    {receiptJob.date || "Not set"}
+                    {receiptJob.time ? " · " + receiptJob.time : ""}
+                  </strong>
+                </div>
+                <p>Thank you.</p>
+                <small className="receipt-brand-footer">
+                  Pakki Baat by Sarrah Bharmal (Zorivo)
+                </small>
+              </div>
+              <p className="receipt-help">
+                Print it directly, save it as PDF from the print screen, or send
+                the receipt details through WhatsApp.
+              </p>
+              <div className="receipt-actions">
+                <button
+                  type="button"
+                  className="outline receipt-image-button"
+                  disabled={receiptImageBusy}
+                  onClick={() => void downloadReceiptImage(receiptJob)}
+                >
+                  {receiptImageBusy ? "Preparing…" : "Save image"}
+                </button>
+                <button
+                  type="button"
+                  className="outline receipt-image-button"
+                  disabled={receiptImageBusy}
+                  onClick={() => void shareReceiptImage(receiptJob)}
+                >
+                  {receiptImageBusy ? "Preparing…" : "Share image"}
+                </button>
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => printReceipt(receiptJob)}
+                >
+                  Print / Save PDF
+                </button>
+                <button
+                  type="button"
+                  className="whatsapp-open-button"
+                  disabled={!isOnline}
+                  onClick={() => sendReceiptOnWhatsApp(receiptJob)}
+                >
+                  <Icon name="chat" size={17} />{" "}
+                  {isOnline
+                    ? "Send text on WhatsApp"
+                    : "WhatsApp needs internet"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+        {trialActivatedOpen && (
+          <div
+            className="trial-welcome-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Free trial activated"
+          >
+            <section className="trial-welcome-card trial-activated-card">
+              <span className="trial-activated-icon">
+                <Icon name="check" size={26} />
+              </span>
+              <span className="trial-value-kicker">YOU'RE ALL SET</span>
+              <h2>Welcome to Pakki Baat!</h2>
+              <p>
+                Your <strong>30-day free trial is now active.</strong> You can
+                start adding customers, keeping Hisaab, setting reminders and
+                using AI voice.
+              </p>
+              <div className="trial-welcome-limits">
+                <strong>100 customers</strong>
+                <strong>100 voice minutes</strong>
+              </div>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => setTrialActivatedOpen(false)}
+              >
+                Start using Pakki Baat
+              </button>
+            </section>
+          </div>
+        )}
+        {trialExpiryPromptOpen && trialEndingSoon && (
+          <div
+            className="trial-welcome-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Trial ending soon"
+          >
+            <section className="trial-welcome-card trial-ending-modal">
+              <span className="trial-value-kicker">TRIAL ENDING SOON</span>
+              <h2>
+                {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left on
+                your free trial
+              </h2>
+              <p>
+                Your Hisaab and customer data stay safe. Upgrade now to keep
+                adding customers and using voice/AI without interruption.
+              </p>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setTrialExpiryPromptOpen(false);
+                  setTab("Subscription");
+                }}
+              >
+                View plans
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setTrialExpiryPromptOpen(false)}
+              >
+                Remind me later
+              </button>
+            </section>
+          </div>
+        )}
+        {loggedIn &&
+          trialOfferOpen &&
+          canOfferTrial(trialSubscription, accountId) && (
+            <div
+              className="trial-welcome-backdrop"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Start your free trial"
             >
-              <div className="form-grid">
-                <label className="full">
-                  Customer name *
+              <section className="trial-welcome-card">
+                <button
+                  type="button"
+                  className="icon-button trial-welcome-close"
+                  aria-label="Close free trial offer"
+                  onClick={() => setTrialOfferOpen(false)}
+                >
+                  <Icon name="close" size={18} />
+                </button>
+                <span className="trial-value-kicker">
+                  WELCOME TO PAKKI BAAT
+                </span>
+                <h2>Try everything free for 30 days</h2>
+                <p>
+                  No payment needed. Use Pakki Baat with your real business
+                  before choosing a plan.
+                </p>
+                <div className="trial-feature-list">
+                  <span>
+                    <Icon name="check" size={16} /> Customer Hisaab & baki
+                  </span>
+                  <span>
+                    <Icon name="check" size={16} /> Payments & reminders
+                  </span>
+                  <span>
+                    <Icon name="check" size={16} /> AI voice transcription
+                  </span>
+                  <span>
+                    <Icon name="check" size={16} /> WhatsApp sharing & receipts
+                  </span>
+                </div>
+                <div className="trial-welcome-limits">
+                  <strong>100 customers</strong>
+                  <strong>100 voice minutes</strong>
+                </div>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={trialStarting}
+                  onClick={() => void startFreeTrial()}
+                >
+                  {trialStarting
+                    ? "Starting your trial…"
+                    : "Start my 30-day free trial"}
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    setTrialOfferOpen(false);
+                    setTab("Subscription");
+                  }}
+                >
+                  View plans instead
+                </button>
+              </section>
+            </div>
+          )}
+        {paymentPlan && (
+          <div
+            className="modal-backdrop payment-backdrop"
+            onClick={() => setPaymentPlan(null)}
+          >
+            <div
+              className="modal payment-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="payment-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button payment-close"
+                aria-label="Close payment"
+                onClick={() => setPaymentPlan(null)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="eyebrow">PAY WITH UPI</span>
+              <h2 id="payment-title">
+                {paymentPlan.name} · {paymentPlan.price}
+              </h2>
+              <p className="payment-intro">
+                Scan this QR with any UPI app, or save it and pay from another
+                app.
+              </p>
+              <div className="payment-qr-frame">
+                <img
+                  src="/QR%20zorivo-icic.jpg"
+                  alt="Zorivo UPI QR code for Pakki Baat subscription payment"
+                />
+              </div>
+              <div className="payment-upi-row">
+                <span>
+                  <small>UPI ID</small>
+                  <strong>zorivoworks-1@okicici</strong>
+                </span>
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => void copyUpiId()}
+                >
+                  Copy
+                </button>
+              </div>
+              <div className="payment-actions">
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={downloadPaymentQr}
+                >
+                  Download QR
+                </button>
+              </div>
+              <div className="payment-confirm">
+                <div className="payment-done-title">
+                  <strong>Payment done? ✓</strong>
+                  <small>
+                    Upload the payment-success screenshot. This is the easiest
+                    way.
+                  </small>
+                </div>
+                <label className="payment-proof-upload">
                   <input
-                    autoFocus
-                    required
-                    maxLength={100}
-                    value={draft.customer || ""}
+                    type="file"
+                    accept="image/*"
                     onChange={(e) =>
-                      setDraft({ ...draft, customer: e.target.value })
+                      setPaymentProof(e.target.files?.[0] || null)
                     }
                   />
+                  <span>
+                    <Icon name="image" size={18} />
+                    <b>
+                      {paymentProof
+                        ? "Screenshot selected ✓"
+                        : "Upload payment screenshot"}
+                    </b>
+                  </span>
+                  {paymentProof && <small>{paymentProof.name}</small>}
                 </label>
-                <label className="full">
-                  What’s the work? *
-                  <textarea
-                    required
-                    maxLength={500}
-                    value={draft.work || ""}
-                    onChange={(e) =>
-                      setDraft({ ...draft, work: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Total amount (₹)
+                <div className="payment-or">
+                  <span>or</span>
+                </div>
+                <label className="payment-ref-label">
+                  <span>Enter transaction ID instead</span>
                   <input
-                    type="number"
-                    min="0"
-                    max="100000000"
-                    step="0.01"
-                    value={amountValue(draft.total)}
-                    placeholder="e.g. 2000"
-                    onChange={(e) =>
-                      setDraft({ ...draft, total: e.target.value === "" ? 0 : Number(e.target.value) })
-                    }
+                    value={paymentRef}
+                    onChange={(e) => setPaymentRef(e.target.value)}
+                    placeholder="UPI transaction / reference ID"
+                    maxLength={80}
                   />
                 </label>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={
+                    paymentSubmitting || (!paymentProof && !paymentRef.trim())
+                  }
+                  onClick={() => void submitPaymentReference()}
+                >
+                  {paymentSubmitting ? "Submitting…" : "Yes, I’ve Paid"}
+                </button>
+                <small className="payment-review-note">
+                  Your plan will activate after payment verification. No need to
+                  message us.
+                </small>
+              </div>
+            </div>
+          </div>
+        )}
+        {deleteCustomer && (
+          <div
+            className="modal-backdrop delete-confirm-backdrop"
+            onClick={() => setDeleteCustomer(null)}
+          >
+            <div
+              className="modal delete-confirm-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-customer-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button delete-confirm-close"
+                aria-label="Close"
+                onClick={() => setDeleteCustomer(null)}
+              >
+                <Icon name="close" />
+              </button>
+              <div className="delete-confirm-icon">
+                <Icon name="trash" size={22} />
+              </div>
+              <span className="eyebrow">DELETE CUSTOMER</span>
+              <h2 id="delete-customer-title">Delete {deleteCustomer}?</h2>
+              <p>
+                This removes this customer and their hisaab entries, payments,
+                notes and reminders.
+              </p>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => setDeleteCustomer(null)}
+                >
+                  Keep customer
+                </button>
+                <button
+                  type="button"
+                  className="danger-button"
+                  onClick={confirmDeleteCustomer}
+                >
+                  Delete customer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {deleteJob && (
+          <div
+            className="modal-backdrop delete-confirm-backdrop"
+            onClick={() => setDeleteJob(null)}
+          >
+            <section
+              className="delete-confirm-modal"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="delete-entry-title"
+              aria-describedby="delete-entry-description"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button delete-confirm-close"
+                aria-label="Close"
+                onClick={() => setDeleteJob(null)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="delete-confirm-icon">
+                <Icon name="close" size={21} />
+              </span>
+              <span className="eyebrow">DELETE ENTRY</span>
+              <h2 id="delete-entry-title">
+                Remove this from {deleteJob.customer}’s hisaab?
+              </h2>
+              <div className="delete-entry-preview">
+                <strong>{deleteJob.work}</strong>
+                <span>
+                  {money(deleteJob.total)} total · {money(deleteJob.paid)}{" "}
+                  received ·{" "}
+                  {money(Math.max(0, deleteJob.total - deleteJob.paid))} baki
+                </span>
+              </div>
+              <p id="delete-entry-description">
+                Any payment history and reminders linked to this entry will also
+                be removed. You can still undo immediately after deleting.
+              </p>
+              <div className="delete-confirm-actions">
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => setDeleteJob(null)}
+                >
+                  Keep entry
+                </button>
+                <button
+                  type="button"
+                  className="delete-confirm-button"
+                  onClick={confirmDeleteEntry}
+                >
+                  Delete entry
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+        {guideOpen && (
+          <div
+            className="modal-backdrop guide-backdrop"
+            onClick={() => closeGuide()}
+          >
+            <section
+              className="app-guide-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="app-guide-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button app-guide-close"
+                aria-label="Close guide"
+                onClick={() => closeGuide()}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="eyebrow">PAKKI BAAT IN 30 SECONDS</span>
+              <h2 id="app-guide-title">
+                Your hisaab, without the notebook confusion.
+              </h2>
+              <p className="app-guide-intro">
+                Start with a customer. Pakki Baat keeps the work, money,
+                reminders and follow-up together.
+              </p>
+              <div className="app-guide-steps">
+                <div className="app-guide-step">
+                  <b>1</b>
+                  <span>
+                    <strong>Add a customer</strong>
+                    <small>Each customer gets one simple hisaab folder.</small>
+                  </span>
+                </div>
+                <div className="app-guide-step">
+                  <b>2</b>
+                  <span>
+                    <strong>Add what happened</strong>
+                    <small>
+                      Speak, type naturally, or fill the form. We turn it into a
+                      clean entry.
+                    </small>
+                  </span>
+                </div>
+                <div className="app-guide-step">
+                  <b>3</b>
+                  <span>
+                    <strong>Payment = record money received</strong>
+                    <small>
+                      Tap Payment when a customer has already paid you. It only
+                      updates Received and Baki — it never takes money.
+                    </small>
+                  </span>
+                </div>
+                <div className="app-guide-step">
+                  <b>4</b>
+                  <span>
+                    <strong>Follow up without remembering everything</strong>
+                    <small>
+                      Set a reminder or open WhatsApp with an editable message
+                      already prepared.
+                    </small>
+                  </span>
+                </div>
+              </div>
+              <div className="app-guide-actions">
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={() => closeGuide()}
+                >
+                  Got it
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => closeGuide("Hisaab")}
+                >
+                  Open Hisaab <Icon name="arrow" size={16} />
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+        {paymentJob && (
+          <div className="modal-backdrop" onClick={() => setPaymentJob(null)}>
+            <section
+              className="quick-payment-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="quick-payment-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button quick-payment-close"
+                aria-label="Close"
+                onClick={() => setPaymentJob(null)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="eyebrow">PAYMENT RECEIVED</span>
+              <h2 id="quick-payment-title">{paymentJob.customer}</h2>
+              <p>{paymentJob.work}</p>
+              <div className="payment-explainer">
+                <strong>What this does</strong>
+                <span>
+                  Records money you already received and reduces the baki. Pakki
+                  Baat does not collect or transfer money.
+                </span>
+              </div>
+              <div className="quick-payment-baki">
+                <small>Current baki</small>
+                <strong>
+                  {money(Math.max(0, paymentJob.total - paymentJob.paid))}
+                </strong>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveQuickPayment();
+                }}
+              >
                 <label>
                   Amount received (₹)
                   <input
+                    autoFocus
+                    inputMode="decimal"
                     type="number"
                     min="0"
-                    max={draft.total}
                     step="0.01"
-                    value={draft.paid === 0 && receivedAmountTouched ? "0" : amountValue(draft.paid)}
-                    placeholder="0 if nothing received"
-                    onChange={(e) => {
-                      setReceivedAmountTouched(e.target.value !== "");
-                      setDraft({ ...draft, paid: e.target.value === "" ? 0 : Number(e.target.value) });
+                    max={Math.max(0, paymentJob.total - paymentJob.paid)}
+                    placeholder="e.g. 500"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={!paymentAmount || Number(paymentAmount) <= 0}
+                >
+                  Save payment
+                </button>
+              </form>
+            </section>
+          </div>
+        )}
+        {editingPayment && (
+          <div className="modal-backdrop" onClick={closeEditPayment}>
+            <section
+              className="quick-payment-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="edit-payment-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button quick-payment-close"
+                aria-label="Close"
+                onClick={closeEditPayment}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="eyebrow">EDIT PAYMENT</span>
+              <h2 id="edit-payment-title">{editingPayment.customer}</h2>
+              <p>
+                {editingPayment.date}
+                {editingPayment.note ? " · " + editingPayment.note : ""}
+              </p>
+              <div className="payment-explainer">
+                <strong>Payment correction</strong>
+                <span>
+                  This creates a correction in your financial ledger. Original
+                  payment history is preserved. Corrections are not cash
+                  refunds.
+                </span>
+              </div>
+              <div
+                className="quick-payment-baki"
+                style={{ marginBottom: "16px" }}
+              >
+                <small>Original amount</small>
+                <strong>{money(editingPayment.amount)}</strong>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  savePaymentCorrection();
+                }}
+              >
+                <label>
+                  Corrected amount (₹)
+                  <input
+                    autoFocus
+                    inputMode="decimal"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g. 300"
+                    value={editPaymentAmount}
+                    onChange={(e) => setEditPaymentAmount(e.target.value)}
+                  />
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: "4px",
+                      color: "#666",
                     }}
-                  />
+                  >
+                    Enter 0 to remove this payment
+                  </small>
                 </label>
                 <label>
-                  Due date
-                  <input
-                    type="date"
-                    value={draft.date || ""}
-                    onChange={(e) =>
-                      setDraft({ ...draft, date: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Due time
-                  <input
-                    type="time"
-                    value={draft.time || ""}
-                    onChange={(e) =>
-                      setDraft({ ...draft, time: e.target.value })
-                    }
-                  />
-                </label>
-                <label className="full">
-                  Customer confirmation
+                  Reason for correction{" "}
+                  <span style={{ color: "#e74c3c" }}>*</span>
                   <select
-                    value={draft.status}
+                    value={editPaymentReason}
                     onChange={(e) =>
-                      setDraft({ ...draft, status: e.target.value })
+                      setEditPaymentReason(
+                        e.target.value as
+                          | "wrong_amount"
+                          | "duplicate"
+                          | "data_entry_error"
+                          | "other"
+                      )
                     }
                   >
-                    <option value="Waiting">Pending</option>
-                    <option value="Confirmed">In progress</option>
-                    <option value="Completed">Done</option>
+                    <option value="wrong_amount">Wrong amount</option>
+                    <option value="duplicate">Duplicate entry</option>
+                    <option value="data_entry_error">Data entry error</option>
+                    <option value="other">Other</option>
                   </select>
                 </label>
-              </div>
-
-              {draft.source && (
-                <details>
-                  <summary>Original message</summary>
-                  <p>{draft.source}</p>
-                </details>
-              )}
-              <div className="modal-actions">
-                {draft.id && (
-                  <button
-                    type="button"
-                    className="text-button danger"
-                    onClick={() => {
-                      if (!requireActiveSubscriptionForSaving()) return;
-                      if (
-                        confirm(
-                          "Delete this commitment? This cannot be undone."
-                        )
-                      ) {
-                        setJobs(jobs.filter((j) => j.id !== draft.id));
-                        setChatTurns((turns) =>
-                          turns.filter((turn) => turn.replyFor?.id !== draft.id)
-                        );
-                        setDraft(null);
-                      }
+                <label>
+                  Explanation <span style={{ color: "#999" }}>optional</span>
+                  <textarea
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Add details about this correction..."
+                    value={editPaymentNote}
+                    onChange={(e) => setEditPaymentNote(e.target.value)}
+                    style={{
+                      fontFamily: "inherit",
+                      padding: "8px",
+                      borderRadius: "4px",
+                      border: "1px solid #ddd",
+                    }}
+                  />
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: "4px",
+                      color: "#666",
                     }}
                   >
-                    Delete
-                  </button>
+                    {editPaymentNote.length}/500 characters
+                  </small>
+                </label>
+                {Number(editPaymentAmount) !== editingPayment.amount && (
+                  <div
+                    style={{
+                      background: "#f8f9fa",
+                      padding: "12px",
+                      borderRadius: "6px",
+                      marginBottom: "16px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    <strong style={{ display: "block", marginBottom: "4px" }}>
+                      Preview
+                    </strong>
+                    <div>
+                      {money(editingPayment.amount)} →{" "}
+                      {money(Number(editPaymentAmount) || 0)}
+                    </div>
+                    <div
+                      style={{
+                        color:
+                          Number(editPaymentAmount) > editingPayment.amount
+                            ? "#27ae60"
+                            : "#e74c3c",
+                      }}
+                    >
+                      {Number(editPaymentAmount) > editingPayment.amount
+                        ? "+"
+                        : ""}
+                      {money(Number(editPaymentAmount) - editingPayment.amount)}{" "}
+                      difference
+                    </div>
+                  </div>
                 )}
-                <button className="primary" type="submit">
-                  Save changes <Icon name="check" size={18} />
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={
+                    !editPaymentAmount ||
+                    Number(editPaymentAmount) === editingPayment.amount ||
+                    !Number.isFinite(Number(editPaymentAmount)) ||
+                    Number(editPaymentAmount) < 0
+                  }
+                >
+                  Save correction
+                </button>
+                <button
+                  type="button"
+                  className="outline"
+                  onClick={closeEditPayment}
+                  style={{ marginTop: "8px" }}
+                >
+                  Cancel
+                </button>
+              </form>
+            </section>
+          </div>
+        )}
+        {customerContactsOpen && (
+          <div
+            className="modal-backdrop"
+            onClick={() => setCustomerContactsOpen(false)}
+          >
+            <section
+              className="customer-contacts-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="customer-contacts-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button customer-contacts-close"
+                aria-label="Close contacts"
+                onClick={() => setCustomerContactsOpen(false)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="eyebrow">CUSTOMER DIRECTORY</span>
+              <h2 id="customer-contacts-title">Customer contacts</h2>
+              <p>
+                {customerNames.length}{" "}
+                {customerNames.length === 1 ? "customer" : "customers"} ·{" "}
+                {customerNames.filter((name) => customerPhones[name]).length}{" "}
+                with mobile number
+              </p>
+              <label className="customer-contacts-search">
+                <Icon name="search" size={17} />
+                <input
+                  autoFocus
+                  placeholder="Search customer…"
+                  value={contactQuery}
+                  onChange={(e) => setContactQuery(e.target.value)}
+                />
+              </label>
+              <div className="customer-contacts-list">
+                {customerNames
+                  .filter((name) =>
+                    name.toLowerCase().includes(contactQuery.toLowerCase())
+                  )
+                  .map((name) => (
+                    <div className="customer-contact-row" key={name}>
+                      <span className="avatar">{name[0]?.toUpperCase()}</span>
+                      <span className="customer-contact-main">
+                        <strong>{name}</strong>
+                        <small>
+                          {customerPhones[name]
+                            ? "+" + customerPhones[name]
+                            : "No mobile number saved"}
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        className="customer-contact-edit"
+                        onClick={() => {
+                          setCustomerContactsOpen(false);
+                          openPhoneEditor(name);
+                        }}
+                      >
+                        {customerPhones[name] ? "Edit" : "Add number"}
+                      </button>
+                    </div>
+                  ))}
+                {!customerNames.length && (
+                  <div className="customer-contacts-empty">
+                    No customers yet.
+                  </div>
+                )}
+              </div>
+              <div className="customer-contacts-actions">
+                <button
+                  type="button"
+                  className="outline"
+                  disabled={!customerNames.length}
+                  onClick={() => void copyCustomerContacts()}
+                >
+                  Copy list
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!customerNames.length}
+                  onClick={downloadCustomerContacts}
+                >
+                  Download CSV
                 </button>
               </div>
-            </form>
-          </section>
-        </div>
-      )}
-      {toast && (
-        <div className="toast" role="status">
-          <span>{toast}</span>
-          {lastUndo?.message===toast && <button type="button" onClick={undoLastAction}>Undo</button>}
-        </div>
-      )}
-    </div>
+            </section>
+          </div>
+        )}
+        {phoneEditorCustomer && (
+          <div
+            className="modal-backdrop"
+            onClick={() => setPhoneEditorCustomer(null)}
+          >
+            <section
+              className="phone-editor-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="phone-editor-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button phone-editor-close"
+                aria-label="Close"
+                onClick={() => setPhoneEditorCustomer(null)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="eyebrow">CUSTOMER WHATSAPP</span>
+              <h2 id="phone-editor-title">{phoneEditorCustomer}</h2>
+              <p>Save the number once so WhatsApp is one tap next time.</p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveCustomerPhone();
+                }}
+              >
+                <label>
+                  WhatsApp number
+                  <input
+                    autoFocus
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="e.g. 9876543210"
+                    value={phoneEditorValue}
+                    onChange={(e) => setPhoneEditorValue(e.target.value)}
+                    maxLength={20}
+                  />
+                </label>
+                <button type="submit" className="primary">
+                  {phoneEditorValue.trim() ? "Save number" : "Remove number"}
+                </button>
+              </form>
+            </section>
+          </div>
+        )}
+        {whatsappJob && (
+          <div className="modal-backdrop" onClick={() => setWhatsappJob(null)}>
+            <section
+              className="whatsapp-send-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="whatsapp-send-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button whatsapp-send-close"
+                aria-label="Close"
+                onClick={() => setWhatsappJob(null)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="whatsapp-send-icon">
+                <Icon name="chat" size={23} />
+              </span>
+              <span className="eyebrow">SEND ON WHATSAPP</span>
+              <h2 id="whatsapp-send-title">Message {whatsappJob.customer}</h2>
+              <p>
+                Edit the message any way you like. We’ll open WhatsApp with it
+                already filled in.
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  sendWhatsApp();
+                }}
+              >
+                <label>
+                  WhatsApp number
+                  <input
+                    autoFocus
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="e.g. 9876543210"
+                    value={whatsappNumber}
+                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                    maxLength={20}
+                  />
+                </label>
+                <label className="whatsapp-save-number">
+                  <input
+                    type="checkbox"
+                    checked={saveWhatsappNumber}
+                    onChange={(e) => setSaveWhatsappNumber(e.target.checked)}
+                  />
+                  <span>Save this number for {whatsappJob.customer}</span>
+                </label>
+                <label>
+                  Message
+                  <textarea
+                    value={whatsappMessage}
+                    onChange={(e) => setWhatsappMessage(e.target.value)}
+                    maxLength={4000}
+                    placeholder="Write anything you want to send…"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="whatsapp-reset-message"
+                  onClick={() => setWhatsappMessage(replyText(whatsappJob))}
+                >
+                  Use saved entry details
+                </button>
+                <small>
+                  Indian 10-digit numbers automatically get +91. For other
+                  countries, include the country code.
+                </small>
+                <button
+                  className="whatsapp-open-button"
+                  type="submit"
+                  disabled={!whatsappNumber.trim() || !whatsappMessage.trim()}
+                >
+                  <Icon name="chat" size={18} /> Open WhatsApp
+                </button>
+              </form>
+            </section>
+          </div>
+        )}
+        {installWelcomeOpen && !appInstalled && (
+          <div
+            className="modal-backdrop"
+            onClick={() => setInstallWelcomeOpen(false)}
+          >
+            <section
+              className="save-login-modal install-welcome-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="install-welcome-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button save-login-close"
+                aria-label="Close"
+                onClick={() => setInstallWelcomeOpen(false)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="save-login-icon">
+                <Icon name="download" size={24} />
+              </span>
+              <span className="eyebrow">QUICK ACCESS</span>
+              <h2 id="install-welcome-title">Install Pakki Baat?</h2>
+              <p>
+                Add Pakki Baat to your home screen and open it like a regular
+                app whenever you need your Hisaab.
+              </p>
+              <button
+                type="button"
+                className="primary save-login-google"
+                onClick={() => {
+                  setInstallWelcomeOpen(false);
+                  void installPakkiBaat();
+                }}
+              >
+                <Icon name="download" size={18} /> Install Pakki Baat
+              </button>
+              <button
+                type="button"
+                className="save-login-later"
+                onClick={() => setInstallWelcomeOpen(false)}
+              >
+                Not now
+              </button>
+            </section>
+          </div>
+        )}
+        {saveLoginPromptOpen && (
+          <div
+            className="modal-backdrop"
+            onClick={() => setSaveLoginPromptOpen(false)}
+          >
+            <section
+              className="save-login-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="save-login-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button save-login-close"
+                aria-label="Close"
+                onClick={() => setSaveLoginPromptOpen(false)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="save-login-icon">
+                <Icon name="check" size={24} />
+              </span>
+              <span className="eyebrow">KEEP YOUR HISAAB SAFE</span>
+              <h2 id="save-login-title">Sign in to save your entries</h2>
+              <p>
+                Your customers, payments and reminders will stay connected to
+                your account and can be restored on another device.
+              </p>
+              <button
+                type="button"
+                className="google-sign-in save-login-google"
+                onClick={() => {
+                  setSaveLoginPromptOpen(false);
+                  void startGoogleSignIn();
+                }}
+              >
+                Continue with Google
+              </button>
+              <button
+                type="button"
+                className="save-login-later"
+                onClick={() => setSaveLoginPromptOpen(false)}
+              >
+                Not now
+              </button>
+            </section>
+          </div>
+        )}
+        {newCustomerOpen && (
+          <div
+            className="modal-backdrop"
+            onClick={() => setNewCustomerOpen(false)}
+          >
+            <section
+              className="new-customer-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-customer-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="icon-button new-customer-close"
+                aria-label="Close"
+                onClick={() => setNewCustomerOpen(false)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="new-customer-icon">
+                <Icon name="people" size={24} />
+              </span>
+              <span className="eyebrow">NEW HISAAB</span>
+              <h2 id="new-customer-title">Who is this for?</h2>
+              <p>
+                Add the customer name. You can tell Pakki Baat the rest
+                naturally.
+              </p>
+              {recentCustomers.length > 0 && (
+                <div className="recent-customers">
+                  <small>Recent customers</small>
+                  <div>
+                    {recentCustomers.map((name) => (
+                      <button
+                        type="button"
+                        key={name}
+                        onClick={() => {
+                          setSelectedCustomer(name);
+                          setMessage("");
+                          setCustomerChatOpen(false);
+                          setNewCustomerOpen(false);
+                        }}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const customer = newCustomerName.trim();
+                  if (!customer) return;
+                  if (!requireActiveSubscriptionForSaving()) return;
+                  if (!canAddCustomer(customer)) return;
+                  setNotes((items) =>
+                    items.some((n) => n.customer === customer)
+                      ? items
+                      : [
+                          {
+                            id: crypto.randomUUID(),
+                            customer,
+                            text: "Customer created",
+                            createdAt: new Date().toISOString(),
+                          },
+                          ...items,
+                        ]
+                  );
+                  setSelectedCustomer(customer);
+                  setMessage("");
+                  setCustomerChatOpen(false);
+                  setEntryMode("quick");
+                  setNewCustomerOpen(false);
+                }}
+              >
+                <label>
+                  Customer name
+                  <input
+                    autoFocus
+                    maxLength={100}
+                    placeholder="e.g. Asha"
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                  />
+                </label>
+                <button
+                  className="primary"
+                  type="submit"
+                  disabled={!newCustomerName.trim()}
+                >
+                  Continue <Icon name="arrow" size={17} />
+                </button>
+              </form>
+            </section>
+          </div>
+        )}
+        {draft && (
+          <div className="modal-backdrop" onClick={() => setDraft(null)}>
+            <section
+              className="modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="review-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow">YOU’RE IN CONTROL</span>
+                  <h2 id="review-title">Edit details</h2>
+                </div>
+                <button
+                  className="icon-button"
+                  aria-label="Close review"
+                  onClick={() => setDraft(null)}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+              <p>Fill in anything missing. Nothing is sent automatically.</p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  save();
+                }}
+              >
+                <div className="form-grid">
+                  <label className="full">
+                    Customer name *
+                    <input
+                      autoFocus
+                      required
+                      maxLength={100}
+                      value={draft.customer || ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, customer: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="full">
+                    What’s the work? *
+                    <textarea
+                      required
+                      maxLength={500}
+                      value={draft.work || ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, work: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Total amount (₹)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100000000"
+                      step="0.01"
+                      value={amountValue(draft.total)}
+                      placeholder="e.g. 2000"
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          total:
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Amount received (₹)
+                    <input
+                      type="number"
+                      min="0"
+                      max={draft.total}
+                      step="0.01"
+                      value={
+                        draft.paid === 0 && receivedAmountTouched
+                          ? "0"
+                          : amountValue(draft.paid)
+                      }
+                      placeholder="0 if nothing received"
+                      onChange={(e) => {
+                        setReceivedAmountTouched(e.target.value !== "");
+                        setDraft({
+                          ...draft,
+                          paid:
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                        });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Due date
+                    <input
+                      type="date"
+                      value={draft.date || ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, date: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Due time
+                    <input
+                      type="time"
+                      value={draft.time || ""}
+                      onChange={(e) =>
+                        setDraft({ ...draft, time: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="full">
+                    Customer confirmation
+                    <select
+                      value={draft.status}
+                      onChange={(e) =>
+                        setDraft({ ...draft, status: e.target.value })
+                      }
+                    >
+                      <option value="Waiting">Pending</option>
+                      <option value="Confirmed">In progress</option>
+                      <option value="Completed">Done</option>
+                    </select>
+                  </label>
+                </div>
+
+                {draft.source && (
+                  <details>
+                    <summary>Original message</summary>
+                    <p>{draft.source}</p>
+                  </details>
+                )}
+                <div className="modal-actions">
+                  {draft.id && (
+                    <button
+                      type="button"
+                      className="text-button danger"
+                      onClick={() => {
+                        if (!requireActiveSubscriptionForSaving()) return;
+                        if (
+                          confirm(
+                            "Delete this commitment? This cannot be undone."
+                          )
+                        ) {
+                          setJobs(jobs.filter((j) => j.id !== draft.id));
+                          setChatTurns((turns) =>
+                            turns.filter(
+                              (turn) => turn.replyFor?.id !== draft.id
+                            )
+                          );
+                          setDraft(null);
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <button className="primary" type="submit">
+                    Save changes <Icon name="check" size={18} />
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+        )}
+        {toast && (
+          <div className="toast" role="status">
+            <span>{toast}</span>
+            {lastUndo?.message === toast && (
+              <button type="button" onClick={undoLastAction}>
+                Undo
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </>
   );
 }

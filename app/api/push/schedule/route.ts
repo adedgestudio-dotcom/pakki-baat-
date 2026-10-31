@@ -1,13 +1,14 @@
 import { start } from "workflow/api";
-import { reminderPushWorkflow, type ReminderPushSubscription } from "@/workflows/reminder-push";
+import { reminderPushWorkflow } from "@/workflows/reminder-push";
+import {
+  readBoundedJson,
+  reserveSchedule,
+  scheduleReservationKey,
+  validateScheduleRequest,
+} from "@/lib/push-schedule-security";
+import { ensureV5Schedule, recordV5WorkflowStart } from "@/lib/reminder-v5-store";
 
 export const runtime = "nodejs";
-
-type ReminderBody = {
-  id?: string;
-  date?: string;
-  time?: string;
-};
 
 async function authenticatedUserId(request: Request) {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -43,37 +44,63 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = await request.json().catch(() => null);
-  const reminder = (body?.reminder || {}) as ReminderBody;
-  const subscription = body?.subscription as ReminderPushSubscription | undefined;
-  const remindAt = String(body?.remindAt || "");
-
-  if (
-    !reminder.id ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(reminder.date || "") ||
-    (reminder.time && !/^\d{2}:\d{2}$/.test(reminder.time)) ||
-    !subscription?.endpoint ||
-    !subscription.keys?.auth ||
-    !subscription.keys?.p256dh
-  ) {
+  const scheduleRequest = validateScheduleRequest(await readBoundedJson(request));
+  if (!scheduleRequest) {
     return Response.json({ error: "Invalid reminder push request." }, { status: 400 });
   }
 
-  const due = new Date(remindAt);
-  if (!Number.isFinite(due.getTime())) {
-    return Response.json({ error: "Invalid reminder time." }, { status: 400 });
+  const reservation = reserveSchedule(userId, scheduleReservationKey(userId, scheduleRequest));
+  if (!reservation.ok) {
+    if (reservation.reason === "duplicate") {
+      // A local reservation records an attempt, not its persisted outcome.
+      // Do not start again or turn an earlier ambiguous result into success.
+      return Response.json({ ok: false, duplicate: true, acknowledgement: "unconfirmed",
+        error: "Workflow start is not confirmed. It may already be running." }, { status: 503 });
+    }
+    return Response.json(
+      { error: "Too many reminder schedules. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(reservation.retryAfterSeconds) } }
+    );
   }
 
-  const run = await start(reminderPushWorkflow, [
-    {
-      userId,
-      reminderId: reminder.id,
-      expectedDate: reminder.date!,
-      expectedTime: reminder.time || "09:00",
-      remindAt: due.toISOString(),
-      subscription,
-    },
-  ]);
-
-  return Response.json({ ok: true, runId: run.runId });
+  try {
+    const schedule = await ensureV5Schedule(userId, scheduleRequest);
+    if (!schedule) {
+      reservation.release();
+      return Response.json({ error: "This legacy reminder remains owned by Workflow 4." }, { status: 409 });
+    }
+    if (!schedule.shouldStart) return Response.json({ ok: true, duplicate: true, scheduleId: schedule.scheduleId }, { status: 202 });
+    const run = await start(reminderPushWorkflow, [
+      {
+        userId,
+        reminderId: scheduleRequest.reminder.id,
+        expectedDate: scheduleRequest.reminder.date,
+        expectedTime: scheduleRequest.reminder.time || "09:00",
+        remindAt: scheduleRequest.due.toISOString(),
+        subscription: scheduleRequest.subscription,
+        scheduleId: schedule.scheduleId,
+        generation: schedule.generation,
+        runnerId: crypto.randomUUID(),
+      },
+    ]);
+    // This is advisory only: if the response is lost, duplicate starts still
+    // contend on the durable runner claim before any notification is sent.
+    const acknowledgement = await recordV5WorkflowStart(schedule.scheduleId, schedule.generation, run.runId, {
+      ownerId: userId, reminderId: scheduleRequest.reminder.id,
+      expectedDate: scheduleRequest.reminder.date, expectedTime: scheduleRequest.reminder.time || "09:00",
+    });
+    if (acknowledgement.outcome !== "recorded" && acknowledgement.outcome !== "already_recorded_same_run") {
+      // Keep the local reservation. The accepted run may still execute; never
+      // start a replacement here or claim this run was durably acknowledged.
+      return Response.json({ ok: false, runId: run.runId, acknowledgement: acknowledgement.outcome,
+        error: "Workflow start was not confirmed. It may already be running." },
+      { status: acknowledgement.outcome === "unconfirmed" ? 503 : 409 });
+    }
+    return Response.json({ ok: true, runId: run.runId, acknowledgement: acknowledgement.outcome });
+  } catch (error) {
+    reservation.release();
+    // A known failed start is safe to retry. Unknown outcomes are deliberately
+    // left to the runner claim rather than assuming no Workflow was created.
+    throw error;
+  }
 }

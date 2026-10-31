@@ -1,5 +1,6 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { isSnapshot, type Snapshot } from "./data";
+import type { LedgerRow } from "./reports";
 
 let base = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 let key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -177,6 +178,25 @@ export async function loadCloudState(): Promise<CloudWorkspaceState> {
 }
 
 export function ledgerModeForAccount(ownerId: string) { return saveStates.get(ownerId)?.ledgerEnabled === true; }
+
+export async function loadReportLedger(ownerId: string): Promise<LedgerRow[]> {
+  if (!saveStates.get(ownerId)?.ledgerEnabled) throw new Error("Ledger mode has not been confirmed for this account.");
+  const { readReportLedger } = await import("./reports-loader");
+  return readReportLedger(ownerId, async () => (await accountSession(ownerId)).user.id, async offset => {
+    const session = await accountSession(ownerId);
+    const query = `/rest/v1/hisaab_ledger_transactions?owner_id=eq.${encodeURIComponent(ownerId)}&select=id,owner_id,job_id,customer_name,transaction_kind,amount_paise,occurred_at,reverses_transaction_id,metadata&order=created_at.asc,id.asc&limit=200&offset=${offset}`;
+    const response = await fetch(base + query, {
+      method: "GET", cache: "no-store",
+      headers: { apikey: key, Authorization: `Bearer ${session.access_token}`, Prefer: "count=exact" },
+    });
+    if (!response.ok) throw new Error(`Could not read ledger history (${response.status}). No legacy fallback was used.`);
+    const total = response.headers.get("content-range")?.split("/")[1];
+    if (total === undefined || !/^\d+$/.test(total)) throw new Error("Ledger count is unavailable; partial totals cannot be shown.");
+    const rows: unknown = await response.json();
+    if (!Array.isArray(rows)) throw new Error("Invalid ledger response.");
+    return { rows: rows as LedgerRow[], total: Number(total) };
+  });
+}
 export function cloudSnapshotsEqual(a: unknown, b: unknown) { return equalJson(a, b); }
 export function reconcileLedgerHydration(server: Snapshot, revision: number, local: Snapshot | null, dirty: { snapshot: Snapshot; revision: number } | null) {
   if (dirty) {

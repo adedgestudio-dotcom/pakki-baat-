@@ -3,6 +3,7 @@
   "short_name": "Pakki Baat",
   "description": "Offline-friendly hisaab, reminders, payments and customer follow-ups for small businesses.",
   "start_url": "/",
+  "id": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f7f2e8",

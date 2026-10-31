@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { notFound } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { signInWithPassword } from "@/lib/cloud";
 
 export default function QaLoginPage() {
+  if (process.env.NEXT_PUBLIC_VERCEL_ENV === "production" || process.env.NODE_ENV === "production") notFound();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

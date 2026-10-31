@@ -1,5 +1,6 @@
 import { sleep } from "workflow";
 import { sendReminderPush } from "./steps/send-reminder-push";
+import { claimV5Runner } from "./steps/reminder-v5-ledger";
 
 export type ReminderPushSubscription = {
   endpoint: string;
@@ -17,6 +18,9 @@ export type ReminderWorkflowInput = {
   expectedTime: string;
   remindAt: string;
   subscription: ReminderPushSubscription;
+  scheduleId: string;
+  generation: number;
+  runnerId: string;
 };
 
 function nextOccurrence(date: Date, repeat: "daily" | "weekly" | "monthly") {
@@ -29,6 +33,11 @@ function nextOccurrence(date: Date, repeat: "daily" | "weekly" | "monthly") {
 
 export async function reminderPushWorkflow(input: ReminderWorkflowInput) {
   "use workflow";
+
+  // Multiple starts can occur if a server dies after Vercel accepted start but
+  // before the database acknowledgement. Only one run obtains this durable
+  // ownership claim; all other deployment-pinned V5 runs become harmless.
+  if (!(await claimV5Runner(input.scheduleId, input.generation, input.runnerId))) return { active: false, repeat: "none" };
 
   let nextAt = new Date(input.remindAt);
 
