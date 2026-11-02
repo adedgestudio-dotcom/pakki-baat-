@@ -1,4 +1,5 @@
-export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+// Leave room for multipart overhead beneath the host's 4.5 MB request limit.
+export const PHOTO_MAX_BYTES = 4 * 1024 * 1024;
 export const PHOTO_BUCKET = "hisaab-entry-photos";
 export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
@@ -14,7 +15,7 @@ export function photoEntryId(value: unknown): string {
 
 export function validatePhoto(file: { size: number; type: string }, bytes?: Uint8Array) {
   if (!PHOTO_TYPES.some(type => type === file.type)) throw new EntryPhotoError("Choose a JPG, PNG or WebP photo.", 415);
-  if (file.size < 1 || file.size > PHOTO_MAX_BYTES) throw new EntryPhotoError("Choose a photo smaller than 5 MB.", 413);
+  if (file.size < 1 || file.size > PHOTO_MAX_BYTES) throw new EntryPhotoError("Choose a photo no larger than 4 MB.", 413);
   if (!bytes) return;
   const png = [137,80,78,71,13,10,26,10].every((n,i) => bytes[i] === n);
   const jpeg = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;

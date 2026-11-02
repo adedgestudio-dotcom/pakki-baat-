@@ -88,7 +88,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload }: { owne
   return (
     <section ref={root} className="hisaab-entry-photo" aria-label="Entry photo">
       <strong>Entry photo</strong>
-      <small>One JPG, PNG or WebP, up to 5 MB. Upload and viewing require internet.</small>
+      <small>One JPG, PNG or WebP, up to 4 MB. Upload and viewing require internet.</small>
       {!online ? <p>Reconnect to view or add this entry&apos;s photo.</p> : url ? (
         // Private authenticated bytes are displayed through a short-lived object URL, never a public asset URL.
         <img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" />

@@ -35,6 +35,12 @@ test('photo validation rejects SVG, spoofed MIME, empty and oversized files',()=
  for(const file of[{type:'image/svg+xml',size:10},{type:'image/png',size:0},{type:'image/jpeg',size:validation.PHOTO_MAX_BYTES+1}])assert.throws(()=>validation.validatePhoto(file));
  assert.throws(()=>validation.validatePhoto({type:'image/jpeg',size:png.length},png));
 });
+test('accepted photo size stays below the host limit including multipart overhead',()=>{
+ assert.equal(validation.PHOTO_MAX_BYTES,4*1024*1024);
+ validation.validatePhoto({type:'image/png',size:validation.PHOTO_MAX_BYTES});
+ assert.ok(validation.PHOTO_MAX_BYTES+65536<4500000);
+ assert.throws(()=>validation.validatePhoto({type:'image/png',size:validation.PHOTO_MAX_BYTES+1}),/4 MB/);
+});
 test('multipart reader accepts exactly one photo and rejects multiple photos',async()=>{
  assert.equal((await validation.readPhotoForm(uploadRequest())).entryId,'entry-a');
  await assert.rejects(()=>validation.readPhotoForm(uploadRequest(true)),/exactly one/);
