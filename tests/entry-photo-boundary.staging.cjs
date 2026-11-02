@@ -1,0 +1,22 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{createHash,createHmac}=require('node:crypto');
+const cfg=Object.fromEntries(fs.readFileSync(path.join(__dirname,'../.env.staging.local'),'utf8').split(/\r?\n/).filter(x=>/^[A-Z_]+=/.test(x)).map(x=>{const i=x.indexOf('=');return[x.slice(0,i),x.slice(i+1).replace(/^['"]|['"]$/g,'')]}));
+const origin=new URL(process.env.PB_RC_URL).origin,base=cfg.STAGING_SUPABASE_URL,limit=4*1024*1024;
+const privateAccess=process.env.VERCEL_OIDC_TOKEN?{'x-vercel-trusted-oidc-idp-token':process.env.VERCEL_OIDC_TOKEN}:{};
+const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
+let passed=0;const pass=(name,evidence={})=>{passed++;console.log(JSON.stringify({status:'PASS',name,evidence}));};
+(async()=>{
+ assert.equal(new URL(base).hostname,'jplxtqiryjnsdruqxgbh.supabase.co');assert.ok(origin.endsWith('.vercel.app'));
+ const login=await fetch(base+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:cfg.STAGING_ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:cfg.STAGING_TEST_EMAIL,password:cfg.STAGING_TEST_PASSWORD})});assert.equal(login.status,200);const session=await login.json();assert.equal(session.user.id,'740411d2-a2c9-4dd6-84ba-8679514d28fb');
+ const headers={apikey:cfg.STAGING_ANON_KEY,Authorization:'Bearer '+session.access_token};
+ const read=async table=>{const r=await fetch(base+'/rest/v1/'+table,{headers});assert.equal(r.status,200);return r.json();};
+ const info=await fetch(origin+'/api/release-info',{headers:privateAccess}).then(r=>r.json());assert.equal(info.supabaseProject,'jplxtqiryjnsdruqxgbh');if(process.env.PB_EXPECTED_SHA)assert.equal(info.commit,process.env.PB_EXPECTED_SHA);
+ const before=await read('workspaces?select=payload,revision'),ledger=await read('hisaab_ledger_transactions?select=id&order=id'),photos=await read('hisaab_entry_photos?select=entry_id');const job=before[0].payload.jobs.find(j=>!photos.some(p=>p.entry_id===j.id));assert.ok(job,'unused synthetic entry required; never replace existing photos');
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64'),image=Buffer.alloc(limit);png.copy(image);
+ const post=bytes=>{const f=new FormData();f.set('entryId',job.id);f.set('photo',new File([bytes],'boundary.png',{type:'image/png'}));return fetch(origin+'/api/hisaab-photo',{method:'POST',headers:{...privateAccess,Authorization:headers.Authorization},body:f});};
+ let r=await post(image);assert.equal(r.status,201,await r.text());pass('hosted route accepts an exact 4 MB private photo',{entryId:job.id,bytes:image.length,commit:info.commit});
+ r=await fetch(origin+'/api/hisaab-photo?entryId='+encodeURIComponent(job.id),{headers:{...privateAccess,Authorization:headers.Authorization}});assert.equal(r.status,200);assert.equal(r.headers.get('cache-control'),'private, no-store');const bytes=Buffer.from(await r.arrayBuffer());assert.equal(digest(bytes),digest(image));pass('hosted 4 MB download preserves exact bytes and privacy headers');
+ r=await post(Buffer.alloc(limit+1));assert.equal(r.status,413);pass('hosted route rejects 4 MB plus one byte');
+ assert.deepEqual(await read('workspaces?select=payload,revision'),before);assert.deepEqual(await read('hisaab_ledger_transactions?select=id&order=id'),ledger);pass('boundary uploads do not change financial snapshot, revision or ledger');
+ const forged=createHmac('sha256','').update('pakki-baat-admin-v1').digest('hex');r=await fetch(origin+'/api/admin/auth',{headers:{...privateAccess,Cookie:'pakki_admin='+forged}});assert.equal(r.status,401);pass('hosted admin authentication fails closed for an empty-secret forged cookie');
+ console.log(JSON.stringify({passed,failed:0,commit:info.commit}));
+})().catch(e=>{console.error(JSON.stringify({status:'FAIL',message:e.message}));process.exitCode=1;});

@@ -1,0 +1,7 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript'),crypto=require('node:crypto');
+function api(env){const m={exports:{}};const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../lib/admin-auth.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;vm.runInNewContext(code,{module:m,exports:m.exports,process:{env},Buffer,require:n=>{assert.equal(n,'crypto');return crypto;}});return m.exports;}
+const cookie=key=>({cookies:{get:()=>({value:crypto.createHmac('sha256',key).update('pakki-baat-admin-v1').digest('hex')})}});
+test('missing admin credentials fail closed even with a forged empty-secret cookie',()=>assert.equal(api({}).isAdmin(cookie('')),false));
+test('configured session secret accepts only its valid cookie',()=>{const a=api({ADMIN_SESSION_SECRET:'isolated-test-secret'});assert.equal(a.isAdmin(cookie('isolated-test-secret')),true);assert.equal(a.isAdmin(cookie('wrong-secret')),false);});
+test('configured PIN fallback remains compatible',()=>assert.equal(api({ADMIN_PIN:'isolated-test-pin'}).isAdmin(cookie('isolated-test-pin')),true));
+test('independent session secret takes precedence over PIN',()=>assert.equal(api({ADMIN_PIN:'isolated-test-pin',ADMIN_SESSION_SECRET:'isolated-session-secret'}).isAdmin(cookie('isolated-test-pin')),false));

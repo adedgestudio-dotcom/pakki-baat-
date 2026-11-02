@@ -5,6 +5,7 @@ const COOKIE="pakki_admin";
 function secret(){return process.env.ADMIN_SESSION_SECRET?.trim()||process.env.ADMIN_PIN?.trim()||""}
 function signature(){return createHmac("sha256",secret()).update("pakki-baat-admin-v1").digest("hex")}
 export function isAdmin(request:NextRequest){
+  if(!secret()) return false;
   const got=request.cookies.get(COOKIE)?.value||"", expected=signature();
   if(!got||!expected||got.length!==expected.length) return false;
   return timingSafeEqual(Buffer.from(got),Buffer.from(expected));
