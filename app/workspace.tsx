@@ -1,11 +1,15 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type SetStateAction } from "react";
+import { paymentPaise, paymentRupees, validateEntryMoney, planQuickPayment, planPaymentCorrection, type FinancialState } from "@/lib/payment-safety";
 import "./workspace.css";
 import "./connections.css";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import AudioPlayer from "./audio-player";
 import Reports from "./reports";
+import HisaabPayments from "./hisaab-payments";
+import HisaabEntryPhoto from "./hisaab-entry-photo";
+import { formatMoneyRupees } from "@/lib/money";
 import {
   canOfferTrial,
   loadTrialSubscription,
@@ -33,6 +37,8 @@ import {
   loadCloudState,
   cloudSnapshotsEqual,
   blockCloudSaves,
+  cloudWriteConflictForAccount,
+  LEGACY_WORKSPACE_READ_ONLY_MESSAGE,
   clearLedgerDirty,
   ledgerModeForAccount,
   markLedgerDirty,
@@ -133,12 +139,7 @@ const blank = (): Job => ({
   source: "",
   createdAt: new Date().toISOString(),
 });
-const money = (n: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n);
+const money = formatMoneyRupees;
 const day = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
@@ -237,7 +238,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
 }
 export default function Workspace() {
   const [tab, setTab] = useState<Tab>("Today"),
-    [jobs, setJobs] = useState<Job[]>([]),
+    [jobs, publishJobs] = useState<Job[]>([]),
     [reminders, setReminders] = useState<Reminder[]>([]),
     [ready, setReady] = useState(false),
     [owner, setOwner] = useState(""),
@@ -296,7 +297,7 @@ export default function Workspace() {
       state: "idle",
     }),
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
-    [payments, setPayments] = useState<Payment[]>([]),
+    [payments, publishPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
     [customerPhones, setCustomerPhones] = useState<Record<string, string>>({}),
     [customerContactsOpen, setCustomerContactsOpen] = useState(false),
@@ -359,6 +360,29 @@ export default function Workspace() {
     ),
     [appInstalled, setAppInstalled] = useState(false),
     [installWelcomeOpen, setInstallWelcomeOpen] = useState(false);
+  // Synchronous financial state prevents queued React updates from validating against stale closures.
+  const financialStateRef = useRef<FinancialState>({ jobs: [], payments: [] });
+  function setJobs(value: SetStateAction<Job[]>) {
+    const next = typeof value === "function" ? value(financialStateRef.current.jobs) : value;
+    financialStateRef.current = { ...financialStateRef.current, jobs: next };
+    publishJobs(next);
+  }
+  function setPayments(value: SetStateAction<Payment[]>) {
+    const next = typeof value === "function" ? value(financialStateRef.current.payments) : value;
+    financialStateRef.current = { ...financialStateRef.current, payments: next };
+    publishPayments(next);
+  }
+  function confirmFinancialWrite() {
+    const account = activeUserIdRef.current;
+    if (!account || workspaceUserIdRef.current !== account) throw new Error("Sign in to the correct account before saving.");
+    if (!ledgerModeForAccount(account)) throw new Error(LEGACY_WORKSPACE_READ_ONLY_MESSAGE);
+    if (cloudWriteConflictForAccount(account)) throw new Error("Cloud data changed. Resolve the sync conflict before recording another payment.");
+  }
+  function applyFinancialState(next: FinancialState) {
+    financialStateRef.current = next;
+    publishJobs(next.jobs);
+    publishPayments(next.payments);
+  }
   const paymentRequestAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
@@ -738,6 +762,43 @@ export default function Workspace() {
       setLoadedAccountId(null);
       setUserEmail(session?.user.email || null);
       setUserName(accountNameFromEmail(session));
+      if (activeUserIdRef.current !== (session?.user.id || null)) {
+        // Hide the outgoing account before any asynchronous hydration. Keep its
+        // durable account-scoped cache and pending payments for a later sign-in.
+        setJobs([]);
+        setPayments([]);
+        setReminders([]);
+        setNotes([]);
+        setCustomerPhones({});
+        setOwner("");
+        setBusiness("My small business");
+        pendingJobRef.current = null;
+        customerChatOpenRef.current = false;
+        selectedCustomerRef.current = null;
+        messageRef.current = "";
+        setPendingJob(null);
+        setDraft(null);
+        setLastUndo(null);
+        setDeleteJob(null);
+        setDeleteCustomer(null);
+        setCustomerChatOpen(false);
+        setSelectedCustomer(null);
+        setMessage("");
+        setChatTurns([]);
+        setPaymentJob(null);
+        setEditingPayment(null);
+        setReceiptJob(null);
+        setWhatsappJob(null);
+        setWhatsappMessage("");
+        setWhatsappNumber("");
+        setPhoneEditorCustomer(null);
+        setPhoneEditorValue("");
+        setReminderJob(null);
+        setReminderCustomer("");
+        setReminderText("");
+        setQuery("");
+        setContactQuery("");
+      }
       activeUserIdRef.current = session?.user.id || null;
 
       if (
@@ -1084,7 +1145,7 @@ export default function Workspace() {
     const effectGeneration = ++dailyBackupGenerationRef.current;
     // Signed-in expired/inactive accounts are read-only. Do not persist accidental
     // client-side mutations locally when the backend would reject the cloud save.
-    if (loggedIn && !hasActiveSubscription) return;
+    if (loggedIn && (!hasActiveSubscription || !ledgerModeForAccount(storageUserId))) return;
     const ledgerMode = loggedIn && ledgerModeForAccount(storageUserId);
     if (ledgerMode) {
       try {
@@ -2458,7 +2519,7 @@ export default function Workspace() {
           say("assistant", result.nextQuestion);
           return;
         }
-        const amount = Number(result.payment?.amount || 0);
+        const amount = paymentRupees(paymentPaise(String(result.payment?.amount ?? "0")));
         const customer =
           selectedCustomer || String(result.payment?.customer || "");
         if (!customer) {
@@ -2476,7 +2537,7 @@ export default function Workspace() {
           const ledgerMode = ledgerModeForAccount(
             activeUserIdRef.current || ""
           );
-          if (ledgerMode && amount > latest.total - latest.paid) {
+          if (paymentPaise(amount) > paymentPaise(latest.total) - paymentPaise(latest.paid)) {
             say(
               "assistant",
               "That payment is higher than the remaining balance. Check the amount before saving."
@@ -2486,7 +2547,7 @@ export default function Workspace() {
           const preview: Job = {
             ...latest,
             id: ledgerMode ? latest.id : crypto.randomUUID(),
-            paid: Math.min(latest.total, latest.paid + amount),
+            paid: paymentRupees(paymentPaise(latest.paid) + paymentPaise(amount)),
             source: message,
           };
           setPendingJob(preview);
@@ -2595,13 +2656,14 @@ export default function Workspace() {
           );
           return;
         }
+        validateEntryMoney(next);
         if (next.paid > latest.paid) {
           setPayments((items) => [
             {
               id: crypto.randomUUID(),
               customer: selectedCustomer,
               jobId: latest.id,
-              amount: next.paid - latest.paid,
+              amount: paymentRupees(paymentPaise(next.paid) - paymentPaise(latest.paid)),
               date: day(),
               note: "Payment correction",
               createdAt: new Date().toISOString(),
@@ -2641,6 +2703,7 @@ export default function Workspace() {
   }
 
   function savePendingEntry(item: Job) {
+    if (item) { try { validateEntryMoney(item); } catch (error) { setToast(error instanceof Error ? error.message : "Invalid amount."); return; } }
     if (!selectedCustomer || !requireActiveSubscriptionForSaving()) return;
     if (savedPendingRef.current === item) return;
     const saved = { ...item, customer: selectedCustomer };
@@ -2659,7 +2722,7 @@ export default function Workspace() {
     savedPendingRef.current = item;
     setJobs((items) => [saved, ...items.filter((j) => j.id !== saved.id)]);
     const paymentDelta = ledgerMode
-      ? saved.paid - (previous?.paid || 0)
+      ? paymentRupees(paymentPaise(saved.paid) - paymentPaise(previous?.paid || 0))
       : saved.paid;
     if (
       paymentDelta > 0 &&
@@ -2691,6 +2754,10 @@ export default function Workspace() {
   }
   function requireActiveSubscriptionForSaving() {
     if (!requireLoginForSaving()) return false;
+    if (!ledgerModeForAccount(activeUserIdRef.current || "")) {
+      setToast(LEGACY_WORKSPACE_READ_ONLY_MESSAGE);
+      return false;
+    }
     if (hasActiveSubscription) return true;
     if (
       trialSubscription.ownerId !== activeUserIdRef.current ||
@@ -2750,6 +2817,7 @@ export default function Workspace() {
   }
 
   function finishCustomerChat() {
+    if (pendingJob) { try { validateEntryMoney(pendingJob); } catch (error) { setToast(error instanceof Error ? error.message : "Invalid amount."); return; } }
     if (!selectedCustomer || voiceBusy) return;
     if (!requireActiveSubscriptionForSaving()) return;
     if (!pendingJob || !pendingJob.work?.trim()) {
@@ -2773,7 +2841,7 @@ export default function Workspace() {
     savedPendingRef.current = pendingJob;
     setJobs((items) => [saved, ...items.filter((j) => j.id !== saved.id)]);
     const paymentDelta = ledgerMode
-      ? saved.paid - (previous?.paid || 0)
+      ? paymentRupees(paymentPaise(saved.paid) - paymentPaise(previous?.paid || 0))
       : saved.paid;
     if (
       paymentDelta > 0 &&
@@ -2810,6 +2878,7 @@ export default function Workspace() {
     );
   }
   function save() {
+    if (draft) { try { validateEntryMoney(draft); } catch (error) { setToast(error instanceof Error ? error.message : "Invalid amount."); return; } }
     if (!draft || !draft.customer.trim() || !draft.work.trim()) return;
     if (savedDraftRef.current === draft) return;
     if (!requireActiveSubscriptionForSaving()) return;
@@ -2849,7 +2918,7 @@ export default function Workspace() {
           id: crypto.randomUUID(),
           customer: item.customer,
           jobId: item.id,
-          amount: item.paid - previousPaid,
+          amount: paymentRupees(paymentPaise(item.paid) - paymentPaise(previousPaid)),
           date: day(),
           note: previous ? "Payment update" : "Initial payment / advance",
           createdAt: new Date().toISOString(),
@@ -3314,7 +3383,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       return;
     }
     const text = whatsappMessage.trim() || replyText(whatsappJob);
-    if (saveWhatsappNumber && hasActiveSubscription) {
+    if (saveWhatsappNumber && hasActiveSubscription && ledgerModeForAccount(activeUserIdRef.current || "")) {
       setCustomerPhones((items) => ({
         ...items,
         [whatsappJob.customer]: digits,
@@ -3404,35 +3473,23 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   function saveQuickPayment() {
     if (!paymentJob || !requireActiveSubscriptionForSaving()) return;
     if (submittedPaymentJobRef.current === paymentJob) return;
-    const amount = Number(paymentAmount);
-    const baki = Math.max(0, paymentJob.total - paymentJob.paid);
-    if (!(amount > 0) || amount > baki) {
-      setToast("Enter an amount up to " + money(baki) + ".");
-      return;
+    try {
+      confirmFinancialWrite();
+      const payment: Payment = {
+        id: crypto.randomUUID(), customer: paymentJob.customer, jobId: paymentJob.id,
+        amount: paymentRupees(paymentPaise(paymentAmount)), date: day(),
+        note: "Quick payment", createdAt: new Date().toISOString(),
+      };
+      const next = planQuickPayment(financialStateRef.current, paymentJob, paymentAmount, payment);
+      rememberUndo("Payment updated ?");
+      submittedPaymentJobRef.current = paymentJob;
+      applyFinancialState(next);
+      setPaymentJob(null);
+      setPaymentAmount("");
+      setToast("Payment updated ?");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Payment was not recorded.");
     }
-    submittedPaymentJobRef.current = paymentJob;
-    const message = "Payment updated ✓";
-    rememberUndo(message);
-    setJobs((items) =>
-      items.map((j) =>
-        j.id === paymentJob.id ? { ...j, paid: j.paid + amount } : j
-      )
-    );
-    setPayments((items) => [
-      {
-        id: crypto.randomUUID(),
-        customer: paymentJob.customer,
-        jobId: paymentJob.id,
-        amount,
-        date: day(),
-        note: "Quick payment",
-        createdAt: new Date().toISOString(),
-      },
-      ...items,
-    ]);
-    setPaymentJob(null);
-    setPaymentAmount("");
-    setToast(message);
   }
   function openEditPayment(payment: Payment) {
     if (!requireActiveSubscriptionForSaving()) return;
@@ -3449,84 +3506,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   }
   function savePaymentCorrection() {
     if (!editingPayment || !requireActiveSubscriptionForSaving()) return;
-    const newAmount = Number(editPaymentAmount);
-    const originalAmount = editingPayment.amount;
-
-    // Validate new amount
-    if (!Number.isFinite(newAmount) || newAmount < 0) {
-      setToast("Enter a valid amount (₹0 or more).");
-      return;
+    try {
+      confirmFinancialWrite();
+      const next = planPaymentCorrection(financialStateRef.current, editingPayment, editPaymentAmount, editPaymentReason, editPaymentNote);
+      rememberUndo("Payment corrected");
+      applyFinancialState(next);
+      closeEditPayment();
+      setToast(paymentPaise(editPaymentAmount) === 0 ? "Payment removed ?" : "Payment corrected ?");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Payment correction was not recorded.");
     }
-
-    // Check if amount actually changed
-    if (newAmount === originalAmount) {
-      setToast("The amount hasn't changed.");
-      return;
-    }
-
-    // Validate correction note length
-    if (editPaymentNote.trim().length > 500) {
-      setToast("Correction note is too long (max 500 characters).");
-      return;
-    }
-
-    // Find the associated job to validate against total
-    const relatedJob = editingPayment.jobId
-      ? jobs.find((j) => j.id === editingPayment.jobId)
-      : null;
-
-    if (relatedJob) {
-      // Calculate what the new paid amount would be
-      const otherPayments = payments
-        .filter((p) => p.jobId === relatedJob.id && p.id !== editingPayment.id)
-        .reduce((sum, p) => sum + p.amount, 0);
-      const newPaidTotal = otherPayments + newAmount;
-
-      if (newPaidTotal > relatedJob.total) {
-        setToast(
-          `Cannot exceed job total. Job total: ${money(relatedJob.total)}, ` +
-            `other payments: ${money(otherPayments)}, ` +
-            `max for this payment: ${money(relatedJob.total - otherPayments)}`
-        );
-        return;
-      }
-
-      // Update job's paid amount
-      setJobs((items) =>
-        items.map((j) =>
-          j.id === relatedJob.id ? { ...j, paid: newPaidTotal } : j
-        )
-      );
-    }
-
-    // Update the payment with correction metadata
-    const correctedPayment: Payment = {
-      ...editingPayment,
-      amount: newAmount,
-      correctionReason: editPaymentReason,
-      correctionNote: editPaymentNote.trim() || undefined,
-    };
-
-    const message =
-      newAmount === 0
-        ? "Payment removed ✓"
-        : `Payment corrected: ${money(originalAmount)} → ${money(newAmount)} ✓`;
-
-    rememberUndo(message);
-
-    // Update or remove the payment
-    if (newAmount === 0) {
-      // Delete the payment (will create reversal-only in ledger)
-      setPayments((items) => items.filter((p) => p.id !== editingPayment.id));
-    } else {
-      // Update the payment (will create reversal + replacement in ledger)
-      setPayments((items) =>
-        items.map((p) => (p.id === editingPayment.id ? correctedPayment : p))
-      );
-    }
-
-    closeEditPayment();
-    setToast(message);
   }
   function deletePayment(payment: Payment) {
     if (!requireActiveSubscriptionForSaving()) return;
@@ -4007,7 +3996,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     if (job && baki > 0) {
       return `Hi ${customer}, a gentle reminder regarding ${
         job.work
-      }. ₹${baki.toLocaleString("en-IN")} is pending. Thank you.`;
+      }. ${money(baki)} is pending. Thank you.`;
     }
     return `Hi ${customer}, a gentle reminder regarding: ${reminder.text}`;
   }
@@ -4129,6 +4118,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     notificationPermission,
   ]);
 
+  const legacyWorkspaceReadOnly = loggedIn && ready && !ledgerModeForAccount(accountId || "");
+
   return (
     <>
       {!navigationReady && (
@@ -4139,7 +4130,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         </div>
       )}
       <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
-        {!isOnline && (
+        {legacyWorkspaceReadOnly && (
+          <div className="offline-banner" role="status" aria-label="Workspace read-only">
+            {LEGACY_WORKSPACE_READ_ONLY_MESSAGE}
+          </div>
+        )}
+        {!isOnline && !legacyWorkspaceReadOnly && (
           <div className="offline-banner" role="status">
             <span className="offline-dot" /> Offline · changes are saved on this
             device
@@ -5804,6 +5800,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                             {customerJobs.map((j, index) => (
                               <details
                                 className="saved-detail-card customer-saved-card hisaab-history-card"
+                                data-entry-id={j.id}
                                 key={`${accountId}-${selectedCustomer}-${
                                   j.id || "entry"
                                 }-${j.date || "saved"}-${index}`}
@@ -5868,6 +5865,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                     Due: {j.date || "Not set"}
                                     {j.time ? " · " + j.time : ""}
                                   </p>
+                                  <HisaabEntryPhoto
+                                    key={`${accountId}:${j.id}`}
+                                    ownerId={accountId}
+                                    entryId={j.id}
+                                    canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
+                                  />
+                                  <HisaabPayments
+                                    payments={payments.filter(payment => payment.jobId === j.id && payment.customer === j.customer)}
+                                    readOnly={!ledgerModeForAccount(accountId || "") || cloudWriteConflictForAccount(accountId || "")}
+                                    onCorrect={openEditPayment}
+                                    onViewLedger={ledgerModeForAccount(accountId || "") ? () => setTab("Reports") : undefined}
+                                  />
                                   <div
                                     className="entry-status-chips"
                                     aria-label="Work status"

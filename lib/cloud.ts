@@ -86,7 +86,7 @@ class CloudRequestError extends Error {
 }
 export function isRetryableCloudError(error: unknown) {
   if (error instanceof CloudRequestError) return error.status >= 500;
-  if (error instanceof Error && /^(INVALID_|ACCOUNT_CHANGED|WORKSPACE_REVISION_CONFLICT|LEDGER_|JOB_|PAYMENT_|CHARGE_|REUSED_)/.test(error.message)) return false;
+  if (error instanceof Error && /^(INVALID_|ACCOUNT_CHANGED|WORKSPACE_REVISION_CONFLICT|LEGACY_|LEDGER_|JOB_|PAYMENT_|CHARGE_|REUSED_)/.test(error.message)) return false;
   return true;
 }
 
@@ -177,6 +177,10 @@ export async function loadCloudState(): Promise<CloudWorkspaceState> {
   return { ownerId, snapshot: rows[0]?.payload ?? null, revision: Number.isSafeInteger(revision) ? revision : null, ledgerEnabled };
 }
 
+export function cloudWriteConflictForAccount(ownerId: string) { return saveStates.get(ownerId)?.conflict === true; }
+
+export const LEGACY_WORKSPACE_READ_ONLY_MESSAGE = "This workspace is read-only until safe, revision-checked saving is available. Your existing records are preserved.";
+
 export function ledgerModeForAccount(ownerId: string) { return saveStates.get(ownerId)?.ledgerEnabled === true; }
 
 export async function loadReportLedger(ownerId: string): Promise<LedgerRow[]> {
@@ -222,8 +226,9 @@ export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {
     if (state.conflict) throw new Error("WORKSPACE_REVISION_CONFLICT: cloud data changed. Your local copy was kept; reload only after resolving the conflict.");
     const current = await accountSession(ownerId);
     if (!state.ledgerEnabled) {
-      await request("/rest/v1/rpc/save_workspace", { payload: snapshot }, current.access_token);
-      return;
+      // Whole snapshots contain financial data even when the latest edit is a note.
+      // Never fall back to an unrevisioned write or change the account's ledger mode.
+      throw new Error("LEGACY_WORKSPACE_READ_ONLY: " + LEGACY_WORKSPACE_READ_ONLY_MESSAGE);
     }
     if (!isSnapshot(snapshot) || !state.revision) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
     async function atomicSave(payload: unknown, revision: number) {

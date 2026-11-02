@@ -1,3 +1,4 @@
+import { formatMoneyPaise, paiseDecimal } from "./money";
 import type { Snapshot } from "./data";
 
 export type LedgerRow = {
@@ -15,7 +16,7 @@ export type ReportTransaction = {
 export type Report = { rows: ReportTransaction[]; warnings: string[]; activeOutstandingPaise: number };
 export type ReportFilter = { from: string; to: string; search: string; kind: string; sort: "date" | "amount" | "customer"; descending: boolean };
 export const defaultReportFilter: ReportFilter = { from: "", to: "", search: "", kind: "all", sort: "date", descending: true };
-export const formatReportMoney = (paise: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 }).format(paise / 100);
+export const formatReportMoney = formatMoneyPaise;
 function integer(value: number | string) {
   if (typeof value === "string" && !/^\d+$/.test(value)) throw Error("Invalid ledger amount.");
   const amount = Number(value);
@@ -132,5 +133,5 @@ export function selectReport(report: Report, filter: ReportFilter) {
 }
 export function reportCsv(rows: ReportTransaction[]) {
   const cell = (value: string) => '"' + (!/^-?\d+(?:\.\d+)?$/.test(value) && /^[\s]*[=+\-@\t\r]/.test(value) ? "'" : "") + value.replaceAll('"', '""') + '"';
-  return '\uFEFF' + ["Date (UTC),Customer,Type,Amount INR,Sales effect INR,Payment effect INR,History,Description", ...rows.map(row => [row.day, row.customer, row.kind, (row.amountPaise / 100).toFixed(2), row.unclassified ? "" : (row.salesEffect / 100).toFixed(2), row.unclassified ? "" : (row.paymentEffect / 100).toFixed(2), row.historical ? "Historical / unlinked" : "Active work", row.description].map(cell).join(","))].join("\r\n");
+  return '\uFEFF' + ["Date (UTC),Customer,Type,Amount INR,Sales effect INR,Payment effect INR,History,Description", ...rows.map(row => [row.day, row.customer, row.kind, paiseDecimal(row.amountPaise), row.unclassified ? "" : paiseDecimal(row.salesEffect), row.unclassified ? "" : paiseDecimal(row.paymentEffect), row.historical ? "Historical / unlinked" : "Active work", row.description].map(cell).join(","))].join("\r\n");
 }

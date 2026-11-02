@@ -6,6 +6,22 @@ const vm = require("node:vm");
 const path = require("node:path");
 const ts = require("typescript");
 
+test("queued concurrent payments cannot retry past a revision conflict", async () => {
+  const h = harness();
+  await h.api.loadCloudState();
+  const first = snapshot([{ id: "job", customer: "Fictional Customer", total: 100, paid: 10 }], [{ id: "p1", jobId: "job", customer: "Fictional Customer", amount: 10 }]);
+  const second = snapshot([{ ...first.jobs[0], paid: 20 }], [...first.payments, { id: "p2", jobId: "job", customer: "Fictional Customer", amount: 10 }]);
+  h.api.markLedgerDirty("fictional-a", second);
+  h.state.rpc = async () => h.fail(400, "WORKSPACE_REVISION_CONFLICT", "P0001");
+  const results = await Promise.allSettled([
+    h.api.saveCloud(first, "fictional-a"), h.api.saveCloud(second, "fictional-a"),
+  ]);
+  assert.equal(results.filter(result => result.status === "rejected").length, 2);
+  assert.equal(h.requests.filter(item => item.endpoint.endsWith("save_workspace_with_ledger")).length, 1);
+  assert.equal(h.api.cloudWriteConflictForAccount("fictional-a"), true);
+  assert.equal(JSON.stringify(h.api.readLedgerDirty("fictional-a").snapshot), JSON.stringify(second));
+});
+
 const source = fs.readFileSync(path.join(__dirname, "../lib/cloud.ts"), "utf8");
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -150,11 +166,11 @@ test("account switch cannot route a former owner's save to the new owner", async
   assert.equal(h.requests.some((item) => item.endpoint.includes("/rpc/")), false);
 });
 
-test("legacy schema without the mode table keeps the legacy save path; denied mode query fails closed", async () => {
+test("PB-04 missing ledger mode table remains readable but rejects unrevisioned writes; denied query fails closed", async () => {
   const legacy = harness({ mode: "missing" });
   assert.equal((await legacy.api.loadCloudState()).ledgerEnabled, false);
-  await legacy.api.saveCloud(snapshot(), "fictional-a");
-  assert.equal(legacy.requests.some((item) => item.endpoint.endsWith("/rpc/save_workspace")), true);
+  await assert.rejects(legacy.api.saveCloud(snapshot(), "fictional-a"), /LEGACY_WORKSPACE_READ_ONLY/);
+  assert.equal(legacy.requests.some((item) => item.endpoint.includes("/rpc/")), false);
   const denied = harness({ mode: "denied" });
   await assert.rejects(denied.api.loadCloudState(), /permission denied/);
   assert.equal(denied.requests.some((item) => item.endpoint.includes("/rpc/")), false);
@@ -253,4 +269,38 @@ test("backup history fetched for one account is rejected if the account switches
   h.state.switchDuringBackups = true;
   await assert.rejects(h.api.loadWorkspaceBackups("fictional-a"), /ACCOUNT_CHANGED/);
   assert.equal(h.requests.find((item) => item.endpoint.includes("workspace_backups")).token, "Bearer fictional-a-token");
+});
+
+
+test("PB-04 concurrent legacy sessions cannot upload financial or nonfinancial snapshots", async () => {
+  const original = snapshot([{ id: "j", customer: "Fictional", total: 100, paid: 20 }], [{ id: "p", jobId: "j", amount: 20 }]);
+  const a = harness({ mode: false, initial: original }), b = harness({ mode: false, initial: original });
+  await Promise.all([a.api.loadCloudState(), b.api.loadCloudState()]);
+  const results = await Promise.allSettled([
+    a.api.saveCloud(snapshot([{ ...original.jobs[0], paid: 50 }]), "fictional-a"),
+    b.api.saveCloud({ ...original, owner: "A nonfinancial profile edit" }, "fictional-a"),
+    a.api.saveCloud({ ...original, notes: [{ id: "note", customer: "Fictional", text: "Note" }] }, "fictional-a"),
+  ]);
+  assert.equal(results.length, 3);
+  for (const [index, result] of results.entries()) {
+    assert.equal(result.status, "rejected");
+    assert.match(result.reason.message, /LEGACY_WORKSPACE_READ_ONLY/);
+    assert.equal([a, b, a][index].api.isRetryableCloudError(result.reason), false);
+  }
+  for (const h of [a, b]) {
+    assert.equal(h.requests.filter(item => item.endpoint.includes("/rpc/")).length, 0);
+    assert.equal(JSON.stringify(h.state.payload), JSON.stringify(original));
+    assert.equal(h.state.revision, 1);
+  }
+});
+
+test("PB-04 legacy restriction neither activates ledger nor discards pending recovery", async () => {
+  const storage = new Map([["pakki-baat-ledger-dirty:fictional-a", JSON.stringify({ snapshot: snapshot(), revision: 3 })]]);
+  const before = storage.get("pakki-baat-ledger-dirty:fictional-a");
+  const h = harness({ mode: false, storage });
+  await h.api.loadCloudState();
+  await assert.rejects(h.api.saveCloud(snapshot(), "fictional-a"), /read-only/);
+  assert.equal(storage.get("pakki-baat-ledger-dirty:fictional-a"), before);
+  assert.equal(h.api.ledgerModeForAccount("fictional-a"), false);
+  assert.equal(h.requests.some(item => item.body !== null), false);
 });

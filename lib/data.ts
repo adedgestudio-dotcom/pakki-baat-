@@ -1,3 +1,4 @@
+import { formatMoneyRupees } from "./money";
 export type Job = {
   id: string;
   customer: string;
@@ -188,7 +189,7 @@ export function calendarFile(j: Job) {
       ? `DTSTART:${date}T${j.time.replace(":", "")}00`
       : `DTSTART;VALUE=DATE:${date}`,
     `SUMMARY:${escape(j.customer + ": " + j.work)}`,
-    `DESCRIPTION:${escape(`Balance to collect: INR ${j.total - j.paid}`)}`,
+    `DESCRIPTION:${escape(`Balance to collect: ${formatMoneyRupees(j.total - j.paid)}`)}`,
     "BEGIN:VALARM",
     "TRIGGER:-PT1H",
     "ACTION:DISPLAY",

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev",
-    "build": "next build",
+    "build": "node scripts/check-release-dependencies.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "push:keys": "node scripts/generate-vapid.mjs"
