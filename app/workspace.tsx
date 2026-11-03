@@ -620,6 +620,7 @@ export default function Workspace() {
         );
         return;
       }
+      await loadCloudState().catch(() => null); // pick up ledger mode enabled by the subscription trigger
       const [subscription, serverTime] = await Promise.all([
         loadSubscription(),
         loadServerTime(),
@@ -4131,8 +4132,14 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       )}
       <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
         {legacyWorkspaceReadOnly && (
-          <div className="offline-banner" role="status" aria-label="Workspace read-only">
-            {LEGACY_WORKSPACE_READ_ONLY_MESSAGE}
+          <div
+            className="offline-banner offline-banner-wrap"
+            role="status"
+            aria-label="Workspace read-only"
+          >
+            {isOnline
+              ? "Adding and editing is paused while your account is updated. Your entries are safe."
+              : "You're offline. You can view your entries. Adding new ones works again when you're back online."}
           </div>
         )}
         {!isOnline && !legacyWorkspaceReadOnly && (

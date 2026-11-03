@@ -7591,6 +7591,20 @@ select:focus-visible {
   font-size: 9px;
   font-weight: 750;
 }
+.offline-banner.offline-banner-wrap {
+  max-width: min(420px, calc(100vw - 36px));
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  border-radius: 14px;
+}
+@media (max-width: 800px) {
+  .offline-banner.offline-banner-wrap {
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    text-align: center;
+  }
+}
 .offline-dot {
   width: 7px;
   height: 7px;
