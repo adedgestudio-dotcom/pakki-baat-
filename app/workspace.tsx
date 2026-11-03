@@ -9,6 +9,7 @@ import AudioPlayer from "./audio-player";
 import Reports from "./reports";
 import HisaabPayments from "./hisaab-payments";
 import HisaabEntryPhoto from "./hisaab-entry-photo";
+import SignedOutState from "./signed-out-state";
 import { formatMoneyRupees } from "@/lib/money";
 import {
   canOfferTrial,
@@ -4120,6 +4121,17 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   ]);
 
   const legacyWorkspaceReadOnly = loggedIn && ready && !ledgerModeForAccount(accountId || "");
+  // Shown only after the session check finishes, so signed-in users never see it flash.
+  const signedOut = ready && !loggedIn;
+  const signedOutCard = (title: string, text: string) =>
+    signedOut && (
+      <SignedOutState
+        title={title}
+        text={text}
+        onSignIn={() => void startGoogleSignIn()}
+        canSignIn={cloudConfigured}
+      />
+    );
 
   return (
     <>
@@ -4131,6 +4143,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         </div>
       )}
       <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
+        {/* On phones the banner and the toast share one bottom stack so they never overlap. */}
+        <div className="status-stack">
         {legacyWorkspaceReadOnly && (
           <div
             className="offline-banner offline-banner-wrap"
@@ -4148,6 +4162,17 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             device
           </div>
         )}
+        {toast && (
+          <div className="toast" role="status">
+            <span>{toast}</span>
+            {lastUndo?.message === toast && (
+              <button type="button" onClick={undoLastAction}>
+                Undo
+              </button>
+            )}
+          </div>
+        )}
+        </div>
         <aside className="sidebar">
           <button className="brand" onClick={() => go("Today")}>
             <span className="brand-mark">
@@ -4445,7 +4470,20 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </div>
           )}
           <div className="content">
-            {tab === "Reports" && (
+            {tab === "Reports" && signedOut && (
+              <>
+                <div className="page-heading">
+                  <div>
+                    <h1>Reports</h1>
+                  </div>
+                </div>
+                {signedOutCard(
+                  "Sign in to see your reports",
+                  "Your sales, payments and baki add up here once you sign in."
+                )}
+              </>
+            )}
+            {tab === "Reports" && !signedOut && (
               <Reports
                 key={`${accountId}:${loadedAccountId}:${ready}`}
                 ownerId={
@@ -4488,6 +4526,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <p>Let’s make room for the work you love.</p>
                   </div>
                 </div>
+                {signedOutCard(
+                  "Sign in to keep your day in one place",
+                  "Your entries, payments and reminders stay safe in your account and open on any phone."
+                )}
                 {hasActiveSubscription && subscriptionPlan && (
                   <button
                     type="button"
@@ -5084,6 +5126,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <span>Add reminder</span>
                   </button>
                 </div>
+                {signedOutCard(
+                  "Sign in so reminders reach you",
+                  "Once you sign in, reminders can alert you even when Pakki Baat is closed."
+                )}
                 <section className="reminder-page-summary">
                   <div>
                     <span className="reminder-summary-icon">
@@ -5343,6 +5389,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                             </button>
                           </div>
                         </div>
+                        {signedOutCard(
+                          "Sign in to keep your hisaab safe",
+                          "Your customers and entries are saved to your account, so nothing is lost if you change phones."
+                        )}
                         <label className="search customer-search">
                           <Icon name="search" />
                           <input
@@ -8680,16 +8730,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
               </form>
             </section>
-          </div>
-        )}
-        {toast && (
-          <div className="toast" role="status">
-            <span>{toast}</span>
-            {lastUndo?.message === toast && (
-              <button type="button" onClick={undoLastAction}>
-                Undo
-              </button>
-            )}
           </div>
         )}
       </div>
