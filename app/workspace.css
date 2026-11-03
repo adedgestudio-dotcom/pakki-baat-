@@ -13393,6 +13393,10 @@ footer .footer-separator {
 .hisaab-payment-history small, .hisaab-payment-history p { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .hisaab-payment-history button { min-height: 44px; }
 .hisaab-payment-history button:disabled { opacity: .6; cursor: not-allowed; }
+.hisaab-payment-history .hisaab-payment-help { margin: -4px 0 4px; }
+.hisaab-payment-history li { flex-wrap: nowrap; padding: 6px 0; }
+.hisaab-payment-history .hisaab-payment-line { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.hisaab-payment-history .hisaab-fix-amount { flex: none; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--teal); font-size: 12px; font-weight: 700; white-space: nowrap; }
 /* A single private, online-only attachment; financial entry layout is unchanged. */
 .hisaab-entry-photo { border: 1px solid var(--line, #d7dfda); border-radius: 12px; padding: 12px; margin: 12px 0; display: grid; gap: 8px; min-width: 0; }
 .hisaab-entry-photo > small { opacity: .75; line-height: 1.5; }

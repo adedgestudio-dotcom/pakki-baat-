@@ -7947,8 +7947,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               >
                 <Icon name="close" />
               </button>
-              <span className="eyebrow">EDIT PAYMENT</span>
-              <h2 id="edit-payment-title">{editingPayment.customer}</h2>
+              <span className="eyebrow">{editingPayment.customer}</span>
+              <h2 id="edit-payment-title">Fix this payment</h2>
               <p>
                 {editingPayment.date}
                 {editingPayment.note ? " · " + editingPayment.note : ""}
@@ -7975,7 +7975,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 }}
               >
                 <label>
-                  Corrected amount (₹)
+                  Correct amount
                   <input
                     autoFocus
                     inputMode="decimal"
@@ -7997,7 +7997,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </small>
                 </label>
                 <label>
-                  Reason for correction{" "}
+                  Why are you fixing it?{" "}
                   <span style={{ color: "#e74c3c" }}>*</span>
                   <select
                     value={editPaymentReason}
@@ -8085,7 +8085,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Number(editPaymentAmount) < 0
                   }
                 >
-                  Save correction
+                  Save fix
                 </button>
                 <button
                   type="button"

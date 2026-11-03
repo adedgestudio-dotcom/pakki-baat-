@@ -73,8 +73,8 @@ test('PB-01 visible payment row invokes the existing correction handler with its
   let corrected, audit = 0;
   const tree = Payments({ payments: [payment], readOnly: false, onCorrect: p => { corrected = p; }, onViewLedger: () => audit++ });
   const actions = buttons(tree);
-  actions.find(b => b.props.children === 'Correct payment').props.onClick();
-  actions.find(b => b.props.children === 'View ledger history').props.onClick();
+  actions.find(b => b.props.children === 'Fix amount').props.onClick();
+  actions.find(b => b.props.children === 'See history of changes').props.onClick();
   assert.equal(corrected, payment); assert.equal(audit, 1);
   const historyStart = workspace.indexOf('<h2>History</h2>');
   const historyEnd = workspace.indexOf('</details>', historyStart);
@@ -90,8 +90,8 @@ test('PB-01 legacy/conflicted rows are disabled and correction rationale is visi
 });
 test('PB-01 removed payment retains access to immutable ledger history', () => {
   const html = renderToStaticMarkup(React.createElement(Payments, { payments: [], readOnly: false, onCorrect() {}, onViewLedger() {} }));
-  assert.ok(html.includes('No payment records')); assert.ok(html.includes('View ledger history'));
-  assert.ok(!html.includes('Correct payment'));
+  assert.ok(html.includes('No payment records')); assert.ok(html.includes('See history of changes'));
+  assert.ok(!html.includes('Fix amount'));
 });
 test('PB-01 correction ledger reconciles with History, Reports and CSV without discarding original events', () => {
   const owner = 'synthetic-owner';
