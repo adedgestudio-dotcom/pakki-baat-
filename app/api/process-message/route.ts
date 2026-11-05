@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { consumeAiUsage } from "@/lib/ai-usage";
+import { normalizeSpokenAmounts } from "@/lib/spoken-amounts";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_KEY || "";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     });
     if (!usageResult.ok) {
       return NextResponse.json(
-        { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
+        { error: "AI account check is temporarily unavailable. Your Hisaab is safe — please try again." },
         { status: 503 }
       );
     }
@@ -84,11 +85,11 @@ export async function POST(request: NextRequest) {
     if (currentCommitment.work)
       knownFields.push(`work: ${currentCommitment.work}`);
     if (currentCommitment.total !== undefined)
-      knownFields.push(`total: â‚¹${currentCommitment.total}`);
+      knownFields.push(`total: ₹${currentCommitment.total}`);
     if (currentCommitment.paid !== undefined)
-      knownFields.push(`paid: â‚¹${currentCommitment.paid}`);
+      knownFields.push(`paid: ₹${currentCommitment.paid}`);
     if (currentCommitment.balance !== undefined)
-      knownFields.push(`balance: â‚¹${currentCommitment.balance}`);
+      knownFields.push(`balance: ₹${currentCommitment.balance}`);
     if (currentCommitment.date)
       knownFields.push(`date: ${currentCommitment.date}`);
     if (currentCommitment.time)
@@ -136,6 +137,8 @@ Rules:
 10. Extract dates in YYYY-MM-DD format when possible
 11. Extract time in HH:MM format when possible
 12. If user confirms (says "yes", "confirmed", "okay"), set confirmed: true
+13. Amounts may be spoken in Hindi words: sau = 100, hazaar = 1000, lakh = 100000, dedh = 1.5, dhai = 2.5 ("do hazaar paanch sau" = 2500). "rupaye", "rupees", "rs" and "₹" mark money. A number followed by l, ltr, litre, ml, kg, g, gm, dozen or pcs is a quantity, never money.
+14. In Hindi/Hinglish, "<name> ne ..." or "<name> ka/ki/ke ..." usually names the customer ("Ravi ne 500 ka kaam diya" means customer: Ravi, total: 500).
 
 Return format:
 {
@@ -162,7 +165,15 @@ The nextQuestion should ask for the MOST IMPORTANT missing field:
 - If everything is known but not confirmed: ask for confirmation
 - If confirmed: return null (we're done)`;
 
-    const userPrompt = `Customer context: ${customerContext || "none"}\nUser message: "${message}"${contextText}
+    // Spoken Hindi amounts and Devanagari digits as plain digits, e.g.
+    // "do hazaar paanch sau" -> "2500". The model sees both versions.
+    const normalizedMessage = normalizeSpokenAmounts(message);
+    const normalizedText =
+      normalizedMessage !== message
+        ? `\nSame message with spoken amounts as digits: "${normalizedMessage}"`
+        : "";
+
+    const userPrompt = `Customer context: ${customerContext || "none"}\nUser message: "${message}"${normalizedText}${contextText}
 
 Extract information and determine the next question.`;
 
@@ -250,16 +261,16 @@ Extract information and determine the next question.`;
 
         // Recover common shorthand used in small-business hisaab messages.
         // Example: "2kg cake 1000 rs pending 2000" => balance 1000, total 2000.
-        const compact = message.toLowerCase().replace(/,/g, "");
-        const pendingBefore = compact.match(/(?:â‚¹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/);
-        const pendingAfter = compact.match(/(?:pending|baki|balance|remaining)\s*(?:â‚¹\s*)?(\d+(?:\.\d+)?)/);
+        const compact = normalizedMessage.toLowerCase().replace(/,/g, "");
+        const pendingBefore = compact.match(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?|rupaye)?\s*(?:pending|baki|baaki|balance|remaining)\b/);
+        const pendingAfter = compact.match(/(?:pending|baki|baaki|balance|remaining)\s*(?:₹\s*)?(\d+(?:\.\d+)?)/);
         const balanceHint = Number((pendingBefore?.[1] || pendingAfter?.[1] || "").trim()) || undefined;
-        const moneyCandidates = Array.from(compact.matchAll(/(?:â‚¹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?)?/g))
+        const moneyCandidates = Array.from(compact.matchAll(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(?:rs\.?|rupees?|rupaye)?/g))
           .map(match => ({ value: Number(match[1]), index: match.index || 0, raw: match[0] }))
           .filter(item => Number.isFinite(item.value) && item.value >= 100)
           .filter(item => {
             const after = compact.slice(item.index + item.raw.length, item.index + item.raw.length + 8);
-            return !/^\s*(kg|g|gm|grams?|pcs?|pieces?)\b/.test(after);
+            return !/^\s*(kg|g|gm|grams?|pcs?|pieces?|l|ltrs?|litres?|liters?|ml|dozen|dz)\b/.test(after);
           });
         const distinctMoney = Array.from(new Set(moneyCandidates.map(item => item.value)));
         if (balanceHint !== undefined && (!Number.isFinite(Number(ext.balance)) || Number(ext.balance) <= 0)) {
@@ -272,12 +283,13 @@ Extract information and determine the next question.`;
         if (Number(ext.total) > 0 && Number(ext.balance) >= 0 && (!Number.isFinite(Number(ext.paid)) || Number(ext.paid) <= 0)) {
           ext.paid = Math.max(0, Number(ext.total) - Number(ext.balance));
         }
-        if (typeof ext.work === "string" && balanceHint !== undefined && (ext.work.trim().toLowerCase() === message.trim().toLowerCase() || /\b(pending|baki|balance|remaining|rs\.?|rupees?)\b/i.test(ext.work))) {
-          let cleaned = message
-            .replace(/(?:â‚¹\s*)?\d+(?:[.,]\d+)?\s*(?:rs\.?|rupees?)?\s*(?:pending|baki|balance|remaining)\b/ig, " ")
-            .replace(/(?:pending|baki|balance|remaining)\s*(?:â‚¹\s*)?\d+(?:[.,]\d+)?/ig, " ");
+        const workLower = typeof ext.work === "string" ? ext.work.trim().toLowerCase() : "";
+        if (typeof ext.work === "string" && balanceHint !== undefined && (workLower === message.trim().toLowerCase() || workLower === normalizedMessage.trim().toLowerCase() || /\b(pending|baki|baaki|balance|remaining|rs\.?|rupees?|rupaye)\b/i.test(ext.work))) {
+          let cleaned = normalizedMessage
+            .replace(/(?:₹\s*)?\d+(?:[.,]\d+)?\s*(?:rs\.?|rupees?|rupaye)?\s*(?:pending|baki|baaki|balance|remaining)\b/ig, " ")
+            .replace(/(?:pending|baki|baaki|balance|remaining)\s*(?:₹\s*)?\d+(?:[.,]\d+)?/ig, " ");
           const totalHint = Number(ext.total) || 0;
-          if (totalHint > 0) cleaned = cleaned.replace(new RegExp(`(?:â‚¹\\s*)?${totalHint}(?:\\.0+)?\\s*(?:rs\\.?|rupees?)?`, "ig"), " ");
+          if (totalHint > 0) cleaned = cleaned.replace(new RegExp(`(?:₹\\s*)?${totalHint}(?:\\.0+)?\\s*(?:rs\\.?|rupees?|rupaye)?`, "ig"), " ");
           cleaned = cleaned.replace(/\s+/g, " ").trim();
           if (cleaned) ext.work = cleaned;
         }

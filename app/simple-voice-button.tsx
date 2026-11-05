@@ -311,7 +311,7 @@ export default function SimpleVoiceButton({
         className={isRecording ? "whatsapp-mic-button recording" : "whatsapp-mic-button"}
         onClick={handleClick}
         aria-label={isRecording ? "Stop recording" : "Record voice note"}
-        title={isRecording ? `Stop recording (${duration}s)` : "Record voice note"}
+        title={isRecording ? `Stop recording (${duration}s)` : "Voice (beta)"}
       >
         {isRecording ? (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

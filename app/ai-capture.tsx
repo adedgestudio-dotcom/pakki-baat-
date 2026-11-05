@@ -15,6 +15,7 @@ export default function AiCapture({ message, onMessageChange, onDraft, onSendVoi
   const [voiceNote, setVoiceNote] = useState<File | null>(null);
   const [voiceUrl, setVoiceUrl] = useState("");
   const [voiceTranscribed, setVoiceTranscribed] = useState(false);
+  const [heard, setHeard] = useState("");
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,6 +52,7 @@ export default function AiCapture({ message, onMessageChange, onDraft, onSendVoi
   async function extract(file?: File, mode: "extract" | "transcribe" = "extract") {
     setBusy(true);
     setError("");
+    setHeard("");
     try {
       const token = await cloudToken();
       const form = new FormData();
@@ -73,6 +75,7 @@ export default function AiCapture({ message, onMessageChange, onDraft, onSendVoi
         return;
       }
       const draft = result.draft;
+      if (typeof result.transcript === "string" && result.transcript.trim()) setHeard(result.transcript.trim());
       if (file) clearVoice();
       onDraft({
         id: "",
@@ -207,9 +210,10 @@ export default function AiCapture({ message, onMessageChange, onDraft, onSendVoi
       <button type="button" className="voice-send-primary" disabled={busy || externalBusy} onClick={() => void sendVoice()}>{busy ? "Sending voice…" : "Send voice in chat →"}</button>
       <audio controls src={voiceUrl} aria-label="Play recorded voice note"/>
       {voiceTranscribed && <small>Transcript ready in the message box. Review it, then send this voice note.</small>}
-      <div className="voice-actions"><button type="button" onClick={downloadVoice}>Download</button><button type="button" onClick={clearVoice}>Discard</button>{enabled && <button type="button" disabled={busy || externalBusy || voiceNote.size > 2_000_000} onClick={() => void extract(voiceNote, "transcribe")}>{busy ? "Transcribing…" : "Transcribe with Groq"}</button>}{enabled && <button type="button" disabled={busy || externalBusy || voiceNote.size > 2_000_000} onClick={() => void extract(voiceNote)}>{busy ? "Reading…" : "Read details with AI"}</button>}</div>
+      <div className="voice-actions"><button type="button" onClick={downloadVoice}>Download</button><button type="button" onClick={clearVoice}>Discard</button>{enabled && <button type="button" disabled={busy || externalBusy || voiceNote.size > 2_000_000} onClick={() => void extract(voiceNote, "transcribe")}>{busy ? "Transcribing…" : "Transcribe with Groq"}</button>}{enabled && <button type="button" disabled={busy || externalBusy || voiceNote.size > 2_000_000} onClick={() => void extract(voiceNote)}>{busy ? "Reading…" : "Read details with AI"} <span className="beta-tag">Beta</span></button>}</div>
       <small>{enabled ? "Send voice posts your recording in this chat and sends it to Groq for transcription. The audio stays on this device for playback." : "Send voice posts your recording in this chat. AI transcription needs server setup before it can read what you said."}</small>
     </div>}
+    {heard && <p className="voice-heard" aria-live="polite">Heard: “{heard}”</p>}
     {error && <p className="voice-error" role="alert">{error}</p>}
   </div>;
 }

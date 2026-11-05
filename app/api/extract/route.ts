@@ -106,6 +106,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Screenshots are not sent to the model yet, so do not pretend to read one
+    // (and do not consume an AI call for it).
+    if (file instanceof File && file.type.startsWith("image/")) {
+      return Response.json(
+        { error: "Reading screenshots isn't available yet. Please type the details." },
+        { status: 422 }
+      );
+    }
+
     if (!(file instanceof File) && !text.trim()) {
       return Response.json({ error: "Add a message first." }, { status: 400 });
     }
@@ -152,7 +161,7 @@ export async function POST(req: NextRequest) {
       });
       if (!usageResult.ok) {
         return Response.json(
-          { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
+          { error: "AI account check is temporarily unavailable. Your Hisaab is safe — please try again." },
           { status: 503 }
         );
       }
@@ -184,7 +193,7 @@ export async function POST(req: NextRequest) {
       });
       if (!usageResult.ok) {
         return Response.json(
-          { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
+          { error: "AI account check is temporarily unavailable. Your Hisaab is safe — please try again." },
           { status: 503 }
         );
       }
@@ -195,6 +204,7 @@ export async function POST(req: NextRequest) {
     }
 
     let transcript = text;
+    let heard: string | null = null;
 
     // Transcribe audio if provided
     if (file instanceof File && !file.type.startsWith("image/")) {
@@ -229,6 +239,7 @@ export async function POST(req: NextRequest) {
 
       const transcriptResult = await trans.json();
       transcript = String(transcriptResult.text || "").trim();
+      heard = transcript.slice(0, 6000);
       const groqDuration = Number(transcriptResult.duration);
       console.log("âœ… Transcribed:", transcript.substring(0, 100));
 
@@ -260,7 +271,7 @@ export async function POST(req: NextRequest) {
         });
         if (!commitUsage.ok) {
           return Response.json(
-            { error: "AI account check is temporarily unavailable. Your Hisaab is safe â€” please try again." },
+            { error: "AI account check is temporarily unavailable. Your Hisaab is safe — please try again." },
             { status: 503 }
           );
         }
@@ -344,7 +355,8 @@ Rules:
 
     console.log("âœ… Extracted:", output.substring(0, 200));
     const draft = JSON.parse(output);
-    return Response.json({ draft });
+    // `transcript` is what Whisper heard (audio only), so the UI can show it.
+    return Response.json(heard === null ? { draft } : { draft, transcript: heard });
   } catch (e) {
     console.error("âŒ Error:", e);
     return Response.json(

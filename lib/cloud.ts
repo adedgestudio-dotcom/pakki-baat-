@@ -43,7 +43,10 @@ async function configuredClient() {
 export async function signInWithGoogle() {
   const { error } = await (await configuredClient()).auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: window.location.origin + "/" },
+    options: {
+      redirectTo: window.location.origin + "/",
+      queryParams: { prompt: "select_account" },
+    },
   });
   if (error) throw error;
 }
