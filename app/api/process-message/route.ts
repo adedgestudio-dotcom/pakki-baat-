@@ -2,6 +2,8 @@
 import { consumeAiUsage } from "@/lib/ai-usage";
 import { normalizeSpokenAmounts } from "@/lib/spoken-amounts";
 
+export const maxDuration = 30;
+
 const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_KEY || "";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
 const DEPRECATED_GROQ_MODELS = new Set(["llama-3.1-8b-instant","llama-3.3-70b-versatile"]);
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     const systemPrompt = `You are Pakki Baat's friendly small-business assistant. Today is ${
       today || new Date().toISOString().slice(0, 10)
-    }. Help users who may be more comfortable with WhatsApp and a handwritten hisaab book.\n\nIf customerContext is provided, the user is already inside that customer's book. Use that customer automatically and never ask their name again.
+    }. Help users who may be more comfortable with WhatsApp and a handwritten hisaab book.\n\nIf customerContext is provided, the user is already inside that customer's book. Use that customer automatically and never ask their name again, unless the message clearly names a different customer for a new order or payment: then put that name in extracted.customer.
 
 First detect whether the message is mainly:
 - a REMINDER request (for example: remind me tomorrow to call Sakina; every Friday remind me to check baki) - a PAYMENT UPDATE (for example: "paid 500", "gave another 1000", "received 300")
@@ -139,6 +141,7 @@ Rules:
 12. If user confirms (says "yes", "confirmed", "okay"), set confirmed: true
 13. Amounts may be spoken in Hindi words: sau = 100, hazaar = 1000, lakh = 100000, dedh = 1.5, dhai = 2.5 ("do hazaar paanch sau" = 2500). "rupaye", "rupees", "rs" and "₹" mark money. A number followed by l, ltr, litre, ml, kg, g, gm, dozen or pcs is a quantity, never money.
 14. In Hindi/Hinglish, "<name> ne ..." or "<name> ka/ki/ke ..." usually names the customer ("Ravi ne 500 ka kaam diya" means customer: Ravi, total: 500).
+15. When a name carries an honorific such as bhai, bhaiya, ji, sahab, saab, didi, behen, madam or sir, return the name without it ("Imran bhai" means customer: Imran; "Sharma ji" means customer: Sharma).
 
 Return format:
 {
@@ -197,6 +200,8 @@ Extract information and determine the next question.`;
           temperature: 0.1,
           response_format: { type: "json_object" },
         }),
+        // Give up before the client's 30-second timeout so the user gets a clear answer.
+        signal: AbortSignal.timeout(25000),
       }
     );
 
@@ -329,6 +334,9 @@ Extract information and determine the next question.`;
 
       return NextResponse.json({
         updated,
+        // Fields found in THIS message only (after amount recovery), so the
+        // client can tell a new entry from an answer to the open card.
+        extracted: parsed.extracted ?? null,
         nextQuestion: parsed.nextQuestion,
         isComplete: !parsed.nextQuestion && updated.confirmed,
       });
@@ -341,6 +349,13 @@ Extract information and determine the next question.`;
     );
   } catch (error) {
     console.error("âŒ Error processing message:", error);
+    const errorName = (error as { name?: string } | null)?.name;
+    if (errorName === "TimeoutError" || errorName === "AbortError") {
+      return NextResponse.json(
+        { error: "Pakki Baat took too long to answer. Please try again." },
+        { status: 504 }
+      );
+    }
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
 

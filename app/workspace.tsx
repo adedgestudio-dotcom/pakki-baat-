@@ -63,6 +63,12 @@ import {
   type CustomerNote,
   type Snapshot,
 } from "@/lib/data";
+import {
+  canonicalCustomer,
+  freshEntry,
+  startsNewEntry,
+  type ExtractedCommitment,
+} from "@/lib/chat-entry";
 import type { Session } from "@supabase/supabase-js";
 type Tab =
   | "Today"
@@ -83,6 +89,8 @@ type ChatTurn = {
   voiceId?: string;
   duration?: number;
   customer?: string;
+  undoId?: string; // "Started a new entry" reply -> Undo
+  retryText?: string; // failed request -> Try again (the original message)
 };
 type ChatStep = "customer" | "total" | "paid" | "date" | "ready";
 type ChatState = { turns: ChatTurn[]; pending: Job | null; step: ChatStep };
@@ -116,6 +124,11 @@ function isChatState(value: unknown): value is ChatState {
         (!turn.voiceId ||
           (typeof turn.voiceId === "string" && turn.voiceId.length <= 100)) &&
         (turn.customer === undefined || typeof turn.customer === "string") &&
+        (turn.undoId === undefined ||
+          (typeof turn.undoId === "string" && turn.undoId.length <= 100)) &&
+        (turn.retryText === undefined ||
+          (typeof turn.retryText === "string" &&
+            turn.retryText.length <= 6000)) &&
         (turn.duration === undefined ||
           (Number.isFinite(turn.duration) &&
             turn.duration >= 0 &&
@@ -141,6 +154,8 @@ const blank = (): Job => ({
   createdAt: new Date().toISOString(),
 });
 const money = formatMoneyRupees;
+// Client-side limit for one assistant reply; the server gives up at 25 s.
+const ASSISTANT_TIMEOUT_MS = 30_000;
 const day = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
@@ -253,6 +268,14 @@ export default function Workspace() {
     [pendingReminderText, setPendingReminderText] = useState(""),
     [chatStep, setChatStep] = useState<ChatStep>("customer"),
     [chatTurns, setChatTurns] = useState<ChatTurn[]>([]),
+    // The card that "Started a new entry for X" replaced, so Undo can bring it back.
+    [replacedEntry, setReplacedEntry] = useState<{
+      id: string;
+      pending: Job;
+      customer: string | null;
+    } | null>(null),
+    // Replies shown in a customer's book start after this turn (set when the entry opens).
+    [entryReplyFloorId, setEntryReplyFloorId] = useState<string | null>(null),
     [voiceUrls, setVoiceUrls] = useState<Record<string, string>>({}),
     [voiceBusy, setVoiceBusy] = useState(false),
     [query, setQuery] = useState(""),
@@ -402,6 +425,9 @@ export default function Workspace() {
   const entryDraftRestoredForUserRef = useRef<string | null>(null);
   const chatHistoryHydratedForUserRef = useRef<string | null>(null);
   const pendingJobRef = useRef<Job | null>(null);
+  // One assistant request at a time; a second send would merge into a stale card.
+  const assistantInFlightRef = useRef(false);
+  const chatTurnsRef = useRef<ChatTurn[]>([]);
   const selectedCustomerRef = useRef<string | null>(null);
   const customerChatOpenRef = useRef(false);
   const messageRef = useRef("");
@@ -452,6 +478,13 @@ export default function Workspace() {
   useEffect(() => {
     pendingJobRef.current = pendingJob;
   }, [pendingJob]);
+  useEffect(() => {
+    chatTurnsRef.current = chatTurns;
+  }, [chatTurns]);
+  useEffect(() => {
+    // Each time an entry opens, only replies from now on appear in its reply strip.
+    if (customerChatOpen) setEntryReplyFloorId(chatTurnsRef.current.at(-1)?.id ?? null);
+  }, [customerChatOpen]);
   useEffect(() => {
     selectedCustomerRef.current = selectedCustomer;
   }, [selectedCustomer]);
@@ -2433,6 +2466,7 @@ export default function Workspace() {
     source: "text" | "voice"
   ) {
     if (!requireActiveSubscriptionForSaving()) return;
+    let claimed = false;
     try {
       if (!navigator.onLine) {
         const offlineDraft: Job = {
@@ -2450,30 +2484,62 @@ export default function Workspace() {
         );
         return;
       }
+      if (assistantInFlightRef.current) {
+        setChatTurns((turns) =>
+          [
+            ...turns,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant" as const,
+              text: "I'm still working on your last message. Tap Try again when it's done.",
+              customer: selectedCustomer || undefined,
+              retryText: message,
+            },
+          ].slice(-80)
+        );
+        return;
+      }
+      assistantInFlightRef.current = true;
+      claimed = true;
       console.log(`📨 Processing ${source} message:`, message);
 
-      const token = await cloudToken();
-      const response = await fetch("/api/process-message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({
-          message: pendingReminderText
-            ? `${pendingReminderText}. Follow-up: ${message}`
-            : message,
-          pending: pendingJob,
-          today: day(),
-          customerContext: selectedCustomer || undefined,
-        }),
-      });
-
-      const result = await response.json().catch(() => ({}));
+      const controller = new AbortController();
+      const timer = window.setTimeout(
+        () => controller.abort(),
+        ASSISTANT_TIMEOUT_MS
+      );
+      const { response, result } = await (async () => {
+        try {
+          const token = await cloudToken();
+          const response = await fetch("/api/process-message", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify({
+              message: pendingReminderText
+                ? `${pendingReminderText}. Follow-up: ${message}`
+                : message,
+              pending: pendingJob,
+              today: day(),
+              customerContext: selectedCustomer || undefined,
+            }),
+            signal: controller.signal,
+          });
+          const result = await response.json().catch(() => ({}));
+          return { response, result };
+        } finally {
+          window.clearTimeout(timer);
+        }
+      })();
+      // A body cut off by the timeout must not be treated as an empty success.
+      if (controller.signal.aborted)
+        throw Object.assign(new Error("Timed out"), { name: "AbortError" });
       if (!response.ok) {
         const reason = String(result.error || "Failed to process message");
         console.error("❌ Assistant API failed:", response.status, result);
-        throw new Error(reason);
+        throw Object.assign(new Error(reason), { status: response.status });
       }
       console.log("✅ Processing result:", result);
 
@@ -2678,6 +2744,32 @@ export default function Workspace() {
         return;
       }
 
+      // A full entry for a different customer starts a new card instead of
+      // being merged into the open one. Short answers still update the card.
+      const raw = (result.extracted ?? null) as ExtractedCommitment | null;
+      if (pendingJob && startsNewEntry(pendingJob, selectedCustomer, raw)) {
+        const customer = canonicalCustomer(String(raw!.customer), customerNames);
+        const undoId = crypto.randomUUID();
+        setReplacedEntry({ id: undoId, pending: pendingJob, customer: selectedCustomer });
+        // Save writes into the selected customer's book, so follow the new customer.
+        if (selectedCustomer) setSelectedCustomer(customer);
+        setPendingJob(freshEntry(raw!, customer, crypto.randomUUID(), message));
+        setChatStep("ready");
+        setChatTurns((turns) =>
+          [
+            ...turns,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant" as const,
+              text: `Started a new entry for ${customer}.`,
+              undoId,
+              customer: selectedCustomer ? customer : undefined,
+            },
+          ].slice(-80)
+        );
+        return;
+      }
+
       const extracted = result.updated || {};
       const item: Job = {
         ...blank(),
@@ -2696,12 +2788,66 @@ export default function Workspace() {
       setChatStep("ready");
     } catch (error) {
       console.error("❌ Error processing message:", error);
-      const reason = error instanceof Error ? error.message : "Unknown error";
-      say(
-        "assistant",
-        "I heard your message, but I could not process it: " + reason
+      const name = (error as { name?: string } | null)?.name;
+      const status = Number((error as { status?: number } | null)?.status) || 0;
+      const timedOut = name === "AbortError" || name === "TimeoutError";
+      // Timeouts, network failures, rate limits and server errors are worth retrying.
+      const retryable =
+        timedOut || name === "TypeError" || status === 429 || status >= 500;
+      const reason = timedOut
+        ? "Pakki Baat took more than 30 seconds to answer."
+        : error instanceof Error && error.message
+        ? error.message
+        : "Something went wrong.";
+      setChatTurns((turns) =>
+        [
+          ...turns,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant" as const,
+            text: `I couldn't finish that. ${reason}${
+              retryable ? " Your message is kept — tap Try again." : ""
+            }`,
+            customer: selectedCustomer || undefined,
+            ...(retryable ? { retryText: message } : {}),
+          },
+        ].slice(-80)
       );
+    } finally {
+      if (claimed) assistantInFlightRef.current = false;
     }
+  }
+
+  function retryAssistant(turnId: string, text: string) {
+    setChatTurns((turns) =>
+      turns.map((turn) =>
+        turn.id === turnId ? { ...turn, retryText: undefined } : turn
+      )
+    );
+    // Resends the text only, so a voice note's minutes are never charged twice.
+    void processAssistantMessage(text, "text");
+  }
+
+  function undoNewEntry(undoId: string) {
+    const previous = replacedEntry;
+    if (!previous || previous.id !== undoId) return;
+    if (previous.customer) setSelectedCustomer(previous.customer);
+    setPendingJob(previous.pending);
+    setChatStep("ready");
+    setReplacedEntry(null);
+    setChatTurns((turns) =>
+      [
+        ...turns,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant" as const,
+          text: `Undone. Back to ${
+            previous.pending.customer || previous.customer
+          }'s entry.`,
+          customer: previous.customer || undefined,
+        },
+      ].slice(-80)
+    );
   }
 
   function savePendingEntry(item: Job) {
@@ -2863,6 +3009,7 @@ export default function Workspace() {
       ]);
     }
     setPendingJob(null);
+    setReplacedEntry(null);
     setPendingReminderText("");
     setChatStep("customer");
     setMessage("");
@@ -4896,6 +5043,31 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                 : "Pakki Baat"}
                             </span>
                             <div className="chat-turn-text">{turn.text}</div>
+                            {((turn.undoId &&
+                              turn.undoId === replacedEntry?.id) ||
+                              turn.retryText) && (
+                              <div className="chat-turn-actions">
+                                {turn.undoId &&
+                                  turn.undoId === replacedEntry?.id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => undoNewEntry(turn.undoId!)}
+                                    >
+                                      Undo
+                                    </button>
+                                  )}
+                                {turn.retryText && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      retryAssistant(turn.id, turn.retryText!)
+                                    }
+                                  >
+                                    Try again
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             {turn.voiceId && (
                               <div className="chat-voice">
                                 <small>
@@ -5633,6 +5805,56 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                   Try: “2 kg chocolate cake, ₹5,000 total,
                                   ₹2,000 received, Sunday 5 PM.”
                                 </p>
+                                {(() => {
+                                  // Latest assistant reply for this book since the entry opened.
+                                  const floor = entryReplyFloorId
+                                    ? chatTurns.findIndex(
+                                        (turn) => turn.id === entryReplyFloorId
+                                      )
+                                    : -1;
+                                  const last = chatTurns
+                                    .slice(floor + 1)
+                                    .filter(
+                                      (turn) =>
+                                        turn.role === "assistant" &&
+                                        turn.customer === selectedCustomer
+                                    )
+                                    .at(-1);
+                                  if (!last) return null;
+                                  return (
+                                    <div
+                                      className="entry-assistant-reply"
+                                      role="status"
+                                      aria-live="polite"
+                                    >
+                                      <p>{last.text}</p>
+                                      {last.undoId &&
+                                        last.undoId === replacedEntry?.id && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              undoNewEntry(last.undoId!)
+                                            }
+                                          >
+                                            Undo
+                                          </button>
+                                        )}
+                                      {last.retryText && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            retryAssistant(
+                                              last.id,
+                                              last.retryText!
+                                            )
+                                          }
+                                        >
+                                          Try again
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                                 {pendingJob?.work?.trim() && (
                                   <article className="smart-preview-card">
                                     <div className="smart-preview-title">
@@ -5659,6 +5881,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                             setPendingReminderText("");
                                             setChatStep("customer");
                                             setReceivedAmountTouched(false);
+                                            // Otherwise focus/pageshow restores the discarded card.
+                                            clearEntryDraft();
                                           }}
                                         >
                                           ×

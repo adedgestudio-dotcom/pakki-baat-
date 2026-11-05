@@ -191,7 +191,7 @@ export default function ChatComposer({
                 maxLength={6000}
               />
 
-              <div className="smart-compose-tool left">{uploadControl}</div>
+              {/* Attach is hidden until uploads in chat are supported; the picked file was never used. */}
               <div className="smart-compose-tool right">
                 {message.trim() ? (
                   sendControl

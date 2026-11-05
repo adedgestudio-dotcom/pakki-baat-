@@ -13450,3 +13450,10 @@ footer .footer-separator {
 /* Small text-only "Beta" badge next to voice features. */
 .beta-tag { display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 999px; background: #e3f1ea; color: #255f53; font-size: 10px; font-weight: 700; line-height: 1.4; letter-spacing: 0.02em; vertical-align: middle; text-transform: none; }
 [data-theme="dark"] .beta-tag { background: #29453a; color: #bfe0d1; }
+/* Latest assistant reply inside a customer's book, with Undo / Try again. */
+.entry-assistant-reply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; padding: 10px 12px; border: 1px solid #cfe3d9; border-radius: 12px; background: #eef6f2; color: #22312b; font-size: 13px; line-height: 1.45; }
+.entry-assistant-reply p { flex: 1 1 200px; margin: 0; overflow-wrap: anywhere; }
+.entry-assistant-reply button, .chat-turn-actions button { min-height: 36px; padding: 0 14px; border-radius: 999px; background: #255f53; color: #fff; font-size: 13px; font-weight: 700; }
+.chat-turn-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+[data-theme="dark"] .entry-assistant-reply { border-color: #35574b; background: #1f2f29; color: #e3efe9; }
+[data-theme="dark"] .entry-assistant-reply button, [data-theme="dark"] .chat-turn-actions button { background: #8fd0bf; color: #11201b; }
