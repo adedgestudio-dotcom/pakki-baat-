@@ -120,6 +120,20 @@ test('a network failure is retryable', async () => {
   assert.equal(context.assistantInFlightRef.current, false);
 });
 
+test('the server "hiccup" reply (502, retryable) gets Try again and the friendly text', async () => {
+  const { context, state } = harness({ fetch: async () => reply(502, { error: 'The assistant had a hiccup. Please try again.', retryable: true, upstreamStatus: 400 }) });
+  await context.processAssistantMessage('Asha ne brownie ka order diya', 'text');
+  assert.match(state.turns.at(-1).text, /The assistant had a hiccup\. Please try again\./);
+  assert.doesNotMatch(state.turns.at(-1).text, /json_validate_failed|Failed to validate JSON/);
+  assert.equal(state.turns.at(-1).retryText, 'Asha ne brownie ka order diya');
+});
+
+test('any reply the server flags as retryable gets Try again, whatever its status', async () => {
+  const { context, state } = harness({ fetch: async () => reply(400, { error: 'Temporary problem', retryable: true }) });
+  await context.processAssistantMessage('hello', 'text');
+  assert.equal(state.turns.at(-1).retryText, 'hello');
+});
+
 test('a 403 shows the reason without Try again', async () => {
   const { context, state } = harness({ fetch: async () => reply(403, { error: 'Your Pakki Baat subscription is not active.' }) });
   await context.processAssistantMessage('hello', 'text');
@@ -242,7 +256,8 @@ test('a customer book shows the latest reply with Undo and Try again', () => {
 
 test('process-message: server timeout, extracted fields and prompt rules', () => {
   const route = read('app/api/process-message/route.ts');
-  assert.match(route, /signal: AbortSignal\.timeout\(25000\)/);
+  assert.match(route, /const groqDeadline = AbortSignal\.timeout\(25000\)/);
+  assert.match(route, /signal: groqDeadline/);
   assert.match(route, /status: 504/);
   assert.match(route, /extracted: parsed\.extracted \?\? null/);
   assert.match(route, /unless the message clearly names a different customer for a new order or payment/);

@@ -10,7 +10,7 @@ const compiled = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../lib
 }).outputText;
 const mod = { exports: {} };
 vm.runInNewContext(compiled, { module: mod, exports: mod.exports, Date });
-const { startsNewEntry, canonicalCustomer, freshEntry, sameCustomer } = mod.exports;
+const { startsNewEntry, canonicalCustomer, freshEntry, sameCustomer, pickEntryReply } = mod.exports;
 
 const ravi = { customer: 'Ravi', work: 'kaam' };
 
@@ -76,4 +76,60 @@ test('freshEntry ignores negative or invalid amounts', () => {
   const entry = freshEntry({ work: 'y', total: -5, paid: 'abc' }, 'X', 'id', 's');
   assert.equal(entry.total, 0);
   assert.equal(entry.paid, 0);
+});
+
+// ---------------- reply strip selection (pickEntryReply) ----------------
+
+const me = (id, customer) => ({ id, role: 'me', customer });
+const bot = (id, customer, extra = {}) => ({ id, role: 'assistant', customer, ...extra });
+
+test('pickEntryReply: switching customer shows "Started a new entry" with Undo, even at the floor', () => {
+  const turns = [
+    bot('r1', 'Ravi'),
+    me('m1', 'Ravi'),
+    bot('started', 'Asha', { text: 'Started a new entry for Asha.', undoId: 'u1' }),
+  ];
+  // Floor reset onto the bubble itself (the production symptom): still shown while Undo is live.
+  assert.equal(pickEntryReply(turns, 'Asha', 'started', 'u1')?.id, 'started');
+  // Floor before the bubble: shown as well.
+  assert.equal(pickEntryReply(turns, 'Asha', 'm1', 'u1')?.id, 'started');
+  // Once Undo is no longer live, it is an ordinary old reply and the floor hides it.
+  assert.equal(pickEntryReply(turns, 'Asha', 'started', 'other'), undefined);
+  assert.equal(pickEntryReply(turns, 'Asha', 'started', null), undefined);
+});
+
+test('pickEntryReply: an old plain reply is hidden', () => {
+  const turns = [bot('old', 'Ravi', { text: 'Entry saved ✓' }), me('opened', 'Ravi')];
+  assert.equal(pickEntryReply(turns, 'Ravi', 'opened', null), undefined);
+  assert.equal(pickEntryReply(turns, 'Ravi', 'old', null), undefined);
+});
+
+test('pickEntryReply: an old error without retryText is hidden', () => {
+  const turns = [bot('err', 'Ravi', { text: "I couldn't finish that. Your Pakki Baat subscription is not active." }), me('opened', 'Ravi')];
+  assert.equal(pickEntryReply(turns, 'Ravi', 'opened', null), undefined);
+});
+
+test('pickEntryReply: a reply with Try again is shown, even from before the floor', () => {
+  const turns = [bot('retry', 'Ravi', { text: "I couldn't finish that.", retryText: 'Ravi ne 500 ka kaam diya' }), me('opened', 'Ravi')];
+  assert.equal(pickEntryReply(turns, 'Ravi', 'opened', null)?.id, 'retry');
+});
+
+test('pickEntryReply: a plain reply after the floor is shown and the newest wins', () => {
+  const turns = [
+    bot('retry', 'Ravi', { retryText: 'x' }),
+    me('opened', 'Ravi'),
+    bot('fresh', 'Ravi', { text: 'Reminder set ✓' }),
+  ];
+  assert.equal(pickEntryReply(turns, 'Ravi', 'opened', null)?.id, 'fresh');
+});
+
+test("pickEntryReply: another customer's reply is never shown", () => {
+  const turns = [me('opened', 'Ravi'), bot('asha', 'Asha', { retryText: 'x' }), bot('none', undefined, { text: 'assistant tab' })];
+  assert.equal(pickEntryReply(turns, 'Ravi', 'opened', null), undefined);
+});
+
+test('pickEntryReply: with no floor, or a floor turn that is gone, every turn counts', () => {
+  const turns = [bot('a', 'Ravi', { text: 'hello' })];
+  assert.equal(pickEntryReply(turns, 'Ravi', null, null)?.id, 'a');
+  assert.equal(pickEntryReply(turns, 'Ravi', 'trimmed-away', null)?.id, 'a');
 });

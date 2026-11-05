@@ -1,6 +1,11 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { consumeAiUsage } from "@/lib/ai-usage";
 import { normalizeSpokenAmounts } from "@/lib/spoken-amounts";
+import {
+  ASSISTANT_HICCUP_MESSAGE,
+  isJsonValidationText,
+  withJsonValidationRetry,
+} from "@/lib/groq-retry";
 
 export const maxDuration = 30;
 
@@ -183,9 +188,13 @@ Extract information and determine the next question.`;
     console.log("ðŸ¤– Calling Groq for message:", message);
     console.log("ðŸ“‹ Current commitment:", currentCommitment);
 
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
+    // One deadline shared by the first call and the retry, so the whole Groq
+    // step gives up before the client's 30-second timeout.
+    const groqDeadline = AbortSignal.timeout(25000);
+    // Groq's JSON mode occasionally rejects its own output (400
+    // json_validate_failed); that request is retried once.
+    const response = await withJsonValidationRetry(() =>
+      fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -200,14 +209,20 @@ Extract information and determine the next question.`;
           temperature: 0.1,
           response_format: { type: "json_object" },
         }),
-        // Give up before the client's 30-second timeout so the user gets a clear answer.
-        signal: AbortSignal.timeout(25000),
-      }
+        signal: groqDeadline,
+      })
     );
 
     if (!response.ok) {
       const upstream = await response.text();
       console.error("âŒ Groq API error:", response.status, upstream);
+      if (isJsonValidationText(response.status, upstream)) {
+        // Still failing after the retry: friendly text only, never Groq's raw message.
+        return NextResponse.json(
+          { error: ASSISTANT_HICCUP_MESSAGE, retryable: true, upstreamStatus: response.status },
+          { status: 502 }
+        );
+      }
       let message = `Groq API error: ${response.status}`;
       try {
         const parsed = JSON.parse(upstream);

@@ -66,6 +66,7 @@ import {
 import {
   canonicalCustomer,
   freshEntry,
+  pickEntryReply,
   startsNewEntry,
   type ExtractedCommitment,
 } from "@/lib/chat-entry";
@@ -2539,7 +2540,11 @@ export default function Workspace() {
       if (!response.ok) {
         const reason = String(result.error || "Failed to process message");
         console.error("❌ Assistant API failed:", response.status, result);
-        throw Object.assign(new Error(reason), { status: response.status });
+        throw Object.assign(new Error(reason), {
+          status: response.status,
+          // The server marks transient failures (e.g. a Groq JSON hiccup) as retryable.
+          retryable: result.retryable === true,
+        });
       }
       console.log("✅ Processing result:", result);
 
@@ -2792,8 +2797,14 @@ export default function Workspace() {
       const status = Number((error as { status?: number } | null)?.status) || 0;
       const timedOut = name === "AbortError" || name === "TimeoutError";
       // Timeouts, network failures, rate limits and server errors are worth retrying.
+      const flaggedRetryable =
+        (error as { retryable?: boolean } | null)?.retryable === true;
       const retryable =
-        timedOut || name === "TypeError" || status === 429 || status >= 500;
+        flaggedRetryable ||
+        timedOut ||
+        name === "TypeError" ||
+        status === 429 ||
+        status >= 500;
       const reason = timedOut
         ? "Pakki Baat took more than 30 seconds to answer."
         : error instanceof Error && error.message
@@ -5806,20 +5817,14 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                   ₹2,000 received, Sunday 5 PM.”
                                 </p>
                                 {(() => {
-                                  // Latest assistant reply for this book since the entry opened.
-                                  const floor = entryReplyFloorId
-                                    ? chatTurns.findIndex(
-                                        (turn) => turn.id === entryReplyFloorId
-                                      )
-                                    : -1;
-                                  const last = chatTurns
-                                    .slice(floor + 1)
-                                    .filter(
-                                      (turn) =>
-                                        turn.role === "assistant" &&
-                                        turn.customer === selectedCustomer
-                                    )
-                                    .at(-1);
+                                  // Latest reply for this book: plain replies only since the
+                                  // entry opened; Undo / Try again replies whenever still live.
+                                  const last = pickEntryReply(
+                                    chatTurns,
+                                    selectedCustomer,
+                                    entryReplyFloorId,
+                                    replacedEntry?.id
+                                  );
                                   if (!last) return null;
                                   return (
                                     <div

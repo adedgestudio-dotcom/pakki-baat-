@@ -64,3 +64,38 @@ export function freshEntry(raw: ExtractedCommitment, customer: string, id: strin
     createdAt: new Date().toISOString(),
   };
 }
+
+/** The parts of a chat turn the reply strip needs. */
+export type ReplyTurn = {
+  id: string;
+  role: "me" | "assistant";
+  customer?: string;
+  undoId?: string;
+  retryText?: string;
+};
+
+/**
+ * Which assistant reply the strip in a customer's book shows.
+ * - Only replies for this customer count.
+ * - A reply with a live action (Try again, or an Undo whose id is the active
+ *   replaced entry) is always eligible, even if it arrived before the floor.
+ * - A plain reply is shown only if it came after the floor (the last turn when
+ *   the entry was opened). If the floor turn is gone, every turn counts.
+ * The newest eligible reply wins.
+ */
+export function pickEntryReply<T extends ReplyTurn>(
+  turns: T[],
+  customer: string | null,
+  floorId: string | null,
+  activeUndoId: string | null | undefined
+): T | undefined {
+  const floor = floorId ? turns.findIndex((turn) => turn.id === floorId) : -1;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i];
+    if (turn.role !== "assistant" || (turn.customer ?? null) !== customer) continue;
+    const liveUndo = Boolean(turn.undoId) && turn.undoId === activeUndoId;
+    const liveRetry = Boolean(turn.retryText);
+    if (liveUndo || liveRetry || i > floor) return turn;
+  }
+  return undefined;
+}
