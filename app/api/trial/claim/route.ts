@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createHash } from "crypto";
+import { adminLink, ownerAlertLines, sendAdminAlert } from "@/lib/admin-notify";
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,6 +42,22 @@ export async function POST(request: NextRequest) {
     const raw = await rpc.text();
     if (!rpc.ok) return NextResponse.json({ error: "Could not check free trial" }, { status: 500 });
     const result = raw ? JSON.parse(raw) : null;
+    // Owner alert only for a new successful claim; repeats return early in
+    // claim_trial with a different reason. Runs after the response is sent.
+    if (result?.allowed === true && result?.reason === "trial_claimed") {
+      const alert = {
+        title: "New free trial claimed",
+        lines: ownerAlertLines({
+          type: "Free trial",
+          plan: "Trial (30 days)",
+          amount: 0,
+          reference: "none (free trial)",
+          email: normalizedEmail,
+          adminUrl: adminLink(request.url),
+        }),
+      };
+      after(() => sendAdminAlert(alert));
+    }
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "Could not check free trial" }, { status: 500 });

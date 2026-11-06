@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createHash } from "crypto";
+import { adminLink, ownerAlertLines, sendAdminAlert } from "@/lib/admin-notify";
 
 const allowedPlans:Record<string,number>={Basic:99,Smart:179,Business:299};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,6 +43,12 @@ export async function POST(request:NextRequest){
   if(!reserve.ok){const detail=await reserve.text();if(detail.includes("PAYMENT_REQUEST_IDEMPOTENCY_CONFLICT"))return NextResponse.json({error:"This payment submission key was already used with different details."},{status:409});return NextResponse.json({error:"Could not submit payment. Please try again."},{status:500});}
   const rows=await reserve.json(),saved=Array.isArray(rows)?rows[0]:null;
   if(!saved?.id||saved.proof_path!==proofPath)return NextResponse.json({error:"Could not reserve payment submission. Please try again."},{status:500});
+  if(saved.created===true){
+    // Owner alert for a NEW request only (an idempotent retry has created=false).
+    // It runs after the response is sent and never carries the proof URL or image.
+    const alert={title:`New payment request: ${plan} ₹${allowedPlans[plan]}`,lines:[...ownerAlertLines({type:"Payment request",plan,amount:allowedPlans[plan],reference:transactionRef||"none (screenshot only)",email:String(user.email||""),adminUrl:adminLink(request.url)}),"Screenshot: "+(proofBytes?"attached (view it in Admin)":"not attached")]};
+    after(()=>sendAdminAlert(alert));
+  }
   if(proofBytes&&proofPath){
     const objectUrl=`${base}/storage/v1/object/payment-proofs/${proofPath}`;
     const exists=await fetch(objectUrl,{method:"HEAD",headers:{apikey:service,Authorization:`Bearer ${service}`}});
