@@ -277,3 +277,26 @@
 .user-plan-row>div,.usage-grid>div,.manage-panel label,.admin-plan-apply-row{min-width:0}
 .user-plan-row strong,.usage-grid strong{overflow-wrap:anywhere}
 .admin-card .admin-stats span{color:#a3ead6}
+
+
+/* Compact phone layout; touch targets remain at least 44px. */
+.admin-brand-logo{display:block;width:36px;height:36px;flex-shrink:0;border-radius:9px}
+.admin-topbar>div:first-child{min-width:0}
+.admin-topbar>div:first-child>div{min-width:0}
+.admin-topbar small{overflow-wrap:anywhere}
+.admin-install button{min-height:44px;padding:8px 14px;border:1px solid #75af9f;border-radius:10px;background:#2d7667;color:white;font-weight:700}
+.admin-install p{font-size:13px;color:#c8d5ce}
+.admin-heading{gap:16px;flex-wrap:wrap}
+@media(max-width:639px){
+ .admin-shell .admin-topbar{min-height:60px;padding-top:calc(8px + env(safe-area-inset-top,0px));padding-bottom:8px;flex-wrap:wrap}
+ .admin-topbar>div:first-child{flex:1}
+ .admin-topbar small{font-size:11px}
+ .admin-tabs{height:calc(60px + env(safe-area-inset-bottom,0px))}
+ .admin-tabs button{font-size:13px}
+ .admin-shell .admin-card,.admin-home .admin-card,.admin-shell .user-card,.payment-card,.admin-stats article{padding:14px}
+ .admin-stats strong,.month-usage strong{font-size:26px}
+ .payment-amount{font-size:24px}
+ .admin-home,.admin-stats,.month-usage,.user-grid,.payment-grid{gap:12px}
+ .admin-shell .admin-wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+ .admin-feedback{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+}
