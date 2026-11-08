@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type SetStateAction } from "react";
 import { paymentPaise, paymentRupees, validateEntryMoney, planQuickPayment, planPaymentCorrection, type FinancialState } from "@/lib/payment-safety";
+import { version as appVersion } from "@/package.json";
 import "./workspace.css";
 import "./connections.css";
 import CloudSettings from "./cloud-settings";
@@ -4951,6 +4952,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -5287,6 +5289,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -5498,6 +5501,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6557,6 +6561,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6804,6 +6809,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6910,6 +6916,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6968,6 +6975,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -7282,6 +7290,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     Zorivo
                   </a>
                   )
+                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}

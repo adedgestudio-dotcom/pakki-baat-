@@ -1,8 +1,10 @@
 import lock from "@/package-lock.json";
+import { version } from "@/package.json";
 
 export const runtime = "nodejs";
 export function GET() {
   return Response.json({
+    version,
     commit: process.env.VERCEL_GIT_COMMIT_SHA || null,
     environment: process.env.VERCEL_ENV || "local",
     supabaseProject: process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/)?.[1] || null,

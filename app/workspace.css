@@ -13457,3 +13457,10 @@ footer .footer-separator {
 .chat-turn-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 [data-theme="dark"] .entry-assistant-reply { border-color: #35574b; background: #1f2f29; color: #e3efe9; }
 [data-theme="dark"] .entry-assistant-reply button, [data-theme="dark"] .chat-turn-actions button { background: #8fd0bf; color: #11201b; }
+
+footer .app-version {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
