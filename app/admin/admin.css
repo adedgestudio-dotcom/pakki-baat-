@@ -159,3 +159,121 @@
 .admin-email-eye{width:30px!important;height:30px!important;min-width:30px;padding:6px!important;border-radius:9px!important;display:grid;place-items:center}
 .admin-email-eye svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8}
 .admin-email-eye:disabled{opacity:.45;cursor:default}
+/* Owner panel arrangement: mobile first, with desktop workspace columns. */
+.admin-shell{font-family:var(--font-inter,Inter),Arial,sans-serif;min-width:0;min-height:100dvh}
+.admin-shell [hidden]{display:none!important}
+.admin-shell button,.admin-shell a,.admin-shell summary,.admin-shell select{min-height:44px}
+.admin-shell button,.admin-shell a{min-width:44px}
+.admin-shell button{cursor:pointer}
+.admin-shell button:disabled{cursor:not-allowed}
+.admin-shell :focus-visible{outline:3px solid #9de0cc;outline-offset:3px}
+.admin-shell .admin-topbar{position:sticky;top:0;z-index:50;height:auto;min-height:76px;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));gap:8px}
+.admin-topbar strong{font-size:13px}
+.admin-topbar small{font-size:12px}
+.admin-topbar .admin-brand-mark{flex-shrink:0;width:30px;height:36px;background:#2d7667}
+.admin-topbar>div{gap:6px}
+.admin-topbar .admin-top-actions{gap:2px!important}
+.admin-topbar .admin-icon{position:relative;display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;min-width:44px;padding:10px;border:0;background:transparent;color:#edf3f0}
+.admin-icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.admin-badge{display:inline-grid;place-items:center;min-width:22px;min-height:22px;padding:2px 5px;border-radius:20px;background:#f2aaa5;color:#38201d;font:700 11px Inter,Arial,sans-serif}
+.admin-icon .admin-badge{position:absolute;right:0;top:0}
+.admin-shell .admin-wrap{max-width:1200px;width:100%;margin:auto;padding:24px max(16px,env(safe-area-inset-right,0px)) calc(96px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.admin-heading h1{font-size:clamp(24px,4vw,32px)}
+.admin-heading p{font-size:14px;line-height:1.5}
+.admin-tabs{position:fixed;bottom:0;left:0;right:0;z-index:60;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));height:calc(72px + env(safe-area-inset-bottom,0px));padding:0 max(16px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(16px,env(safe-area-inset-left,0px));background:#292f2c;border-top:1px solid #53605b}
+.admin-tabs button{display:flex;align-items:center;justify-content:center;gap:6px;background:transparent;color:#c8d5ce;border:0;border-top:3px solid transparent;font:600 14px Inter,Arial,sans-serif}
+.admin-tabs button[aria-current="page"]{color:#a3ead6;border-color:#67c7af;background:#243c34}
+.admin-home{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.admin-home>*{min-width:0}
+.admin-home .admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+.admin-stats article{min-width:0;padding:16px}
+.admin-stats strong,.month-usage strong,.payment-amount{font-family:Georgia,serif;font-variant-numeric:tabular-nums}
+.admin-stats strong{font-size:32px}
+.admin-stats .stat-pending{border-color:#c88078;background:#47322f}
+.admin-stats .stat-pending small,.admin-stats .stat-pending strong,.admin-stats .stat-pending span{color:#ffd0cb}
+.admin-home .admin-card{margin:0;padding:18px}
+.admin-card-head{gap:12px;flex-wrap:wrap}
+.admin-card-head>div{min-width:0}
+.admin-card-head .admin-help{line-height:1.6}
+.admin-month h2{margin:0}
+.month-usage{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+.month-usage>div{display:grid;gap:6px}
+.month-usage strong{font-size:36px}
+.month-usage span{color:#b9c5c0;font-size:13px}
+.admin-tools summary{display:flex;align-items:center;justify-content:space-between;font-weight:700;color:#a3ead6;cursor:pointer}
+.admin-tools summary:after{content:"+";font-size:24px}
+.admin-tools[open] summary:after{content:"−"}
+.admin-tools .admin-card-head{padding-top:16px;display:grid}
+.admin-tools button{justify-self:start;color:white;background:#2d7667;border:1px solid #75af9f}
+.payment-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:16px}
+.payment-card{min-width:0;padding:16px;border:1px solid #53605b;border-radius:14px;background:#282e2b}
+.payment-card-head{display:flex;align-items:start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.payment-card-head strong{font-size:14px;overflow-wrap:anywhere;min-width:0}
+.payment-card small{color:#b9c5c0}
+.payment-amount{font-size:30px;margin:18px 0}
+.payment-amount span{font:600 13px Inter,Arial,sans-serif;color:#b9c5c0;text-transform:capitalize}
+.payment-card dl{margin:0 0 16px;font-size:13px}
+.payment-card dl>div{display:flex;justify-content:space-between;gap:12px;margin-top:8px}
+.payment-card dt{color:#b9c5c0}
+.payment-card dd{margin:0;overflow-wrap:anywhere;min-width:0;text-align:right}
+.payment-card-actions{display:flex;flex-wrap:wrap;gap:8px}
+.payment-card-actions .row-actions{flex:1}
+.admin-shell .row-actions button{flex:1;min-width:80px;background:#2d7667;border-color:#75af9f;color:white;font-size:13px;font-weight:700}
+.admin-shell .row-actions .danger{background:#553532;color:#ffd0cb;border-color:#c88078}
+.status{font-size:12px;white-space:nowrap}
+.payment-filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.payment-filters button{padding:8px 14px;border-radius:24px;border:1px solid #53605b;background:#282e2b;color:#edf3f0;font-weight:600}
+.payment-filters button[aria-pressed="true"]{background:#2d7667;color:white;border-color:#75af9f}
+.payment-desktop{display:none}
+.admin-shell .user-grid{grid-template-columns:minmax(0,1fr)}
+.user-card-top{flex-wrap:wrap}
+.user-card .user-plan-row,.user-card .usage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.user-card .usage-grid>div:last-child{grid-column:1/-1}
+.user-card small{font-size:11px;letter-spacing:0}
+.user-card .user-identity span{font-size:12px}
+.user-card .admin-email-eye{width:44px!important;height:44px!important;min-width:44px;background:#37403c;color:#edf3f0;border:1px solid #53605b}
+.user-card .user-manage summary{min-height:44px}
+.admin-shell .admin-access-card .admin-pin-wrap .admin-pin-eye{width:44px!important;min-width:44px!important;height:44px!important}
+.admin-shell .admin-access-card .admin-pin-wrap .admin-pin{padding-right:58px!important}
+.admin-feedback{position:fixed;z-index:1400;bottom:calc(88px + env(safe-area-inset-bottom,0px));left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+.admin-feedback>div{max-width:560px;margin:auto;padding:16px;border:1px solid #75af9f;border-radius:12px;background:#243c34;color:#e1f9ef;box-shadow:0 8px 32px #0006;overflow-wrap:anywhere}
+.admin-feedback .admin-error{background:#553532;color:#ffd0cb;border-color:#c88078}
+.admin-shell .admin-dialog,.admin-shell .proof-card{max-height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto}
+.admin-shell .proof-head strong{overflow-wrap:anywhere}
+@media(min-width:640px){
+ .admin-shell .user-grid,.payment-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .admin-home{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .admin-needs{grid-column:1/-1}
+ .admin-tools{grid-column:1/-1}
+}
+@media(min-width:1024px){
+ .admin-shell .admin-topbar{padding-left:max(24px,calc((100% - 1168px)/2));padding-right:max(24px,calc((100% - 1168px)/2))}
+ .admin-topbar strong{font-size:16px}
+ .admin-shell .admin-wrap{padding-bottom:32px}
+ .admin-tabs{position:static;height:auto;padding:0;margin-bottom:28px;display:flex;gap:8px;border:0;border-bottom:1px solid #53605b;background:transparent}
+ .admin-tabs button{padding:12px 24px;border-top:0;border-bottom:3px solid transparent}
+ .admin-home{grid-template-columns:minmax(0,3fr) minmax(0,2fr);align-items:start}
+ .admin-needs{grid-column:1;grid-row:1/4}
+ .admin-needs .payment-grid{grid-template-columns:minmax(0,1fr)}
+ .admin-home .admin-stats{grid-column:2;grid-row:1}
+ .admin-month{grid-column:2;grid-row:2}
+ .admin-tools{grid-column:2;grid-row:3}
+ .payment-mobile{display:none}
+ .payment-desktop{display:block}
+ .admin-table-wrap table{min-width:0;table-layout:fixed}
+ .admin-table-wrap td,.admin-table-wrap th{overflow-wrap:anywhere;white-space:normal}
+ .admin-table-wrap th:first-child{width:20%}
+ .admin-table-wrap th:last-child{width:20%}
+ .admin-shell .user-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .admin-feedback{bottom:24px}
+}
+@media(min-width:1200px){.admin-shell .user-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:359px){
+ .admin-topbar .admin-brand-mark{width:24px;font-size:13px}
+ .admin-topbar>div{gap:4px}
+ .admin-topbar strong{font-size:12px}
+ .admin-topbar .admin-top-actions{gap:0!important}
+}
+.user-plan-row>div,.usage-grid>div,.manage-panel label,.admin-plan-apply-row{min-width:0}
+.user-plan-row strong,.usage-grid strong{overflow-wrap:anywhere}
+.admin-card .admin-stats span{color:#a3ead6}
