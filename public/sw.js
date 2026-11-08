@@ -3,10 +3,6 @@ const SHELL_CACHE = VERSION + "-shell";
 const RUNTIME_CACHE = VERSION + "-runtime";
 const CORE = ["/manifest.json", "/icon.svg", "/apple-icon.svg"];
 
-function isAdminPage(pathname) {
-  return pathname === "/admin" || pathname.startsWith("/admin/");
-}
-
 function criticalShellAssets(html) {
   return Array.from(html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)=["']([^"']+)["']/gi), (match) => match[1])
     .filter((url) => url.startsWith("/_next/static/") && /\.(?:js|css)(?:\?|$)/i.test(url))
@@ -71,17 +67,6 @@ self.addEventListener("activate", (event) => {
         .filter((name) => name.startsWith("pakki-baat-") && ![SHELL_CACHE, RUNTIME_CACHE].includes(name))
         .map((name) => caches.delete(name))
     );
-    // Remove owner pages cached by previous worker versions.
-    for (const name of await caches.keys()) {
-      if (!name.startsWith("pakki-baat-")) continue;
-      const cache = await caches.open(name);
-      for (const request of await cache.keys()) {
-        const pathname = new URL(request.url).pathname;
-        if (isAdminPage(pathname) || pathname.startsWith("/api/admin/") || pathname === "/api/admin") {
-          await cache.delete(request);
-        }
-      }
-    }
     await self.clients.claim();
   })());
 });
@@ -100,7 +85,6 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
-  if (isAdminPage(url.pathname)) return;
 
   if (request.mode === "navigate") {
     event.respondWith((async () => {

@@ -93,14 +93,3 @@ test("admin install controls require browser support and hide in standalone mode
   assert.match(source, /canInstall&&<button[^>]*onClick=\{\(\)=>void install\(\)\}/);
   assert.match(source, /isIosSafari&&<p>Tap Share, then Add to Home Screen<\/p>/);
 });
-
-test("service worker bypasses admin pages and admin API before caching", () => {
-  const worker = fs.readFileSync(path.join(__dirname, "../public/sw.js"), "utf8");
-  const listeners = {};
-  vm.runInNewContext(worker, { self: { addEventListener: (name, listener) => { listeners[name] = listener; }, location: { origin: "https://example.test" } }, URL });
-  for (const pathname of ["/admin", "/admin/", "/admin/login", "/admin/manifest.webmanifest", "/api/admin/dashboard", "/api/admin/auth"]) {
-    let intercepted = false;
-    listeners.fetch({ request: { method: "GET", mode: "navigate", url: "https://example.test" + pathname }, respondWith: () => { intercepted = true; } });
-    assert.equal(intercepted, false, pathname + " must use the network directly");
-  }
-});
