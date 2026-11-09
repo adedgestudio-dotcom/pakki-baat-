@@ -60,7 +60,7 @@ test("zero pending counts hide all three badges and the header uses the owner co
   assert.match(source, /const ADMIN_NAME="Sarrah Bharmal"/);
   assert.equal((source.match(/Sarrah Bharmal/g) || []).length, 1);
   assert.match(source, /<small>\{ADMIN_NAME\} · Admin<\/small>/);
-  assert.match(source, /<img className="admin-brand-logo" src="\/icon.svg" width="36" height="36" alt="Pakki Baat"\/>/);
+  assert.match(source, /<img className="admin-brand-logo" src="\/admin-icon.svg" width="36" height="36" alt="Pakki Baat"\/>/);
 });
 
 test("admin manifest has a separate identity, scope and existing icons", async () => {
@@ -76,11 +76,17 @@ test("admin manifest has a separate identity, scope and existing icons", async (
   for (const icon of manifest.icons) {
     assert.ok(fs.existsSync(path.join(__dirname, "../public", icon.src)));
   }
-  assert.ok(manifest.icons.some(icon => icon.sizes === "192x192" && icon.type === "image/png"));
+  assert.deepEqual(manifest.icons, [
+    { src: "/admin-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: "/admin-icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "/admin-icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    { src: "/admin-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+  ]);
   const { metadata } = loadTs("../app/admin/layout.tsx", { "react/jsx-runtime": {} });
   assert.equal(metadata.manifest, "/admin/manifest.webmanifest");
   assert.equal(metadata.appleWebApp.title, "PB Admin");
-  assert.ok(metadata.icons.apple);
+  assert.equal(metadata.icons.apple, "/admin-icon-192.png");
+  assert.equal(metadata.icons.icon, "/admin-icon.svg");
 });
 
 test("admin install controls require browser support and hide in standalone mode", () => {
@@ -89,7 +95,9 @@ test("admin install controls require browser support and hide in standalone mode
   assert.match(install, /removeEventListener\("beforeinstallprompt", capturePrompt\)/);
   assert.match(install, /canInstall: !!prompt && !standalone && !isIosSafari/);
   assert.match(install, /isIosSafari: isIosSafari && !standalone/);
+  assert.match(install, /showInstallFallback: !prompt && !standalone && !isIosSafari/);
   assert.match(install, /window.matchMedia\("\(display-mode: standalone\)"\)/);
   assert.match(source, /canInstall&&<button[^>]*onClick=\{\(\)=>void install\(\)\}/);
   assert.match(source, /isIosSafari&&<p>Tap Share, then Add to Home Screen<\/p>/);
+  assert.ok(source.includes("{showInstallFallback&&<p>To install: browser menu, then Install app (Chrome) or Add to Home Screen.</p>}"));
 });

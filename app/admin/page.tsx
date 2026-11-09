@@ -5,7 +5,7 @@ const ADMIN_NAME="Sarrah Bharmal";
 type D={stats:any;users:any[];payments:any[]};
 type Dialog={title:string;message:string;kind:"confirm"|"number"|"text";value?:string;placeholder?:string;confirmLabel:string;danger?:boolean;onConfirm:(value?:string)=>void};
 export default function AdminPage(){
- const {canInstall,isIosSafari,install,installing}=useAdminInstall();
+ const {canInstall,showInstallFallback,isIosSafari,install,installing}=useAdminInstall();
  const[ready,setReady]=useState(false),[unlocked,setUnlocked]=useState(false),[pin,setPin]=useState(""),[showEmails,setShowEmails]=useState(false),[revealedEmails,setRevealedEmails]=useState<Record<string,boolean>>({}),[planDrafts,setPlanDrafts]=useState<Record<string,string>>({}),[error,setError]=useState(""),[showPin,setShowPin]=useState(false),[data,setData]=useState<D|null>(null),[busy,setBusy]=useState(""),[proof,setProof]=useState<{url:string;email:string}|null>(null),[dialog,setDialog]=useState<Dialog|null>(null);
  const[tab,setTab]=useState("home"),[filter,setFilter]=useState("all"),[toast,setToast]=useState("");
  const running=useRef(false);
@@ -35,14 +35,14 @@ export default function AdminPage(){
  <dl><div><dt>Reference</dt><dd>{p.transaction_ref||"Not provided"}</dd></div><div><dt>Screenshot</dt><dd>{p.proof_path?"Yes":"No"}</dd></div></dl>
  <div className="payment-card-actions">{p.status==="pending"&&paymentActions(p)}{p.proof_path&&<button className="proof-link" disabled={!!busy} onClick={()=>openProof(p.proof_path,p.email||"Payment proof")}>View proof</button>}</div>
  </article>;
- return <main className="admin-shell"><header className="admin-topbar"><div><img className="admin-brand-logo" src="/icon.svg" width="36" height="36" alt="Pakki Baat"/><div><strong>Pakki Baat</strong><small>{ADMIN_NAME} · Admin</small></div></div><div className="admin-top-actions">
+ return <main className="admin-shell"><header className="admin-topbar"><div><img className="admin-brand-logo" src="/admin-icon.svg" width="36" height="36" alt="Pakki Baat"/><div><strong>Pakki Baat</strong><small>{ADMIN_NAME} · Admin</small></div></div><div className="admin-top-actions">
  <button className="admin-icon" aria-label={`Pending payments: ${pendingCount}`} onClick={()=>switchTab("payments")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0v5l2 3H4l2-3V9m4 11h4"/></svg>{pendingCount>0&&<span className="admin-badge">{pendingCount}</span>}</button>
  <button className="admin-icon" aria-label="Refresh" disabled={!!busy} onClick={()=>void refresh()}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 5v6h-6M20 11a8 8 0 1 0 0 5"/></svg></button>
  <a className="admin-icon" aria-label="Open app" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8M6 10v11h12V10M10 21v-7h4v7"/></svg></a>
  <button className="admin-icon" aria-label="Lock" disabled={!!busy} onClick={logout}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></button>
  </div></header><div className="admin-wrap">
  <nav className="admin-tabs" aria-label="Owner panel sections">{["home","payments","users"].map(item=><button key={item} aria-current={tab===item?"page":undefined} onClick={()=>switchTab(item)}>{item[0].toUpperCase()+item.slice(1)}{item==="payments"&&pendingCount>0&&<span className="admin-badge">{pendingCount}</span>}</button>)}</nav>
- <div className="admin-heading"><div><span>OWNER DASHBOARD</span><h1>Business control centre</h1><p>Users, subscriptions, payments and usage in one place.</p></div><div className="admin-install">{canInstall&&<button type="button" disabled={installing} onClick={()=>void install()}>Install admin app</button>}{isIosSafari&&<p>Tap Share, then Add to Home Screen</p>}</div></div>
+ <div className="admin-heading"><div><span>OWNER DASHBOARD</span><h1>Business control centre</h1><p>Users, subscriptions, payments and usage in one place.</p></div><div className="admin-install">{canInstall&&<button type="button" disabled={installing} onClick={()=>void install()}>Install admin app</button>}{isIosSafari&&<p>Tap Share, then Add to Home Screen</p>}{showInstallFallback&&<p>To install: browser menu, then Install app (Chrome) or Add to Home Screen.</p>}</div></div>
  <div className="admin-feedback" role="status" aria-live="polite" aria-atomic="true">{(error||toast)&&<div className={error?"admin-error admin-banner":"admin-toast"}>{error||toast}</div>}</div>
  <div className="admin-home" hidden={tab!=="home"}>
  <section className="admin-card admin-needs"><div className="admin-card-head"><div><span>PAYMENTS</span><h2>Needs you</h2></div>{pendingCount>0&&<span className="admin-badge">{pendingCount}</span>}</div><div className="payment-grid">{pending.length?pending.map(paymentCard):<p className="admin-empty">No payments need review.</p>}</div></section>

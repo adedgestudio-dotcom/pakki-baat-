@@ -61,5 +61,5 @@ export function useAdminInstall() {
     }
   }
 
-  return { canInstall: !!prompt && !standalone && !isIosSafari, isIosSafari: isIosSafari && !standalone, install, installing };
+  return { showInstallFallback: !prompt && !standalone && !isIosSafari, canInstall: !!prompt && !standalone && !isIosSafari, isIosSafari: isIosSafari && !standalone, install, installing };
 }
