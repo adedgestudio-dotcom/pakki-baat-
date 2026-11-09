@@ -191,7 +191,7 @@ export async function loadReportLedger(ownerId: string): Promise<LedgerRow[]> {
   const { readReportLedger } = await import("./reports-loader");
   return readReportLedger(ownerId, async () => (await accountSession(ownerId)).user.id, async offset => {
     const session = await accountSession(ownerId);
-    const query = `/rest/v1/hisaab_ledger_transactions?owner_id=eq.${encodeURIComponent(ownerId)}&select=id,owner_id,job_id,customer_name,transaction_kind,amount_paise,occurred_at,reverses_transaction_id,metadata&order=created_at.asc,id.asc&limit=200&offset=${offset}`;
+    const query = `/rest/v1/hisaab_ledger_transactions?owner_id=eq.${encodeURIComponent(ownerId)}&select=id,owner_id,job_id,customer_name,transaction_kind,amount_paise,occurred_at,reverses_transaction_id,source_payment_id,metadata&order=created_at.asc,id.asc&limit=200&offset=${offset}`;
     const response = await fetch(base + query, {
       method: "GET", cache: "no-store",
       headers: { apikey: key, Authorization: `Bearer ${session.access_token}`, Prefer: "count=exact" },

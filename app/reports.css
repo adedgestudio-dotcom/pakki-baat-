@@ -89,3 +89,36 @@
  .reports-state h1{font-size:23px}
  .reports-page .reports-empty{padding:14px}
 }
+
+
+/* A single sale row on every screen size; nested receipts retain audit order. */
+.reports-grouped-history{display:grid;gap:14px;min-width:0}
+.reports-grouped-history h2{font-size:20px;margin:0 0 6px}
+.reports-grouped-history h3{font-size:16px}
+.reports-grouped-history h4{font-size:14px;margin:0 0 8px}
+.reports-sale-group{min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fffaf2);overflow-wrap:anywhere}
+.reports-sale-group>summary{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px;min-height:64px;cursor:pointer}
+.reports-sale-group>summary:focus-visible{outline:3px solid var(--teal);outline-offset:3px}
+.reports-group-name{display:grid;gap:5px;min-width:0}
+.reports-group-name small,.reports-group-values small{font-size:12px;color:var(--muted)}
+.reports-group-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;flex:0 1 55%;min-width:0}
+.reports-group-values>span{display:grid;gap:5px}
+.reports-group-values strong{font-size:17px;font-variant-numeric:tabular-nums}
+.reports-group-content{display:grid;gap:14px;padding:0 16px 16px}
+.reports-group-content p{margin:0;font-size:13px;line-height:1.6}
+.reports-group-period{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0}
+.reports-group-period dt{font-size:12px;color:var(--muted)}
+.reports-group-period dd{margin:5px 0 0;font-weight:700}
+.reports-group-events{display:grid;gap:10px;padding-left:22px;margin:12px 0}
+.reports-group-events li{padding:12px;border:1px solid var(--line);border-radius:9px;min-width:0}
+.reports-group-events time,.reports-group-events small{font-size:12px}
+.reports-group-events small{display:block;margin:6px 0;color:var(--muted)}
+.reports-receipt-chain{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px}
+@media(max-width:767px){
+ .reports-sale-group>summary{flex-direction:column;align-items:stretch;padding:14px}
+ .reports-group-values{gap:10px;flex:auto}
+ .reports-group-values strong{font-size:15px}
+ .reports-group-content{padding:0 14px 14px}
+ .reports-group-period{grid-template-columns:minmax(0,1fr)}
+ .reports-receipt-chain{padding:10px}
+}

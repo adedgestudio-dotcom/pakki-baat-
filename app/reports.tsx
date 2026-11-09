@@ -4,10 +4,11 @@ import { useEffect, useReducer, useState } from "react";
 import { loadReportLedger } from "@/lib/cloud";
 import type { Snapshot } from "@/lib/data";
 import { formatReportMoney, ledgerReport, legacyReport, reportCsv, selectReport, type ReportTransaction, type LedgerRow, type ReportFilter } from "@/lib/reports";
-import { advancedReportTypes, reportBakiLabel, reportJobId, createReportUiState, orderReportDates, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
+import { advancedReportTypes, reportJobId, createReportUiState, orderReportDates, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
 import "./reports.css";
 import ReportsPrintDocument from "./reports-print";
-import ReportsMobileTransactions from "./reports-mobile";
+import ReportsGroups from "./reports-groups";
+import { groupReportRows, type ReportGroup } from "@/lib/reports-groups";
 import ReportsTransactionDetail from "./reports-detail";
 
 type Props = { ownerId: string | null; ledgerEnabled: boolean; snapshot: Snapshot; cloudSaveVersion: number; pending: boolean };
@@ -37,10 +38,11 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
   if (!ownerId) return <section className="panel reports-page reports-state"><h1>Reports</h1><p>Sign in and load your workspace to view Reports.</p></section>;
   if (ledgerEnabled && !current) return <section className="panel reports-page reports-state" aria-busy="true"><h1>Reports</h1><p role="status">Loading your ledger history…</p></section>;
   if (ledgerEnabled && current?.state === "error") return <section className="panel reports-page reports-state"><h1>Reports</h1><p role="alert">Ledger history could not be loaded. No partial or legacy totals are shown.</p><button className="outline" onClick={refresh}>Try again</button></section>;
-  let report: ReturnType<typeof legacyReport>, view: ReturnType<typeof selectReport>;
+  let report: ReturnType<typeof legacyReport>, view: ReturnType<typeof selectReport>, groups: ReportGroup[];
   try {
     report = ledgerEnabled && current?.state === "loaded" ? ledgerReport(current.rows, ownerId, snapshot) : legacyReport(snapshot);
     view = selectReport(report, filter);
+    groups = groupReportRows(ownerId, report, snapshot, view.rows, filter, ledgerEnabled && current?.state === "loaded" ? current.rows : undefined);
   } catch (cause) {
     return <section className="panel reports-page reports-state"><h1>Reports</h1><p role="alert">{cause instanceof Error ? cause.message : "Report unavailable."}</p><button className="outline" onClick={refresh}>Reload history</button></section>;
   }
@@ -52,6 +54,8 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     snapshot.payments?.forEach(payment => timestamps.set(`payment:${payment.id}`, Date.parse(payment.createdAt)));
   }
   const matchingRows = orderReportDates(view.rows, filter, timestamps);
+  const groupOrder = new Map(matchingRows.map((row, index) => [row.id, index]));
+  groups.sort((a, b) => a.matches.reduce((min, row) => Math.min(min, groupOrder.get(row.id)!), Infinity) - b.matches.reduce((min, row) => Math.min(min, groupOrder.get(row.id)!), Infinity));
   const detail = selected?.ownerId === ownerId && selected.key === requestKey ? selected.row : null;
   const detailJobId = detail ? reportJobId(detail, snapshot.payments || [], ledgerEnabled && current?.state === "loaded" ? current.rows : undefined) : undefined;
   const detailJob = snapshot.jobs.find(job => job.id === detailJobId);
@@ -90,23 +94,8 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     <p className="reports-semantics">Sales and receipts use the applied date range. Overall Outstanding covers all active work.</p>
     <details className="reports-accounting"><summary>How dates and balances work</summary><p className="reports-semantics">Presets use your local calendar to choose inclusive dates. Ledger entries are matched by their UTC transaction date, not converted to local timestamps. Legacy payments use their recorded date; jobs use creation date or, when missing, work date. Search and transaction type filter the table, CSV and print, while overview totals use the date range. Reversals undo earlier entries and are not extra receipts or cash refunds. Historical / unlinked records may include deleted work, which is excluded from Overall Outstanding.</p></details>
     <div className="reports-print-context">Applied period: {filter.from || "All dates"} to {filter.to || "All dates"} · Search: {filter.search || "None"} · Transactions: {reportTypeLabels[filter.kind] || filter.kind}</div>
-    <div className="reports-table-wrap">
-      <table>
-        <caption>Transaction History — {matchingRows.length} matching transactions</caption>
-        <thead><tr><th scope="col">Date (UTC)</th><th scope="col">Customer</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Baki change</th><th scope="col">Details</th></tr></thead>
-        <tbody>{matchingRows.map((row, index) => <tr key={row.id} onClick={() => openDetail(row)} className={index >= ui.visibleCount ? "reports-print-only-row" : undefined}>
-          <td>{row.day}</td>
-          <td><button type="button" className="reports-detail-link" onClick={() => openDetail(row)} aria-label={`View transaction for ${row.customer}`}>{row.customer}</button><small>{row.historical ? "Historical / unlinked" : "Active work"}</small></td>
-          <td>{reportTypeLabels[row.kind] || row.kind.replaceAll("_", " ")}</td>
-          <td className="reports-amount">{formatReportMoney(row.amountPaise)}</td>
-          <td className="reports-amount">{reportBakiLabel(row)}</td>
-          <td>{row.description}</td>
-        </tr>)}</tbody>
-      </table>
-      {!matchingRows.length && <p className="reports-empty">No transactions in this report. Try a longer period or a custom range, then click Show Report.</p>}
-    </div>
-    <ReportsMobileTransactions rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} onSelect={openDetail} />
-    <div className="reports-pagination"><p>Showing {Math.min(ui.visibleCount, matchingRows.length)} of {matchingRows.length} matching transactions</p>{ui.visibleCount < matchingRows.length && <button type="button" className="outline" onClick={() => dispatch({ type: "more" })}>Load 20 More</button>}</div>
+    <ReportsGroups key={requestKey + JSON.stringify(filter)} groups={groups.slice(0, ui.visibleCount)} total={groups.length} onSelect={openDetail} />
+    <div className="reports-pagination"><p>Showing {Math.min(ui.visibleCount, groups.length)} of {groups.length} sale / fallback groups; {matchingRows.length} matching transactions</p>{ui.visibleCount < groups.length && <button type="button" className="outline" onClick={() => dispatch({ type: "more" })}>Load 20 More</button>}</div>
     <ReportsPrintDocument filter={filter} rows={matchingRows} summary={{ sales: view.sales, payments: view.payments, periodBalance: view.periodBalance, outstanding: report.activeOutstandingPaise }} incomplete={incomplete} warnings={report.warnings} pending={pending} ledgerEnabled={ledgerEnabled} />
     {detail && <ReportsTransactionDetail row={detail} job={detailJob} onClose={() => setSelected(null)} />}
   </section>;
