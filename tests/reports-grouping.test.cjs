@@ -145,6 +145,7 @@ test("legacy snapshot grouping and whole-word search use the same flat selection
 test("screen grouping never supplies the flat summary, CSV or print inputs", () => {
   const source=fs.readFileSync(path.join(__dirname,"../app/reports.tsx"),"utf8");
   assert.ok(source.includes("new Blob([reportCsv(matchingRows)]"));
+  assert.ok(source.includes("sales and other groups ({matchingRows.length} matching transactions)"));
   assert.ok(source.includes('["Total Sales", view.sales]'));
   assert.ok(source.includes('["Payments Received", view.payments]'));
   assert.ok(source.includes('["Overall Outstanding", report.activeOutstandingPaise]'));

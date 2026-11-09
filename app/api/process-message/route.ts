@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { consumeAiUsage } from "@/lib/ai-usage";
 import { normalizeSpokenAmounts } from "@/lib/spoken-amounts";
 import {

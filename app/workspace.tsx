@@ -516,8 +516,17 @@ export default function Workspace() {
     setAppInstalled(standalone || rememberedInstalled);
     const onInstallPrompt = (event: Event) => {
       event.preventDefault();
-      // A fresh browser install prompt means installation is available again
-      // (for example, the app was uninstalled). Do not repeatedly show our own banner.
+      // A fresh prompt invalidates remembered installation, except in standalone.
+      const runningStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+      if (runningStandalone) {
+        setAppInstalled(true);
+        setInstallPrompt(null);
+        return;
+      }
+      try { localStorage.removeItem(installedKey); } catch {}
+      setAppInstalled(false);
       setInstallPrompt(event as InstallPromptEvent);
     };
     const onInstalled = () => {
