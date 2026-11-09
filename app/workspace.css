@@ -13466,14 +13466,19 @@ footer .app-version {
 }
 
 
-/* Product footer: readable links and room above the fixed phone navigation. */
-footer.product-footer { color: #52645b; line-height: 1.6; }
-footer.product-footer a,
-footer.product-footer .app-version,
-footer.product-footer .footer-separator { color: inherit; }
-footer.product-footer a { display: inline-flex; align-items: center; min-height: 44px; }
-footer.product-footer .footer-separator { animation: none; }
-[data-theme="dark"] footer.product-footer { color: #b7c7bf !important; }
-@media (max-width: 800px) {
-  footer.product-footer { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+/* Shared product footer: two centered rows with no decorative rules. */
+footer:is(.product-footer,.settings-brand-footer){display:grid;justify-items:center;gap:4px;text-align:center;line-height:1.6;color:#52645b;border:0;box-shadow:none;background:transparent}
+footer:is(.product-footer,.settings-brand-footer)::before,
+footer:is(.product-footer,.settings-brand-footer)::after{content:none}
+footer .product-footer-wordmark{font:18px/1.4 Georgia,"Times New Roman",serif;color:#2d7667;letter-spacing:-.02em}
+footer .product-footer-meta{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:0 10px;font-size:11px}
+footer .product-footer-meta span{margin:0;color:inherit;animation:none}
+footer .product-footer-credit{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+footer .product-footer-meta-item{display:inline-flex;align-items:center;gap:10px;min-height:44px;white-space:nowrap}
+footer .product-footer-meta a{display:inline-flex;align-items:center;min-height:44px;color:inherit!important;font-size:inherit}
+footer .product-footer-meta .app-version{display:inline;margin:0;color:inherit;font-size:inherit}
+[data-theme="dark"] footer:is(.product-footer,.settings-brand-footer){color:#b7c7bf!important}
+[data-theme="dark"] footer .product-footer-wordmark{color:#9bd4b8}
+@media(max-width:800px){
+ footer:is(.product-footer,.settings-brand-footer){padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
 }

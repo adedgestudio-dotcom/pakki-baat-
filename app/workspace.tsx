@@ -4944,12 +4944,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </section>
                 </div>
                 <footer className="product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -5277,12 +5277,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </aside>
                 </section>
                 <footer className="settings-brand-footer product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -5485,12 +5485,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </section>
                 )}
                 <footer className="settings-brand-footer product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6541,12 +6541,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </section>
                 )}
                 <footer className="settings-brand-footer product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6785,12 +6785,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </div>
                 </section>
                 <footer className="settings-brand-footer product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6888,12 +6888,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </div>
                 </section>
                 <footer className="settings-brand-footer product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -6943,12 +6943,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   />
                 </section>
                 <footer className="settings-brand-footer product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}
@@ -7254,12 +7254,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </section>
                 </div>
                 <footer className="settings-brand-footer product-footer">
-                  <div>
-                    Pakki Baat <span className="footer-separator">·</span> A{" "}
-                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  <div className="product-footer-wordmark">pakki baat.</div>
+                  <div className="product-footer-meta">
+                    <span className="product-footer-credit">A <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product</span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></span>
+                    <span className="product-footer-meta-item"><span aria-hidden="true">·</span><small className="app-version">v{appVersion}</small></span>
                   </div>
-                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
-                  <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
             )}

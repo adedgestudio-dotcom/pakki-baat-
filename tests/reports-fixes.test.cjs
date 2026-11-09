@@ -98,3 +98,20 @@ test("rule 16 and the quantity/rate eval cases are present without running the e
     if (paid) assert.ok(line.includes("paid: " + paid));
   }
 });
+
+test("every Reports message card shares padding and heading sizing", () => {
+  const screen = fs.readFileSync(path.join(__dirname, "../app/reports.tsx"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "../app/reports.css"), "utf8");
+  const states = screen.match(/<section className="panel reports-page reports-state"[^>]*>[\s\S]*?<\/section>/g);
+  assert.equal(states.length, 4);
+  for (const message of ["Sign in and load your workspace", "Loading your ledger history", "Ledger history could not be loaded", "Report unavailable."]) {
+    assert.ok(states.some(state => state.includes(message)), message);
+  }
+  assert.ok(!screen.includes('className="panel reports-page"'));
+  assert.ok(css.includes('.panel.reports-page.reports-state{padding:20px;gap:12px;align-content:start}'));
+  assert.ok(css.includes('.reports-state h1{margin:0;font-size:26px;line-height:1.3}'));
+  assert.ok(css.includes('.panel.reports-page.reports-state{padding:16px}'));
+  assert.ok(css.includes('.reports-state h1{font-size:23px}'));
+  assert.ok(css.includes('.reports-page .reports-empty{margin:0;padding:16px;'));
+  assert.ok(css.includes('.reports-page .reports-notice,.reports-page .reports-filter-error{padding:14px;'));
+});

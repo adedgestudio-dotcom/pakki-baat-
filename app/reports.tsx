@@ -34,15 +34,15 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
   const current = history?.ownerId === ownerId && history.key === requestKey ? history : null;
   function refresh() { setHistory(null); setReload(value => value + 1); }
   function update<K extends keyof ReportFilter>(key: K, value: ReportFilter[K]) { dispatch({ type: "edit", filter: { [key]: value } }); }
-  if (!ownerId) return <section className="panel reports-page"><h1>Reports</h1><p>Sign in and load your workspace to view Reports.</p></section>;
-  if (ledgerEnabled && !current) return <section className="panel reports-page" aria-busy="true"><h1>Reports</h1><p role="status">Loading your ledger history…</p></section>;
-  if (ledgerEnabled && current?.state === "error") return <section className="panel reports-page"><h1>Reports</h1><p role="alert">Ledger history could not be loaded. No partial or legacy totals are shown.</p><button className="outline" onClick={refresh}>Try again</button></section>;
+  if (!ownerId) return <section className="panel reports-page reports-state"><h1>Reports</h1><p>Sign in and load your workspace to view Reports.</p></section>;
+  if (ledgerEnabled && !current) return <section className="panel reports-page reports-state" aria-busy="true"><h1>Reports</h1><p role="status">Loading your ledger history…</p></section>;
+  if (ledgerEnabled && current?.state === "error") return <section className="panel reports-page reports-state"><h1>Reports</h1><p role="alert">Ledger history could not be loaded. No partial or legacy totals are shown.</p><button className="outline" onClick={refresh}>Try again</button></section>;
   let report: ReturnType<typeof legacyReport>, view: ReturnType<typeof selectReport>;
   try {
     report = ledgerEnabled && current?.state === "loaded" ? ledgerReport(current.rows, ownerId, snapshot) : legacyReport(snapshot);
     view = selectReport(report, filter);
   } catch (cause) {
-    return <section className="panel reports-page"><h1>Reports</h1><p role="alert">{cause instanceof Error ? cause.message : "Report unavailable."}</p><button className="outline" onClick={refresh}>Reload history</button></section>;
+    return <section className="panel reports-page reports-state"><h1>Reports</h1><p role="alert">{cause instanceof Error ? cause.message : "Report unavailable."}</p><button className="outline" onClick={refresh}>Reload history</button></section>;
   }
   const timestamps = new Map<string, number>();
   if (ledgerEnabled && current?.state === "loaded") {
