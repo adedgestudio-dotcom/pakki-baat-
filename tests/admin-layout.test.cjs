@@ -13,6 +13,7 @@ test("owner panel retains the existing action wiring", () => {
   assert.match(source, /onConfirm:\(\)=>void backfillTrials\(\)/);
   assert.match(source, /fetch\("\/api\/admin\/backfill-trial-emails",\{method:"POST"\}\)/);
   assert.match(source, /fetch\("\/api\/admin\/auth",\{method:"DELETE"\}\)/);
+  assert.ok(!source.includes('aria-label="Open app"'));
   assert.ok(!source.includes(String.raw`\n`), "no stray literal backslash-n text");
 });
 
@@ -43,11 +44,11 @@ test("payment cards and table prefer submitted_at and show full emails", () => {
 const ts = require("typescript");
 const vm = require("node:vm");
 
-function loadTs(relativePath, mocks = {}) {
+function loadTs(relativePath, mocks = {}, globals = {}) {
   const source = fs.readFileSync(path.join(__dirname, relativePath), "utf8");
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
-  vm.runInNewContext(output, { exports, Response, require: name => {
+  vm.runInNewContext(output, { ...globals, exports, Response, require: name => {
     if (name in mocks) return mocks[name];
     throw new Error("Unexpected import: " + name);
   } });
@@ -100,4 +101,55 @@ test("admin install controls require browser support and hide in standalone mode
   assert.match(source, /canInstall&&<button[^>]*onClick=\{\(\)=>void install\(\)\}/);
   assert.match(source, /isIosSafari&&<p>Tap Share, then Add to Home Screen<\/p>/);
   assert.ok(source.includes("{showInstallFallback&&<p>To install: browser menu, then Install app (Chrome) or Add to Home Screen.</p>}"));
+});
+
+test("admin install capture retains an early event and the hook consumes it once", async () => {
+  const layout = fs.readFileSync(path.join(__dirname, "../app/admin/layout.tsx"), "utf8");
+  const capture = layout.match(/__html: `([\s\S]*?)`/)[1];
+  const listeners = new Map();
+  const window = {
+    addEventListener(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); },
+    removeEventListener(name, fn) { listeners.get(name)?.delete(fn); },
+    dispatchEvent(event) { for (const fn of listeners.get(event.type) || []) fn(event); },
+    matchMedia() { return { matches: false, addEventListener() {}, removeEventListener() {} }; },
+  };
+  const location = { pathname: "/admin" };
+  const Event = class { constructor(type) { this.type = type; } };
+  vm.runInNewContext(capture, { window, location, Event });
+  let prompted = 0;
+  const early = { type: "beforeinstallprompt", preventDefault() {}, prompt: async () => { prompted++; }, userChoice: Promise.resolve({ outcome: "dismissed" }) };
+  window.dispatchEvent(early);
+  assert.equal(window.__pbAdminInstallPrompt, early);
+
+  const slots = [];
+  const effects = [];
+  let cursor = 0;
+  let mounted = false;
+  const react = {
+    useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = value; }]; },
+    useRef(initial) { const i = cursor++; return slots[i] ||= { current: initial }; },
+    useEffect(fn) { if (!mounted) effects.push(fn); },
+  };
+  const { useAdminInstall } = loadTs("../app/admin/use-admin-install.ts", { react }, { window, navigator: { userAgent: "Chrome" } });
+  const render = () => { cursor = 0; return useAdminInstall(); };
+  render();
+  const cleanup = effects[0]();
+  mounted = true;
+  assert.equal(render().canInstall, true);
+  assert.equal(render().showInstallFallback, false);
+  await render().install();
+  assert.equal(prompted, 1);
+  assert.equal(window.__pbAdminInstallPrompt, null);
+  assert.equal(render().showInstallFallback, true);
+  window.dispatchEvent(early);
+  assert.equal(render().canInstall, true);
+  window.dispatchEvent({ type: "appinstalled" });
+  assert.equal(window.__pbAdminInstallPrompt, null);
+  assert.equal(render().canInstall, false);
+  assert.equal(render().showInstallFallback, false);
+  cleanup();
+  assert.equal(listeners.get("pb-admin-install-ready").size, 0);
+  location.pathname = "/";
+  window.dispatchEvent(early);
+  assert.equal(window.__pbAdminInstallPrompt, null);
 });

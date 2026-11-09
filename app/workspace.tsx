@@ -72,6 +72,8 @@ import {
   type ExtractedCommitment,
 } from "@/lib/chat-entry";
 import type { Session } from "@supabase/supabase-js";
+const SUPPORT_EMAIL = "zorivoworks@gmail.com";
+
 type Tab =
   | "Today"
   | "Reminders"
@@ -4941,17 +4943,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </span>
                   </section>
                 </div>
-                <footer>
-                  Pakki Baat <span className="footer-separator">·</span>
-                  by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
@@ -5279,16 +5276,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </p>
                   </aside>
                 </section>
-                <footer className="settings-brand-footer">
-                  Pakki Baat by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="settings-brand-footer product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
@@ -5491,16 +5484,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </div>
                   </section>
                 )}
-                <footer className="settings-brand-footer">
-                  Pakki Baat by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="settings-brand-footer product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
@@ -6551,16 +6540,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     )}
                   </section>
                 )}
-                <footer className="settings-brand-footer">
-                  Pakki Baat by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="settings-brand-footer product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
@@ -6799,16 +6784,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </p>
                   </div>
                 </section>
-                <footer className="settings-brand-footer">
-                  Pakki Baat by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="settings-brand-footer product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
@@ -6906,16 +6887,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </section>
                   </div>
                 </section>
-                <footer className="settings-brand-footer">
-                  Pakki Baat by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="settings-brand-footer product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
@@ -6965,16 +6942,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     onToggleTheme={toggleTheme}
                   />
                 </section>
-                <footer className="settings-brand-footer">
-                  Pakki Baat by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="settings-brand-footer product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>
@@ -7280,16 +7253,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </div>
                   </section>
                 </div>
-                <footer className="settings-brand-footer">
-                  Pakki Baat by Sarrah Bharmal (
-                  <a
-                    href="https://zorivo.in"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Zorivo
-                  </a>
-                  )
+                <footer className="settings-brand-footer product-footer">
+                  <div>
+                    Pakki Baat <span className="footer-separator">·</span> A{" "}
+                    <a href="https://zorivo.in" target="_blank" rel="noopener noreferrer">Zorivo</a> product
+                  </div>
+                  <div><a href={`mailto:${SUPPORT_EMAIL}`}>Help</a></div>
                   <small className="app-version">v{appVersion}</small>
                 </footer>
               </>

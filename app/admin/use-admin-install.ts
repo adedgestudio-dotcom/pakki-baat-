@@ -7,6 +7,8 @@ type InstallPrompt = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+type AdminInstallWindow = Window & { __pbAdminInstallPrompt?: InstallPrompt | null };
+
 export function useAdminInstall() {
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [standalone, setStandalone] = useState(true);
@@ -15,22 +17,31 @@ export function useAdminInstall() {
   const running = useRef(false);
 
   useEffect(() => {
+    const installWindow = window as AdminInstallWindow;
     const display = window.matchMedia("(display-mode: standalone)");
     const ios = navigator as Navigator & { standalone?: boolean };
     const syncDisplay = () => {
       const installed = display.matches || ios.standalone === true;
       setStandalone(installed);
-      if (installed) setPrompt(null);
+      if (installed) { setPrompt(null); installWindow.__pbAdminInstallPrompt = null; }
     };
     const capturePrompt = (event: Event) => {
       event.preventDefault();
-      if (!display.matches && !ios.standalone) setPrompt(event as InstallPrompt);
+      if (!display.matches && !ios.standalone) {
+        installWindow.__pbAdminInstallPrompt = event as InstallPrompt;
+        setPrompt(event as InstallPrompt);
+      }
     };
-    const installed = () => { setStandalone(true); setPrompt(null); };
+    const readStoredPrompt = () => {
+      if (installWindow.__pbAdminInstallPrompt) capturePrompt(installWindow.__pbAdminInstallPrompt);
+    };
+    const installed = () => { setStandalone(true); setPrompt(null); installWindow.__pbAdminInstallPrompt = null; };
     const agent = navigator.userAgent;
     setIsIosSafari(/iPhone|iPad|iPod/i.test(agent) && /Safari/i.test(agent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(agent));
     syncDisplay();
     window.addEventListener("beforeinstallprompt", capturePrompt);
+    window.addEventListener("pb-admin-install-ready", readStoredPrompt);
+    readStoredPrompt();
     window.addEventListener("appinstalled", installed);
     display.addEventListener("change", syncDisplay);
     // Refresh an existing customer worker so its admin cache bypass takes effect.
@@ -39,6 +50,7 @@ export function useAdminInstall() {
     }
     return () => {
       window.removeEventListener("beforeinstallprompt", capturePrompt);
+      window.removeEventListener("pb-admin-install-ready", readStoredPrompt);
       window.removeEventListener("appinstalled", installed);
       display.removeEventListener("change", syncDisplay);
     };
@@ -55,6 +67,8 @@ export function useAdminInstall() {
     } catch {
       // The browser may cancel or invalidate a deferred prompt.
     } finally {
+      const installWindow = window as AdminInstallWindow;
+      if (installWindow.__pbAdminInstallPrompt === prompt) installWindow.__pbAdminInstallPrompt = null;
       setPrompt(null);
       running.current = false;
       setInstalling(false);

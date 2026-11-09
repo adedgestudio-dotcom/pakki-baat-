@@ -13464,3 +13464,16 @@ footer .app-version {
   color: var(--muted);
   font-size: 10px;
 }
+
+
+/* Product footer: readable links and room above the fixed phone navigation. */
+footer.product-footer { color: #52645b; line-height: 1.6; }
+footer.product-footer a,
+footer.product-footer .app-version,
+footer.product-footer .footer-separator { color: inherit; }
+footer.product-footer a { display: inline-flex; align-items: center; min-height: 44px; }
+footer.product-footer .footer-separator { animation: none; }
+[data-theme="dark"] footer.product-footer { color: #b7c7bf !important; }
+@media (max-width: 800px) {
+  footer.product-footer { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+}
