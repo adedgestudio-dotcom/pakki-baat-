@@ -1,4 +1,4 @@
-import { defaultReportFilter, validReportDay, type ReportFilter, type ReportTransaction } from "./reports";
+import { defaultReportFilter, validReportDay, formatReportMoney, type LedgerRow, type ReportFilter, type ReportTransaction } from "./reports";
 
 export type ReportPeriod = "today" | "seven" | "thirty" | "custom";
 export type ReportSelection = { period: ReportPeriod; filter: ReportFilter };
@@ -56,4 +56,20 @@ export function orderReportDates(rows: ReportTransaction[], filter: ReportFilter
   return [...rows].sort((a, b) => (
     a.day.localeCompare(b.day) || (timestamps.get(a.id) || 0) - (timestamps.get(b.id) || 0) || a.id.localeCompare(b.id)
   ) * (filter.descending ? -1 : 1));
+}
+
+
+export function reportBakiLabel(row: ReportTransaction) {
+  if (row.unclassified) return "Baki change is unclassified";
+  const effect = row.salesEffect - row.paymentEffect;
+  if (!effect) return "Baki unchanged";
+  const amount = formatReportMoney(Math.abs(effect)).replace("₹", "Rs ");
+  return `Baki ${effect > 0 ? "increases" : "reduces"} by ${amount}`;
+}
+
+export function reportJobId(row: ReportTransaction, payments: { id: string; jobId?: string }[], ledgerRows?: LedgerRow[]) {
+  if (ledgerRows) return ledgerRows.find(item => item.id === row.id)?.job_id || undefined;
+  if (row.id.startsWith("job:")) return row.id.slice(4);
+  if (row.id.startsWith("payment:")) return payments.find(item => item.id === row.id.slice(8))?.jobId;
+  return undefined;
 }

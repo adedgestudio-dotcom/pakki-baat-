@@ -56,3 +56,22 @@
   .reports-print-document small{display:block;color:#444;font-size:8pt}
   .reports-print-document .print-date{width:14%}.reports-print-document .print-customer{width:16%}.reports-print-document .print-type{width:14%}.reports-print-document .print-money{width:14%}.reports-print-document .print-details{width:28%}
 }
+
+
+/* Pending-save/reconciliation notices can appear offline; never let their
+   longer text change the report grid or clip the summary cards. */
+.reports-page{width:100%;grid-template-columns:minmax(0,1fr)}
+.reports-page>*{min-width:0}
+.reports-notice,.reports-overview strong{overflow-wrap:anywhere}
+.reports-overview{align-items:stretch}
+.reports-overview>.panel{min-width:0;min-height:100px;align-content:start}
+.reports-page .reports-detail-link{min-height:44px;max-width:100%;border:0;background:transparent;color:inherit;text-align:left;white-space:normal;overflow-wrap:anywhere;text-decoration:underline;cursor:pointer}
+.reports-page td.reports-amount{white-space:normal}
+.reports-detail{position:fixed;inset:0;margin:auto;width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto;padding:22px;border:1px solid var(--line);border-radius:16px;background:var(--surface,#fffaf2);color:var(--text,#2b3834)}
+.reports-detail::backdrop{background:#0009}
+.reports-detail dl{display:grid;gap:12px}
+.reports-detail dl>div{display:grid;gap:4px}
+.reports-detail dt{font-weight:700}
+.reports-detail dd{margin:0;overflow-wrap:anywhere}
+.reports-detail button{min-height:44px}
+@media(max-width:767px){.reports-page{padding-bottom:calc(140px + env(safe-area-inset-bottom,0px))}}

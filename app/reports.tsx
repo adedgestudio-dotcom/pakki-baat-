@@ -3,11 +3,12 @@
 import { useEffect, useReducer, useState } from "react";
 import { loadReportLedger } from "@/lib/cloud";
 import type { Snapshot } from "@/lib/data";
-import { formatReportMoney, ledgerReport, legacyReport, reportCsv, selectReport, type LedgerRow, type ReportFilter } from "@/lib/reports";
-import { advancedReportTypes, createReportUiState, orderReportDates, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
+import { formatReportMoney, ledgerReport, legacyReport, reportCsv, selectReport, type ReportTransaction, type LedgerRow, type ReportFilter } from "@/lib/reports";
+import { advancedReportTypes, reportBakiLabel, reportJobId, createReportUiState, orderReportDates, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
 import "./reports.css";
 import ReportsPrintDocument from "./reports-print";
 import ReportsMobileTransactions from "./reports-mobile";
+import ReportsTransactionDetail from "./reports-detail";
 
 type Props = { ownerId: string | null; ledgerEnabled: boolean; snapshot: Snapshot; cloudSaveVersion: number; pending: boolean };
 type History = { ownerId: string; key: string; state: "loaded"; rows: LedgerRow[] } | { ownerId: string; key: string; state: "error" } | null;
@@ -17,6 +18,7 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
   const [ui, dispatch] = useReducer(reportUiReducer, undefined, () => createReportUiState(new Date()));
   const filter = ui.applied.filter;
   const [reload, setReload] = useState(0);
+  const [selected, setSelected] = useState<{ownerId:string; key:string; row:ReportTransaction}|null>(null);
   const requestKey = `${ownerId}:${ledgerEnabled}:${cloudSaveVersion}:${reload}`;
   useEffect(() => {
     if (!ownerId || !ledgerEnabled) return;
@@ -50,6 +52,10 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     snapshot.payments?.forEach(payment => timestamps.set(`payment:${payment.id}`, Date.parse(payment.createdAt)));
   }
   const matchingRows = orderReportDates(view.rows, filter, timestamps);
+  const detail = selected?.ownerId === ownerId && selected.key === requestKey ? selected.row : null;
+  const detailJobId = detail ? reportJobId(detail, snapshot.payments || [], ledgerEnabled && current?.state === "loaded" ? current.rows : undefined) : undefined;
+  const detailJob = snapshot.jobs.find(job => job.id === detailJobId);
+  const openDetail = (row: ReportTransaction) => setSelected({ ownerId, key: requestKey, row });
   const draft = ui.draft.filter;
   const unapplied = reportFiltersPending(ui);
   const incomplete = report.warnings.some(warning => warning.includes("incomplete") || warning.includes("do not reconcile") || warning.includes("omitted"));
@@ -80,27 +86,28 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
       <div className="reports-apply"><button type="submit" className="primary">Show Report</button><span role="status" aria-live="polite">{unapplied ? "Filters changed — click Show Report to apply." : "Showing applied filters."}</span></div>
       {ui.error && <p role="alert" className="reports-filter-error">{ui.error}</p>}
     </form>
-    <div className="reports-overview">{[["Total Sales", view.sales], ["Payments Received", view.payments], ["Period Balance", view.periodBalance], ["Overall Outstanding", report.activeOutstandingPaise]].map(([label, value], index) => <div className="panel" key={String(label)}><span>{label}</span><strong>{incomplete && index < 3 ? "Needs reconciliation" : formatReportMoney(Number(value))}</strong></div>)}</div>
-    <p className="reports-semantics">Sales and receipts use the applied date range. Period Balance is sales less receipts; Overall Outstanding covers all active work.</p>
+    <div className="reports-overview">{[["Total Sales", view.sales], ["Payments Received", view.payments], ["Overall Outstanding", report.activeOutstandingPaise]].map(([label, value], index) => <div className="panel" key={String(label)}><span>{label}</span><strong>{incomplete && index < 2 ? "Needs reconciliation" : formatReportMoney(Number(value))}</strong></div>)}</div>
+    <p className="reports-semantics">Sales and receipts use the applied date range. Overall Outstanding covers all active work.</p>
     <details className="reports-accounting"><summary>How dates and balances work</summary><p className="reports-semantics">Presets use your local calendar to choose inclusive dates. Ledger entries are matched by their UTC transaction date, not converted to local timestamps. Legacy payments use their recorded date; jobs use creation date or, when missing, work date. Search and transaction type filter the table, CSV and print, while overview totals use the date range. Reversals undo earlier entries and are not extra receipts or cash refunds. Historical / unlinked records may include deleted work, which is excluded from Overall Outstanding.</p></details>
     <div className="reports-print-context">Applied period: {filter.from || "All dates"} to {filter.to || "All dates"} · Search: {filter.search || "None"} · Transactions: {reportTypeLabels[filter.kind] || filter.kind}</div>
     <div className="reports-table-wrap">
       <table>
         <caption>Transaction History — {matchingRows.length} matching transactions</caption>
-        <thead><tr><th scope="col">Date (UTC)</th><th scope="col">Customer</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Balance effect</th><th scope="col">Details</th></tr></thead>
-        <tbody>{matchingRows.map((row, index) => <tr key={row.id} className={index >= ui.visibleCount ? "reports-print-only-row" : undefined}>
+        <thead><tr><th scope="col">Date (UTC)</th><th scope="col">Customer</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Baki change</th><th scope="col">Details</th></tr></thead>
+        <tbody>{matchingRows.map((row, index) => <tr key={row.id} onClick={() => openDetail(row)} className={index >= ui.visibleCount ? "reports-print-only-row" : undefined}>
           <td>{row.day}</td>
-          <td>{row.customer}<small>{row.historical ? "Historical / unlinked" : "Active work"}</small></td>
+          <td><button type="button" className="reports-detail-link" onClick={() => openDetail(row)} aria-label={`View transaction for ${row.customer}`}>{row.customer}</button><small>{row.historical ? "Historical / unlinked" : "Active work"}</small></td>
           <td>{reportTypeLabels[row.kind] || row.kind.replaceAll("_", " ")}</td>
           <td className="reports-amount">{formatReportMoney(row.amountPaise)}</td>
-          <td className="reports-amount">{row.unclassified ? "Unclassified" : formatReportMoney(row.salesEffect - row.paymentEffect)}</td>
+          <td className="reports-amount">{reportBakiLabel(row)}</td>
           <td>{row.description}</td>
         </tr>)}</tbody>
       </table>
       {!matchingRows.length && <p className="reports-empty">No transactions in this report. Try a longer period or a custom range, then click Show Report.</p>}
     </div>
-    <ReportsMobileTransactions rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} />
+    <ReportsMobileTransactions rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} onSelect={openDetail} />
     <div className="reports-pagination"><p>Showing {Math.min(ui.visibleCount, matchingRows.length)} of {matchingRows.length} matching transactions</p>{ui.visibleCount < matchingRows.length && <button type="button" className="outline" onClick={() => dispatch({ type: "more" })}>Load 20 More</button>}</div>
     <ReportsPrintDocument filter={filter} rows={matchingRows} summary={{ sales: view.sales, payments: view.payments, periodBalance: view.periodBalance, outstanding: report.activeOutstandingPaise }} incomplete={incomplete} warnings={report.warnings} pending={pending} ledgerEnabled={ledgerEnabled} />
+    {detail && <ReportsTransactionDetail row={detail} job={detailJob} onClose={() => setSelected(null)} />}
   </section>;
 }

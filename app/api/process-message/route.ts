@@ -147,6 +147,7 @@ Rules:
 13. Amounts may be spoken in Hindi words: sau = 100, hazaar = 1000, lakh = 100000, dedh = 1.5, dhai = 2.5 ("do hazaar paanch sau" = 2500). "rupaye", "rupees", "rs" and "₹" mark money. A number followed by l, ltr, litre, ml, kg, g, gm, dozen or pcs is a quantity, never money.
 14. In Hindi/Hinglish, "<name> ne ..." or "<name> ka/ki/ke ..." usually names the customer ("Ravi ne 500 ka kaam diya" means customer: Ravi, total: 500).
 15. When a name carries an honorific such as bhai, bhaiya, ji, sahab, saab, didi, behen, madam or sir, return the name without it ("Imran bhai" means customer: Imran; "Sharma ji" means customer: Sharma).
+16. When both a quantity and its per-unit rate are given, total = quantity x rate. For example, "5 kg cake 750 per kg" means total: 3750, not 750. "3 dozen ladoo 200 per dozen, 100 advance" means total: 600, paid: 100. An advance is paid, separate from the calculated total. Do not treat the quantity or rate as a separate total.
 
 Return format:
 {

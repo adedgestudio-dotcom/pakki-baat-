@@ -124,7 +124,10 @@ export function selectReport(report: Report, filter: ReportFilter) {
   const sales = sum(period.map(row => row.salesEffect)), payments = sum(period.map(row => row.paymentEffect));
   const query = filter.search.trim().toLowerCase();
   const numericQuery = query.replace(/[₹,\s]/g, "");
-  const rows = period.filter(row => (filter.kind === "all" || row.kind === filter.kind) && (!query || row.customer.toLowerCase().includes(query) || String(row.amountPaise / 100).includes(numericQuery) && numericQuery !== ""));
+  const nameWords = (value: string) => value.toLowerCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean);
+  const queryWords = nameWords(query);
+  const numericSearch = /^\d+(?:\.\d+)?$/.test(numericQuery);
+  const rows = period.filter(row => (filter.kind === "all" || row.kind === filter.kind || filter.kind === "correction" && row.kind === "reversal") && (!query || queryWords.length > 0 && queryWords.every(word => nameWords(row.customer).some(name => name.startsWith(word))) || numericSearch && String(row.amountPaise / 100).includes(numericQuery)));
   rows.sort((a, b) => {
     const result = filter.sort === "amount" ? a.amountPaise - b.amountPaise : filter.sort === "customer" ? a.customer.localeCompare(b.customer) : a.day.localeCompare(b.day);
     return (result || a.id.localeCompare(b.id)) * (filter.descending ? -1 : 1);
