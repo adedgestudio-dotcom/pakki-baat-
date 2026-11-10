@@ -46,7 +46,7 @@ test("equal timestamps and missing legacy timestamps have deterministic labels",
 });
 
 test("entry card renders its computed label with mobile and dark theme styles", () => {
-  assert.match(source, /<summary className="hisaab-history-summary">\s*<small className="hisaab-entry-number">Entry \{customerEntryNumbers.get\(j.id\)\}<\/small>/);
+  assert.match(source, /<div className="hisaab-history-summary">\s*<small className="hisaab-entry-number">Entry \{customerEntryNumbers.get\(j.id\)\}<\/small>/);
   const css = fs.readFileSync(path.join(__dirname, "../app/workspace.css"), "utf8");
   assert.match(css, /\.hisaab-history-summary \.hisaab-entry-number \{[^}]*font-size: 12px;[^}]*overflow-wrap: anywhere;/);
   assert.ok(css.includes('[data-theme="dark"] .hisaab-history-summary .hisaab-entry-number'));

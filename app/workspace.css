@@ -13533,6 +13533,27 @@ footer .footer-separator {
 [data-theme="dark"] .hisaab-payment-history .hisaab-fix-amount { color: #8fd0bf; border-color: rgba(255, 255, 255, 0.22); }
 .hisaab-entry-photo input { max-width: 100%; font: inherit; }
 .hisaab-entry-photo-image { max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 8px; }
+/* Entry actions stay visible while the less common controls and fields fold away. */
+.hisaab-history-card{background:#fffaf2;border-color:#d6d4ca;box-shadow:0 3px 12px rgba(28,42,38,.07)}
+.hisaab-history-card .hisaab-history-summary{gap:10px;cursor:default}
+.hisaab-history-card .hisaab-quick-actions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:0 14px 14px}
+.hisaab-quick-actions>.card-action,.customer-saved-card .hisaab-more-actions>summary{min-width:0;min-height:44px;width:100%;white-space:normal;text-align:center}
+.hisaab-more-actions{min-width:0}
+.hisaab-more-actions>summary{list-style:none}
+.hisaab-more-actions>summary::-webkit-details-marker{display:none}
+.hisaab-more-actions>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:8px 0;grid-column:1/-1}
+.hisaab-more-actions[open]{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.hisaab-more-actions[open]>summary{grid-column:5}
+.hisaab-more-actions[open]>div{grid-row:2;grid-column:1/-1}
+.customer-saved-card .hisaab-more-actions button{min-height:44px}
+.hisaab-more-details{border-top:1px solid #d6d4ca}
+.hisaab-more-details>.hisaab-expand-hint{min-height:44px;padding:10px 16px;cursor:pointer;list-style:none}
+.hisaab-more-details>.hisaab-expand-hint::-webkit-details-marker{display:none}
+.hisaab-more-details[open] .hisaab-expand-hint>span{transform:rotate(180deg)}
+.hisaab-more-details .hisaab-history-expanded{padding:0 16px 16px}
+[data-theme="dark"] .hisaab-history-card{background:#17271f;border-color:#43584a;box-shadow:0 3px 12px rgba(0,0,0,.22)}
+[data-theme="dark"] .hisaab-more-details{border-color:#43584a}
+@media(max-width:560px){.hisaab-history-card .hisaab-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 12px 12px}.hisaab-more-actions[open]{grid-template-columns:repeat(2,minmax(0,1fr))}.hisaab-more-actions[open]>summary{grid-column:1/-1}}
 /* What Whisper heard for a voice note read with AI. */
 .voice-heard { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: #5c6660; overflow-wrap: anywhere; }
 [data-theme="dark"] .voice-heard { color: #a9b7b0; }

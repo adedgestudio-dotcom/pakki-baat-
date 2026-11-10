@@ -77,7 +77,7 @@ test('PB-01 visible payment row invokes the existing correction handler with its
   actions.find(b => b.props.children === 'See history of changes').props.onClick();
   assert.equal(corrected, payment); assert.equal(audit, 1);
   const historyStart = workspace.indexOf('<h2>History</h2>');
-  const historyEnd = workspace.indexOf('</details>', historyStart);
+  const historyEnd = workspace.indexOf('</article>;', historyStart);
   assert.match(workspace.slice(historyStart, historyEnd), /<HisaabPayments[\s\S]*onCorrect=\{openEditPayment\}/);
   assert.match(workspace.slice(historyStart, historyEnd), /payment\.jobId === j\.id && payment\.customer === j\.customer/);
 });

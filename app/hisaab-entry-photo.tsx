@@ -87,18 +87,21 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload }: { owne
   if (!ownerId) return null;
   return (
     <section ref={root} className="hisaab-entry-photo" aria-label="Entry photo">
-      <strong>Entry photo</strong>
+      <strong>Photos{url ? " (1)" : ""}</strong>
       <small>JPG, PNG or WebP, up to 4 MB. Needs internet.</small>
       {!online ? <p>Reconnect to view or add this entry&apos;s photo.</p> : url ? (
         // Private authenticated bytes are displayed through a short-lived object URL, never a public asset URL.
         <img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" />
       ) : checked && canUpload ? (
-        // The native file input stays in the label for keyboard and screen-reader use; it is only visually hidden.
-        <label className={busy ? "hisaab-entry-photo-upload is-busy" : "hisaab-entry-photo-upload"}>
-          <span aria-hidden="true">Add photo</span>
-          <input type="file" className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
-            onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
-        </label>
+        <>
+          <p>No photos yet. Tap Add photo.</p>
+          {/* The native file input stays in the label for keyboard and screen-reader use. */}
+          <label className={busy ? "hisaab-entry-photo-upload is-busy" : "hisaab-entry-photo-upload"}>
+            <span aria-hidden="true">Add photo</span>
+            <input type="file" className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
+              onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
+          </label>
+        </>
       ) : checked ? <p>No photo attached. An active plan is required to upload.</p> : <p>Open this entry online to check its photo.</p>}
       {busy && <p role="status">Uploading photo…</p>}
       {error && <p role="alert">{error}</p>}

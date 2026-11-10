@@ -221,6 +221,7 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
     settings:
       "M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5 5l3 3 M16 16l3 3 M5 19l3-3 M16 8l3-3 M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
     plus: "M12 5v14 M5 12h14",
+    edit: "M4 20h4l11-11-4-4L4 16v4Z M13 7l4 4",
     arrow: "M5 12h14 m-6-6 6 6-6 6",
     check: "m5 12 4 4L19 6",
     bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4",
@@ -6143,15 +6144,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                             </div>
                           </div>
                           <div className="saved-entry-grid">
-                            {customerJobs.map((j, index) => (
-                              <details
+                            {customerJobs.map((j, index) => {
+                              const entryPayments = payments.filter(payment => payment.jobId === j.id && payment.customer === j.customer);
+                              return <article
                                 className="saved-detail-card customer-saved-card hisaab-history-card"
                                 data-entry-id={j.id}
                                 key={`${accountId}-${selectedCustomer}-${
                                   j.id || "entry"
                                 }-${j.date || "saved"}-${index}`}
                               >
-                                <summary className="hisaab-history-summary">
+                                <div className="hisaab-history-summary">
                                   <small className="hisaab-entry-number">Entry {customerEntryNumbers.get(j.id)}</small>
                                   <small className="saved-entry-created-date">
                                     Added{" "}
@@ -6202,12 +6204,22 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                         : "Part received"}
                                     </span>
                                   </span>
-                                  <span className="hisaab-expand-hint">
-                                    Details & actions{" "}
-                                    <span aria-hidden="true">⌄</span>
-                                  </span>
-                                </summary>
-                                <div className="hisaab-history-expanded">
+                                </div>
+                                <div className="hisaab-quick-actions" aria-label="Entry actions">
+                                  {j.paid < j.total && <button type="button" className="card-action payment-action" onClick={() => openPayment(j)}><Icon name="plus" size={16} /> Add payment</button>}
+                                  <button type="button" className="card-action" onClick={event => { const details = event.currentTarget.closest(".hisaab-history-card")?.querySelector<HTMLDetailsElement>(".hisaab-more-details"); if (details) details.open = true; }}><Icon name="plan" size={16} /> Photos</button>
+                                  <button type="button" className="card-action" onClick={() => setDraft(j)}><Icon name="edit" size={16} /> Edit</button>
+                                  <button type="button" className="card-action reminder-action" onClick={() => openReminder(j)}><Icon name="bell" size={16} /> Remind</button>
+                                  <details className="hisaab-more-actions"><summary className="card-action"><Icon name="list" size={16} /> More</summary><div>
+                                    <button type="button" className="card-action receipt-action" onClick={() => openReceipt(j)}><Icon name="copy" size={16} /> Receipt</button>
+                                    <button type="button" className="card-action whatsapp-action" onClick={() => openWhatsApp(j)}><Icon name="chat" size={16} /> WhatsApp</button>
+                                    {ledgerModeForAccount(accountId || "") && <button type="button" className="card-action" onClick={() => setTab("Reports")}><Icon name="clock" size={16} /> History</button>}
+                                    <button type="button" className="card-action delete-action" onClick={() => deleteEntry(j)}><Icon name="trash" size={16} /> Delete</button>
+                                  </div></details>
+                                </div>
+                                <details className="hisaab-more-details">
+                                  <summary className="hisaab-expand-hint">More details · Payments ({entryPayments.length}) <span aria-hidden="true">⌄</span></summary>
+                                  <div className="hisaab-history-expanded">
                                   <p className="hisaab-due-detail">
                                     Due: {j.date || "Not set"}
                                     {j.time ? " · " + j.time : ""}
@@ -6219,10 +6231,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                     canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
                                   />
                                   <HisaabPayments
-                                    payments={payments.filter(payment => payment.jobId === j.id && payment.customer === j.customer)}
+                                    payments={entryPayments}
                                     readOnly={!ledgerModeForAccount(accountId || "") || cloudWriteConflictForAccount(accountId || "")}
                                     onCorrect={openEditPayment}
-                                    onViewLedger={ledgerModeForAccount(accountId || "") ? () => setTab("Reports") : undefined}
                                   />
                                   <div
                                     className="entry-status-chips"
@@ -6262,55 +6273,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                       Done
                                     </button>
                                   </div>
-                                  <div className="chat-turn-actions saved-card-actions">
-                                    {j.paid < j.total && (
-                                      <button
-                                        type="button"
-                                        className="card-action payment-action"
-                                        onClick={() => openPayment(j)}
-                                      >
-                                        ₹ Payment
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      className="card-action receipt-action"
-                                      onClick={() => openReceipt(j)}
-                                    >
-                                      Receipt
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="card-action whatsapp-action"
-                                      onClick={() => openWhatsApp(j)}
-                                    >
-                                      <Icon name="chat" size={15} /> WhatsApp
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="card-action"
-                                      onClick={() => setDraft(j)}
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="card-action reminder-action"
-                                      onClick={() => openReminder(j)}
-                                    >
-                                      <Icon name="bell" size={15} /> Reminder
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="card-action delete-action"
-                                      onClick={() => deleteEntry(j)}
-                                    >
-                                      <Icon name="close" size={14} /> Delete
-                                    </button>
                                   </div>
-                                </div>
-                              </details>
-                            ))}
+                                </details>
+                              </article>;
+                            })}
                           </div>
                         </div>
                         {customerReminders.length > 0 && (
