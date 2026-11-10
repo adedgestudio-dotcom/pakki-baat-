@@ -7,19 +7,22 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "../app/workspace.tsx"), "utf8");
 const ast = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let installEffect;
+let installFunction;
 function visit(node) {
   if (ts.isCallExpression(node) && node.expression.getText(ast) === "useEffect" && node.arguments[0]?.getText(ast).includes('const installedKey = "pakki-baat-installed"')) {
     installEffect = node.arguments[0].getText(ast);
   }
+  if (ts.isFunctionDeclaration(node) && node.name?.text === "installPakkiBaat") installFunction = node.getText(ast);
   ts.forEachChild(node, visit);
 }
 visit(ast);
 assert.ok(installEffect, "customer install effect exists");
+assert.ok(installFunction, "customer install action exists");
 
 function harness({ remembered = true, standalone = false, iosStandalone = false, deniedStorage = false } = {}) {
   const stored = new Map(remembered ? [["pakki-baat-installed", "1"]] : []);
   const listeners = new Map();
-  const state = { installed: null, prompt: null, standalone, iosStandalone };
+  const state = { installed: null, prompt: null, helpOpen: null, standalone, iosStandalone };
   const context = {
     window: {
       matchMedia: () => ({ matches: state.standalone }),
@@ -34,6 +37,7 @@ function harness({ remembered = true, standalone = false, iosStandalone = false,
     },
     setAppInstalled: value => { state.installed = value; },
     setInstallPrompt: value => { state.prompt = value; },
+    setInstallHelpOpen: value => { state.helpOpen = value; },
     setInstallWelcomeOpen() {},
     setToast() {},
   };
@@ -55,6 +59,7 @@ test("a new install prompt clears stale installation memory and exposes the Sett
   assert.equal(h.state.installed, true);
   assert.equal(h.stored.get("pakki-baat-installed"), "1");
   assert.equal(h.state.prompt, null);
+  assert.equal(h.state.helpOpen, false);
   h.cleanup();
   assert.equal(h.listeners.size, 0);
 });
@@ -75,4 +80,45 @@ test("storage denial does not prevent an available install prompt from showing",
   assert.doesNotThrow(() => h.listeners.get("beforeinstallprompt")(h.prompt));
   assert.equal(h.state.installed, false);
   assert.equal(h.state.prompt, h.prompt);
+});
+
+async function runInstall({ installed = false, prompt = null } = {}) {
+  const state = { helpOpen: false, prompt, prompted: 0, toast: "" };
+  const context = {
+    appInstalled: installed,
+    installPrompt: prompt,
+    setInstallPrompt: value => { state.prompt = value; },
+    setInstallHelpOpen: value => { state.helpOpen = value; },
+    setToast: value => { state.toast = value; },
+  };
+  vm.createContext(context);
+  vm.runInContext(ts.transpileModule(installFunction, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  await context.installPakkiBaat();
+  return state;
+}
+
+test("install entries use the existing prompt and hide behind installed state", async () => {
+  for (const className of ["top-menu-install-entry", "settings-install-entry"]) {
+    const entry = new RegExp(`!appInstalled && \\(\\s*<button[\\s\\S]{0,300}className="${className}"`).exec(source);
+    assert.ok(entry, className);
+  }
+  const prompt = {
+    prompt() { this.calls = (this.calls || 0) + 1; return Promise.resolve(); },
+    userChoice: Promise.resolve({ outcome: "accepted" }),
+  };
+  const prompted = await runInstall({ prompt });
+  assert.equal(prompt.calls, 1);
+  assert.equal(prompted.prompt, null);
+  assert.equal(prompted.helpOpen, false);
+  const installed = await runInstall({ installed: true });
+  assert.match(installed.toast, /already installed/);
+});
+
+test("missing browser prompt opens concise Android and iPhone install help", async () => {
+  const fallback = await runInstall();
+  assert.equal(fallback.helpOpen, true);
+  assert.match(source, /installHelpOpen && !appInstalled/);
+  for (const instruction of ["Android Chrome", "menu &gt; Install app", "iPhone Safari", "Share &gt; Add to Home Screen"]) {
+    assert.ok(source.includes(instruction), instruction);
+  }
 });

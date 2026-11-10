@@ -387,6 +387,7 @@ export default function Workspace() {
       null
     ),
     [appInstalled, setAppInstalled] = useState(false),
+    [installHelpOpen, setInstallHelpOpen] = useState(false),
     [installWelcomeOpen, setInstallWelcomeOpen] = useState(false);
   // Synchronous financial state prevents queued React updates from validating against stale closures.
   const financialStateRef = useRef<FinancialState>({ jobs: [], payments: [] });
@@ -534,6 +535,7 @@ export default function Workspace() {
         localStorage.setItem(installedKey, "1");
       } catch {}
       setAppInstalled(true);
+      setInstallHelpOpen(false);
       setInstallWelcomeOpen(false);
       setInstallPrompt(null);
       setToast("Pakki Baat installed ✓");
@@ -553,16 +555,11 @@ export default function Workspace() {
     }
     if (installPrompt) {
       await installPrompt.prompt();
-      const choice = await installPrompt.userChoice;
-      if (choice.outcome === "accepted") setInstallPrompt(null);
+      await installPrompt.userChoice;
+      setInstallPrompt(null);
       return;
     }
-    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    setToast(
-      isIos
-        ? "On iPhone: tap Share, then Add to Home Screen."
-        : "Open your browser menu and choose Install app or Add to Home screen."
-    );
+    setInstallHelpOpen(true);
   }
 
   function entryDraftKey(userId: string) {
@@ -4614,6 +4611,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           : destination}
                       </button>
                     ))}
+                    {!appInstalled && (
+                      <button
+                        type="button"
+                        className="top-menu-install-entry"
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          void installPakkiBaat();
+                        }}
+                      >
+                        <Icon name="download" size={17} /> Install app
+                      </button>
+                    )}
                     {loggedIn && <hr className="account-menu-divider" />}
                     {loggedIn && (
                       <button
@@ -7071,6 +7080,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   )}
                 </div>
                 <div className="settings-section-list">
+                  {!appInstalled && (
+                    <button
+                      type="button"
+                      className="settings-install-entry"
+                      onClick={() => void installPakkiBaat()}
+                    >
+                      <Icon name="download" size={18} />
+                      <span>Install app</span>
+                    </button>
+                  )}
                   <section className="settings-group">
                     <div className="settings-group-head">
                       <span className="settings-group-icon">
@@ -8673,6 +8692,33 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               >
                 Not now
               </button>
+            </section>
+          </div>
+        )}
+        {installHelpOpen && !appInstalled && (
+          <div
+            className="modal-backdrop install-help-backdrop"
+            onClick={() => setInstallHelpOpen(false)}
+          >
+            <section
+              className="install-help-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="install-help-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="icon-button install-help-close"
+                aria-label="Close install help"
+                onClick={() => setInstallHelpOpen(false)}
+              >
+                <Icon name="close" />
+              </button>
+              <span className="install-help-icon"><Icon name="download" size={22} /></span>
+              <h2 id="install-help-title">Install app</h2>
+              <p><strong>Android Chrome</strong><span>menu &gt; Install app</span></p>
+              <p><strong>iPhone Safari</strong><span>Share &gt; Add to Home Screen</span></p>
             </section>
           </div>
         )}

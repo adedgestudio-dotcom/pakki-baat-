@@ -12993,6 +12993,11 @@ footer .footer-separator {
   min-height: 44px;
   text-align: left;
 }
+.top-account-popover > .top-menu-install-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .top-account-avatar > svg {
   display: block;
   width: 24px;
@@ -13018,6 +13023,63 @@ footer .footer-separator {
 [data-theme="dark"] .top-actions .top-account-avatar {
   color: #edf4ef;
   border-color: #354b40;
+}
+.settings-install-entry {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fffefb;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+[data-theme="dark"] .settings-install-entry {
+  background: #1b2924;
+  border-color: #354b40;
+  color: #edf4ef;
+}
+.install-help-sheet {
+  position: relative;
+  width: min(400px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffefb;
+  color: var(--ink);
+  box-shadow: 0 20px 70px #16352b30;
+}
+.install-help-sheet h2 { margin: 0; font: 24px Georgia, serif; }
+.install-help-sheet p { display: grid; gap: 3px; margin: 0; line-height: 1.5; }
+.install-help-sheet p span { color: var(--muted); }
+.install-help-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e3eee8;
+  color: var(--teal);
+}
+.install-help-close { position: absolute; top: 12px; right: 12px; }
+[data-theme="dark"] .install-help-sheet {
+  background: #1b2924;
+  border-color: #354b40;
+  color: #edf4ef;
+}
+[data-theme="dark"] .install-help-sheet p span { color: #b9c9c1; }
+[data-theme="dark"] .install-help-icon { background: #263e33; color: #9bd4b8; }
+@media (max-width: 600px) {
+  .install-help-backdrop { align-items: flex-end; padding: 12px; }
+  .install-help-sheet { padding: 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 }
 .settings-group-head strong {
   font-size: 15px;
