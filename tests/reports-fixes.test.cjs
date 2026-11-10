@@ -49,7 +49,7 @@ test("each applied Transactions option filters rows while summary totals stay id
   }
 });
 
-test("Baki wording follows signed accounting effects including reversals", () => {
+test("print Baki wording still follows signed accounting effects including reversals", () => {
   assert.match(ui.reportBakiLabel(report.rows[0]), /^Baki increases by Rs 100/);
   assert.match(ui.reportBakiLabel(report.rows.at(-1)), /^Baki reduces by Rs 20/);
   assert.match(ui.reportBakiLabel({ ...report.rows[0], salesEffect: -10000 }), /^Baki reduces by Rs 100/);
@@ -114,4 +114,33 @@ test("every Reports message card shares padding and heading sizing", () => {
   assert.ok(css.includes('.reports-state h1{font-size:23px}'));
   assert.ok(css.includes('.reports-page .reports-empty{margin:0;padding:16px;'));
   assert.ok(css.includes('.reports-page .reports-notice,.reports-page .reports-filter-error{padding:14px;'));
+});
+
+
+test("on-screen Reports omit per-event balance text and empty placeholders", () => {
+  for (const file of ["reports.tsx", "reports-groups.tsx", "reports-mobile.tsx", "reports-detail.tsx"]) {
+    const source = fs.readFileSync(path.join(__dirname, "../app", file), "utf8");
+    assert.doesNotMatch(source, /reportBakiLabel|Balance effect|Baki change|Baki increases|Baki reduces|reports-card-effect/, file);
+    assert.doesNotMatch(source, /<(?:th|td|p)(?:\s[^>]*)?>\s*<\/(?:th|td|p)>/, file);
+  }
+  const css = fs.readFileSync(path.join(__dirname, "../app/reports.css"), "utf8");
+  assert.ok(!css.includes(".reports-card-effect"));
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  for (const file of ["reports-mobile", "reports-detail"]) {
+    const source = fs.readFileSync(path.join(__dirname, "../app", file + ".tsx"), "utf8");
+    const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+    const exports = {};
+    vm.runInNewContext(output, { exports, require: name => name.startsWith("@/lib/") ? load(name.slice(6)) : require(name) });
+    const markup = renderToStaticMarkup(React.createElement(exports.default, { rows: report.rows, total: report.rows.length, row: report.rows[0], job: snapshot.jobs[0], onSelect() {}, onClose() {} }));
+    assert.doesNotMatch(markup, /Balance effect|Baki change|Baki increases|Baki reduces/);
+    for (const text of ["Asha Shah", "Cake", reports.formatReportMoney(report.rows[0].amountPaise)]) assert.ok(markup.includes(text), file + ": " + text);
+    if (file === "reports-detail") {
+      for (const text of ["Date (UTC)", "Type", "Amount", "Description", "Current sale totals", "Received so far", "Baki"]) assert.ok(markup.includes(text), text);
+    } else {
+      assert.ok(markup.includes('dateTime="2026-11-09"'));
+      assert.ok(markup.includes("Sale"));
+      assert.ok(markup.includes("Payment Received"));
+    }
+  }
 });

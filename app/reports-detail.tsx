@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Job } from "@/lib/data";
 import { formatMoneyRupees } from "@/lib/money";
 import { formatReportMoney, type ReportTransaction } from "@/lib/reports";
-import { reportBakiLabel, reportTypeLabels } from "@/lib/reports-ui";
+import { reportTypeLabels } from "@/lib/reports-ui";
 
 export default function ReportsTransactionDetail({ row, job, onClose }: { row: ReportTransaction; job?: Job; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -22,7 +22,6 @@ export default function ReportsTransactionDetail({ row, job, onClose }: { row: R
       <div><dt>Amount</dt><dd>{formatReportMoney(row.amountPaise)}</dd></div>
       <div><dt>Description</dt><dd>{row.description}</dd></div>
     </dl>
-    <p>{reportBakiLabel(row)}</p>
     {job ? <section aria-label="Current sale totals"><h3>Current sale totals</h3><p>{job.work}</p><dl>
       <div><dt>Total</dt><dd>{formatMoneyRupees(job.total)}</dd></div>
       <div><dt>Received so far</dt><dd>{formatMoneyRupees(job.paid)}</dd></div>

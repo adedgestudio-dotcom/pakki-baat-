@@ -16,7 +16,6 @@
 .reports-mobile-transactions .reports-card-meta{margin:0;color:var(--report-card-muted);font-size:13px;line-height:1.5}
 .reports-card-type{color:var(--report-card-type);font-weight:600}
 .reports-transaction-card:is([data-kind="correction"],[data-kind="reversal"]) .reports-card-type{color:var(--report-card-audit)}
-.reports-card-effect{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0;font-size:13px;line-height:1.5}.reports-card-effect dt{color:var(--report-card-muted)}.reports-card-effect dd{margin:0;font-weight:650;font-variant-numeric:tabular-nums;color:var(--report-card-text)}
 .reports-mobile-transactions .reports-card-description{margin:0;font-size:13px;line-height:1.55;color:var(--report-card-text)}
 .reports-mobile-transactions .reports-card-history{margin:0;padding-top:7px;border-top:1px solid var(--report-card-line);font-size:12px;color:var(--report-card-muted)}
 [data-theme="dark"] .reports-mobile-transactions{--report-card-bg:#17231f;--report-card-line:#354b40;--report-card-text:#edf4ef;--report-card-muted:#b9c9c1;--report-card-type:#9bd4b8;--report-card-audit:#ffc0ac}

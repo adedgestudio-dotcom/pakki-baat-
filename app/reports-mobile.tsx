@@ -1,4 +1,3 @@
-import { reportBakiLabel } from "@/lib/reports-ui";
 import { formatReportMoney, type ReportTransaction } from "@/lib/reports";
 
 const transactionLabels: Record<string, string> = {
@@ -15,7 +14,6 @@ export default function ReportsMobileTransactions({ rows, total, onSelect }: { r
         <article className="reports-transaction-card" data-kind={row.kind} onClick={() => onSelect(row)}>
           <header className="reports-card-header"><h3>{row.customer}</h3><strong className="reports-card-amount">{formatReportMoney(row.amountPaise)}</strong></header>
           <p className="reports-card-meta"><time dateTime={row.day} aria-label={`${date} (UTC)`}>{date}</time><span aria-hidden="true"> · </span><span className="reports-card-type">{transactionLabels[row.kind] || row.kind.replaceAll("_", " ")}</span></p>
-          <p className="reports-card-effect">{reportBakiLabel(row)}</p>
           <p className="reports-card-description">{row.description}</p>
           <p className="reports-card-history">{row.historical ? "Historical / unlinked work" : "Active work"}</p>
           <button type="button" className="reports-detail-link" onClick={() => onSelect(row)} aria-label={`View transaction for ${row.customer}`}>View transaction</button>
