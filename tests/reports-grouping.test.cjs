@@ -145,13 +145,13 @@ test("legacy snapshot grouping and whole-word search use the same flat selection
 test("screen grouping never supplies the flat summary, CSV or print inputs", () => {
   const source=fs.readFileSync(path.join(__dirname,"../app/reports.tsx"),"utf8");
   assert.ok(source.includes("new Blob([reportCsv(matchingRows)]"));
-  assert.ok(source.includes("sales and other groups ({matchingRows.length} matching transactions)"));
-  assert.ok(source.includes('["Total Sales", view.sales]'));
-  assert.ok(source.includes('["Payments Received", view.payments]'));
-  assert.ok(source.includes('["Overall Outstanding", report.activeOutstandingPaise]'));
+  assert.ok(source.includes("of {matchingRows.length} transactions"));
+  assert.ok(source.includes('["Total sales", view.sales]'));
+  assert.ok(source.includes('["Received", view.payments]'));
+  assert.ok(source.includes('["Pending", report.activeOutstandingPaise]'));
   assert.ok(source.includes("rows={matchingRows} summary={{ sales: view.sales"));
   const ui=fs.readFileSync(path.join(__dirname,"../app/reports-groups.tsx"),"utf8");
-  for(const text of ["Lifetime total","Received so far","Lifetime baki","selected period","Context only","View read-only"]) assert.ok(ui.includes(text),text);
+  for(const text of ["Customer","Date","Type","Amount","Pending","onSelect(row)"]) assert.ok(ui.includes(text),text);
   assert.ok(!/fetch\(|<input|<select/.test(ui));
 });
 const React = require("react");
@@ -166,65 +166,37 @@ function groupedMarkup(groups) {
     if (name === "@/lib/reports-ui") return load("reports-ui");
     throw new Error("Unexpected import " + name);
   } });
-  return renderToStaticMarkup(React.createElement(exports.default, { groups, total: groups.length, onSelect() {} }));
+  return renderToStaticMarkup(React.createElement(exports.default, { rows: groups.flatMap(group => group.matches), groups, total: groups.flatMap(group => group.matches).length, onSelect() {} }));
 }
 
-test("rendered sale rows expose receipt chains, lifetime/period labels and read-only actions", () => {
+test("desktop rows show five plain fields and the sale's pending amount", () => {
   const markup = groupedMarkup(project(fixtures[1]).groups);
-  assert.ok(!markup.includes(" ? "));
-  assert.equal((markup.match(/class="reports-sale-group"/g)||[]).length,1);
-  assert.equal((markup.match(/class="reports-receipt-chain"/g)||[]).length,1);
-  for(const text of ["Lifetime total","Received so far","Lifetime baki","selected period","Reversal","Replacement","View transaction","read-only sale"]) assert.ok(markup.includes(text),text);
-  const filtered = groupedMarkup(project(fixtures[7]).groups);
-  assert.ok(filtered.includes("Context only - outside current filters"));
-  assert.ok(!/<input|<select|>Edit<|>Delete</.test(markup));
-  assert.ok(groupedMarkup(project(fixtures[4]).groups).includes("Historical / deleted sale"));
-  assert.ok(groupedMarkup(project(fixtures[5]).groups).includes("Unlinked receipt / event"));
-  assert.ok(groupedMarkup(project(fixtures[10]).groups).includes("Unclassified event"));
+  assert.equal((markup.match(/<th scope="col">/g)||[]).length,5);
+  assert.equal((markup.match(/<tbody><tr/g)||[]).length,1);
+  for (const text of ["Customer","Date","Type","Amount","Pending","Asha",flat.formatReportMoney(8500)]) assert.ok(markup.includes(text),text);
+  assert.ok(!/Lifetime|baki|Context only|View transaction|>Edit</i.test(markup));
+  assert.ok(groupedMarkup(project(fixtures[5]).groups).includes("No linked sale"));
 });
 
-
-test("grouped cards omit per-event balance history but retain receipt dates, amounts and labels", () => {
+test("every matching event keeps a desktop row without displaying balance history", () => {
   for (const fixture of fixtures) {
-    const { groups } = project(fixture);
+    const { groups, view } = project(fixture);
     const markup = groupedMarkup(groups);
-    assert.doesNotMatch(markup, /Baki (?:increases|reduces|change)|balance history|running balance|balance after/i);
-    for (const group of groups) {
-      if (group.lifetime) {
-        for (const label of ["Lifetime total", "Received so far - lifetime", "Lifetime baki"]) assert.ok(markup.includes(label));
-      }
-      for (const receipt of group.receipts) {
-        for (const event of receipt.events) {
-          assert.ok(markup.includes(event.role), event.role);
-          assert.ok(markup.includes('dateTime="' + event.row.day + '"'), event.row.day);
-          assert.ok(markup.includes(flat.formatReportMoney(event.row.amountPaise)));
-        }
-      }
-    }
+    assert.equal((markup.match(/<tr key=/g)||[]).length,0);
+    assert.equal((markup.match(/<td>/g)||[]).length,view.rows.length*3);
+    for (const row of view.rows) assert.ok(markup.includes('dateTime="' + row.day + '"'), row.day);
+    assert.doesNotMatch(markup, /Lifetime|Baki|balance history|running balance|balance after/i);
   }
 });
 
-
-test("sale disclosure has open/close hints and first sale date without the job ID", () => {
-  const { groups } = project(fixtures[7]);
-  const markup = groupedMarkup(groups);
-  const summary = markup.match(/<summary>[\s\S]*?<\/summary>/)[0];
-  for (const text of ["Tap to open", "Tap to close", "reports-group-chevron", "Asha", "Cake", 'dateTime="2026-10-01"']) assert.ok(summary.includes(text), text);
-  assert.ok(!summary.includes("Job "));
-  assert.ok(!markup.includes("Groups match your search"));
-  const css = fs.readFileSync(path.join(__dirname, "../app/reports.css"), "utf8");
-  assert.ok(css.includes('.reports-sale-group[open]>summary .reports-open-hint{display:none}'));
-  assert.ok(css.includes('.reports-sale-group[open]>summary .reports-close-hint{display:inline}'));
-  assert.ok(css.includes('.reports-sale-group[open]>summary .reports-group-chevron{transform:rotate(180deg)}'));
-  assert.ok(css.includes('[data-theme="dark"] .reports-page{--reports-expanded-surface:'));
-  assert.ok(css.includes('background:var(--reports-expanded-surface)'));
-});
-
-test("one collapsed reading guide follows the list and contains the longer explanations", () => {
+test("summary, filters, flat list and one collapsed reading guide are in order", () => {
   const screen = fs.readFileSync(path.join(__dirname, "../app/reports.tsx"), "utf8");
   const guide = screen.match(/<details className="reports-accounting">[\s\S]*?<\/details>/g);
   assert.equal(guide.length, 1);
   assert.ok(guide[0].includes('<summary>How to read this</summary>'));
-  for (const text of ["Groups match your search", "Presets use your local calendar", "Sales and receipts use the applied date range"]) assert.ok(guide[0].includes(text), text);
-  assert.ok(screen.indexOf(guide[0]) > screen.indexOf('<ReportsGroups'));
+  for (const text of ["Presets use your local calendar", "Corrections undo", "report.warnings.map"]) assert.ok(guide[0].includes(text), text);
+  assert.ok(screen.indexOf('className="reports-overview"') < screen.indexOf('className="reports-filter-panel"'));
+  assert.ok(screen.indexOf('className="reports-filter-panel"') < screen.indexOf('<ReportsMobileTransactions'));
+  assert.ok(screen.indexOf('<ReportsGroups') < screen.indexOf(guide[0]));
+  assert.ok(screen.includes('rows={matchingRows.slice(0, ui.visibleCount)}'));
 });

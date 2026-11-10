@@ -138,3 +138,23 @@
 .reports-sale-group small,.reports-group-period dt{color:var(--reports-group-muted)}
 .reports-overview>.panel{background:var(--reports-expanded-surface);color:var(--reports-group-text)}
 .reports-overview>.panel>span{color:var(--reports-group-muted)}
+
+/* One clear list and three equal summary cards; print styles above stay untouched. */
+.reports-overview{grid-template-columns:repeat(3,minmax(0,1fr))}
+.reports-overview>.panel,.reports-filter-panel,.reports-table-wrap,.reports-mobile-transactions .reports-transaction-card{border:1px solid var(--reports-group-line,#ded9cd);background:var(--reports-group-surface);color:var(--reports-group-text);box-shadow:0 3px 12px #1c2a2612}
+.reports-page{--reports-group-line:#d8d2c6}
+[data-theme="dark"] .reports-page{--reports-group-line:#42594c}
+.reports-overview>.panel>span{color:var(--reports-group-muted)}
+.reports-table-wrap tr{cursor:pointer}
+.reports-table-wrap tbody tr:hover,.reports-table-wrap tbody tr:focus-within{background:var(--reports-expanded-surface)}
+.reports-row-button{display:block;min-height:44px;width:100%;padding:8px 0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;font-weight:700;cursor:pointer}
+.reports-mobile-transactions h2{margin:0;font-size:18px}
+.reports-mobile-transactions .reports-transaction-card{width:100%;min-height:72px;text-align:left;font:inherit;cursor:pointer}
+.reports-mobile-transactions .reports-card-header strong:first-child{flex:1;min-width:0;font-size:15px}
+.reports-mobile-transactions .reports-card-meta{display:flex;gap:12px;flex-wrap:wrap}
+.reports-card-pending{color:var(--report-card-text);font-size:13px;font-weight:600}
+.reports-detail-events{display:grid;gap:0;margin:8px 0 0;padding:0;list-style:none}
+.reports-detail-events li{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+.reports-detail-events time{color:var(--muted)}
+.reports-detail-events li span{grid-column:2;font-weight:700}
+@media(max-width:600px){.reports-overview{grid-template-columns:minmax(0,1fr)}.reports-overview>.panel{min-height:0}}

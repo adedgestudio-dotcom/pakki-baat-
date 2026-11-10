@@ -4,10 +4,11 @@ import { useEffect, useReducer, useState } from "react";
 import { loadReportLedger } from "@/lib/cloud";
 import type { Snapshot } from "@/lib/data";
 import { formatReportMoney, ledgerReport, legacyReport, reportCsv, selectReport, type ReportTransaction, type LedgerRow, type ReportFilter } from "@/lib/reports";
-import { advancedReportTypes, reportJobId, createReportUiState, orderReportDates, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
+import { advancedReportTypes, createReportUiState, orderReportDates, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
 import "./reports.css";
 import ReportsPrintDocument from "./reports-print";
 import ReportsGroups from "./reports-groups";
+import ReportsMobileTransactions from "./reports-mobile";
 import { groupReportRows, pendingReportJobIds, type ReportGroup } from "@/lib/reports-groups";
 import ReportsTransactionDetail from "./reports-detail";
 
@@ -61,11 +62,8 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     snapshot.payments?.forEach(payment => timestamps.set(`payment:${payment.id}`, Date.parse(payment.createdAt)));
   }
   const matchingRows = orderReportDates(view.rows, filter, timestamps);
-  const groupOrder = new Map(matchingRows.map((row, index) => [row.id, index]));
-  groups.sort((a, b) => a.matches.reduce((min, row) => Math.min(min, groupOrder.get(row.id)!), Infinity) - b.matches.reduce((min, row) => Math.min(min, groupOrder.get(row.id)!), Infinity));
   const detail = selected?.ownerId === ownerId && selected.key === requestKey ? selected.row : null;
-  const detailJobId = detail ? reportJobId(detail, snapshot.payments || [], ledgerEnabled && current?.state === "loaded" ? current.rows : undefined) : undefined;
-  const detailJob = snapshot.jobs.find(job => job.id === detailJobId);
+  const detailGroup = detail ? groups.find(group => group.matches.some(row => row.id === detail.id)) : undefined;
   const openDetail = (row: ReportTransaction) => setSelected({ ownerId, key: requestKey, row });
   const draft = ui.draft.filter;
   const unapplied = reportFiltersPending(ui);
@@ -78,9 +76,8 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     URL.revokeObjectURL(url);
   }
   return <section className="reports-page" aria-label="Financial reports">
-    <header className="reports-heading"><div><h1>Reports</h1><p>See your sales, receipts and balance.</p></div><div className="reports-actions"><button className="outline" onClick={refresh}>Refresh history</button><button className="outline" onClick={download}>Download CSV</button><button className="outline" onClick={() => window.print()}>Print</button></div></header>
-    {pending && <p role="status" className="reports-notice">Workspace changes are awaiting cloud acknowledgement. Ledger figures show the last loaded server history; active outstanding includes local changes.</p>}
-    {report.warnings.map(warning => <p className="reports-notice" key={warning}>{warning}</p>)}
+    <header className="reports-heading"><h1>Reports</h1><div className="reports-actions"><button className="outline" onClick={refresh}>Refresh history</button><button className="outline" onClick={download}>Download CSV</button><button className="outline" onClick={() => window.print()}>Print</button></div></header>
+    <div className="reports-overview">{[["Total sales", view.sales], ["Received", view.payments], ["Pending", report.activeOutstandingPaise]].map(([label, value], index) => <div className="panel" key={String(label)}><span>{label}</span><strong>{incomplete && index < 2 ? "Needs reconciliation" : formatReportMoney(Number(value))}</strong></div>)}</div>
     <form className="reports-filter-panel" onSubmit={event => { event.preventDefault(); dispatch({ type: "apply", now: new Date() }); }}>
       <div className="reports-filters">
         <label>Period<select value={ui.draft.period} onChange={event => dispatch({ type: "period", period: event.target.value as ReportPeriod, now: new Date() })}><option value="today">Today</option><option value="seven">Last 7 days</option><option value="thirty">Last 30 days</option><option value="custom">Custom range</option></select></label>
@@ -88,25 +85,25 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
         <label>Customer or amount<input type="search" placeholder="Name or ₹ amount" value={draft.search} onChange={event => update("search", event.target.value)} /></label>
         <label>Transactions<select value={advancedReportTypes.includes(draft.kind) ? "advanced" : draft.kind} onChange={event => update("kind", event.target.value)}>{["all", "charge", "payment", "correction", "pending_sales"].map(kind => <option key={kind} value={kind}>{reportTypeLabels[kind]}</option>)}{advancedReportTypes.includes(draft.kind) && <option value="advanced" disabled>{reportTypeLabels[draft.kind]} (Advanced)</option>}</select></label>
       </div>
-      {ui.draft.period === "custom" && <p className="reports-semantics">Leave either date blank for an open range, or both blank for all dates.</p>}
       <details className="reports-advanced"><summary>Advanced Filters</summary><div className="reports-filters">
         <label>Audit transaction type<select value={advancedReportTypes.includes(draft.kind) ? draft.kind : ""} onChange={event => { if (event.target.value) update("kind", event.target.value); }}><option value="">Choose an audit type</option>{advancedReportTypes.map(kind => <option key={kind} value={kind}>{reportTypeLabels[kind]}</option>)}</select></label>
         <label>Sort by<select value={draft.sort} onChange={event => update("sort", event.target.value as ReportFilter["sort"])}><option value="date">Date</option><option value="amount">Amount</option><option value="customer">Customer</option></select></label>
         <label>Order<select value={draft.descending ? "desc" : "asc"} onChange={event => update("descending", event.target.value === "desc")}><option value="desc">Newest / highest first</option><option value="asc">Oldest / lowest first</option></select></label>
       </div></details>
-      <div className="reports-apply"><button type="submit" className="primary">Show Report</button><span role="status" aria-live="polite">{unapplied ? "Filters changed — click Show Report to apply." : "Showing applied filters."}</span></div>
+      <div className="reports-apply"><button type="submit" className="primary">Show Report</button>{unapplied && <span role="status" aria-live="polite">Filters changed — click Show Report to apply.</span>}</div>
       {ui.error && <p role="alert" className="reports-filter-error">{ui.error}</p>}
     </form>
-    <div className="reports-overview">{[["Total Sales", view.sales], ["Payments Received", view.payments], ["Overall Outstanding", report.activeOutstandingPaise]].map(([label, value], index) => <div className="panel" key={String(label)}><span>{label}</span><strong>{incomplete && index < 2 ? "Needs reconciliation" : formatReportMoney(Number(value))}</strong></div>)}</div>
-    <div className="reports-print-context">Applied period: {filter.from || "All dates"} to {filter.to || "All dates"} · Search: {filter.search || "None"} · Transactions: {reportTypeLabels[filter.kind] || filter.kind}</div>
-    <ReportsGroups key={requestKey + JSON.stringify(filter)} groups={groups.slice(0, ui.visibleCount)} total={groups.length} onSelect={openDetail} />
-    <div className="reports-pagination"><p>Showing {Math.min(ui.visibleCount, groups.length)} of {groups.length} sales and other groups ({matchingRows.length} matching transactions)</p>{ui.visibleCount < groups.length && <button type="button" className="outline" onClick={() => dispatch({ type: "more" })}>Load 20 More</button>}</div>
+    <ReportsMobileTransactions rows={matchingRows.slice(0, ui.visibleCount)} groups={groups} total={matchingRows.length} onSelect={openDetail} />
+    <ReportsGroups rows={matchingRows.slice(0, ui.visibleCount)} groups={groups} total={matchingRows.length} onSelect={openDetail} />
+    <div className="reports-pagination"><p>Showing {Math.min(ui.visibleCount, matchingRows.length)} of {matchingRows.length} transactions</p>{ui.visibleCount < matchingRows.length && <button type="button" className="outline" onClick={() => dispatch({ type: "more" })}>Load 20 More</button>}</div>
     <details className="reports-accounting"><summary>How to read this</summary>
-      <p className="reports-semantics">Sales and receipts use the applied date range. Overall Outstanding covers all active work.</p>
-      <p className="reports-semantics">Presets use your local calendar to choose inclusive dates. Ledger entries are matched by their UTC transaction date, not converted to local timestamps. Legacy payments use their recorded date; jobs use creation date or, when missing, work date. Search and transaction type filter the table, CSV and print, while overview totals use the date range. Reversals undo earlier entries and are not extra receipts or cash refunds. Historical / unlinked records may include deleted work, which is excluded from Overall Outstanding.</p>
-      <p className="reports-semantics">Groups match your search and transaction filter. Expand for lifetime history; context-only events do not add to the filtered history or CSV. Period activity below uses dates only, just like the summary cards.</p>
+      <p className="reports-semantics">Total sales and Received use the selected dates. Pending covers all active sales. Search and transaction type filter the list, CSV and print, while the three cards keep their existing totals.</p>
+      <p className="reports-semantics">Leave either custom date blank for an open range. Presets use your local calendar; transactions use UTC dates. Corrections undo or replace earlier entries. Historical or unlinked entries may appear in the list but do not add to Pending.</p>
+      {pending && <p role="status" className="reports-notice">Workspace changes are awaiting cloud acknowledgement. Ledger figures show the last loaded server history; active Pending includes local changes.</p>}
+      {report.warnings.map(warning => <p className="reports-notice" key={warning}>{warning}</p>)}
+      <div className="reports-print-context">Applied period: {filter.from || "All dates"} to {filter.to || "All dates"} · Search: {filter.search || "None"} · Transactions: {reportTypeLabels[filter.kind] || filter.kind}</div>
     </details>
     <ReportsPrintDocument filter={filter} rows={matchingRows} summary={{ sales: view.sales, payments: view.payments, periodBalance: view.periodBalance, outstanding: report.activeOutstandingPaise }} incomplete={incomplete} warnings={report.warnings} pending={pending} ledgerEnabled={ledgerEnabled} />
-    {detail && <ReportsTransactionDetail row={detail} job={detailJob} onClose={() => setSelected(null)} />}
+    {detail && <ReportsTransactionDetail row={detail} group={detailGroup} onClose={() => setSelected(null)} />}
   </section>;
 }

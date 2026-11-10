@@ -1,25 +1,20 @@
 import { formatReportMoney, type ReportTransaction } from "@/lib/reports";
+import type { ReportGroup } from "@/lib/reports-groups";
 
-const transactionLabels: Record<string, string> = {
-  charge: "Sale", payment: "Payment Received", correction: "Correction", reversal: "Reversal",
-  adjustment: "Adjustment", opening_balance: "Opening Balance",
-};
+const typeLabel: Record<string, string> = { charge: "Sale", payment: "Payment received", correction: "Correction", reversal: "Correction", adjustment: "Other", opening_balance: "Other" };
 
-export default function ReportsMobileTransactions({ rows, total, onSelect }: { rows: ReportTransaction[]; total: number; onSelect: (row: ReportTransaction) => void }) {
-  return <section className="reports-mobile-transactions" aria-label="Transaction History">
-    <header className="reports-mobile-heading"><h2>Transaction History</h2><p>{total} matching transactions</p></header>
+export default function ReportsMobileTransactions({ rows, groups, total, onSelect }: { rows: ReportTransaction[]; groups: ReportGroup[]; total: number; onSelect: (row: ReportTransaction) => void }) {
+  const byRow = new Map(groups.flatMap(group => group.matches.map(row => [row.id, group] as const)));
+  return <section className="reports-mobile-transactions" aria-label="Transactions">
+    <h2>Transactions ({total})</h2>
     <ul>{rows.map(row => {
-      const date = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${row.day}T00:00:00Z`));
-      return <li key={row.id}>
-        <article className="reports-transaction-card" data-kind={row.kind} onClick={() => onSelect(row)}>
-          <header className="reports-card-header"><h3>{row.customer}</h3><strong className="reports-card-amount">{formatReportMoney(row.amountPaise)}</strong></header>
-          <p className="reports-card-meta"><time dateTime={row.day} aria-label={`${date} (UTC)`}>{date}</time><span aria-hidden="true"> · </span><span className="reports-card-type">{transactionLabels[row.kind] || row.kind.replaceAll("_", " ")}</span></p>
-          <p className="reports-card-description">{row.description}</p>
-          <p className="reports-card-history">{row.historical ? "Historical / unlinked work" : "Active work"}</p>
-          <button type="button" className="reports-detail-link" onClick={() => onSelect(row)} aria-label={`View transaction for ${row.customer}`}>View transaction</button>
-        </article>
-      </li>;
+      const group = byRow.get(row.id);
+      return <li key={row.id}><button type="button" className="reports-transaction-card" onClick={() => onSelect(row)}>
+        <span className="reports-card-header"><strong>{row.customer}</strong><strong className="reports-card-amount">{formatReportMoney(row.amountPaise)}</strong></span>
+        <span className="reports-card-meta"><time dateTime={row.day}>{row.day}</time><span className="reports-card-type">{typeLabel[row.kind] || row.kind.replaceAll("_", " ")}</span></span>
+        <span className="reports-card-pending">Pending: {group?.lifetime ? formatReportMoney(group.lifetime.bakiPaise) : "No linked sale"}</span>
+      </button></li>;
     })}</ul>
-    {!rows.length && <p className="reports-empty">No transactions in this report. Try a longer period or a custom range, then click Show Report.</p>}
+    {!rows.length && <p className="reports-empty">No transactions match these filters.</p>}
   </section>;
 }

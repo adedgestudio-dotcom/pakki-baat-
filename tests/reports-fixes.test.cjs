@@ -63,7 +63,7 @@ test("read-only detail resolves linked jobs without changing transaction amounts
   assert.equal(ui.reportJobId({ id: "missing" }, [], []), undefined);
   const detail = fs.readFileSync(path.join(__dirname, "../app/reports-detail.tsx"), "utf8");
   assert.match(detail, /<dialog/);
-  for (const label of ["Customer", "Date (UTC)", "Type", "Amount", "Description", "Total", "Received so far", "Baki"]) assert.ok(detail.includes(">" + label + "<"), label);
+  for (const label of ["Customer", "Date (UTC)", "Type", "Amount", "Description", "Total", "Received", "Pending"]) assert.ok(detail.includes(">" + label + "<"), label);
   assert.ok(!/fetch\(|<input|<select|Edit|Delete/.test(detail));
   assert.equal((detail.match(/<button/g) || []).length, 1);
 });
@@ -76,6 +76,7 @@ test("offline notices and long reconciliation labels cannot widen the same repor
   assert.match(css, /\.reports-page\{width:100%;grid-template-columns:minmax\(0,1fr\)\}/);
   assert.match(css, /\.reports-notice,\.reports-overview strong\{overflow-wrap:anywhere\}/);
   assert.match(css, /\.reports-overview>\.panel\{min-width:0;min-height:100px;align-content:start\}/);
+  assert.match(css, /\.reports-overview\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}/);
   assert.ok(!screen.includes('["Period Balance"'));
   assert.ok(!print.includes('["Period Balance"'));
   assert.ok(![screen,mobile,print].some(source => source.includes("Balance effect")));
@@ -127,20 +128,21 @@ test("on-screen Reports omit per-event balance text and empty placeholders", () 
   assert.ok(!css.includes(".reports-card-effect"));
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
+  const groups = load("reports-groups").groupReportRows("owner", report, snapshot, report.rows, reports.defaultReportFilter);
   for (const file of ["reports-mobile", "reports-detail"]) {
     const source = fs.readFileSync(path.join(__dirname, "../app", file + ".tsx"), "utf8");
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
     const exports = {};
     vm.runInNewContext(output, { exports, require: name => name.startsWith("@/lib/") ? load(name.slice(6)) : require(name) });
-    const markup = renderToStaticMarkup(React.createElement(exports.default, { rows: report.rows, total: report.rows.length, row: report.rows[0], job: snapshot.jobs[0], onSelect() {}, onClose() {} }));
+    const markup = renderToStaticMarkup(React.createElement(exports.default, { rows: report.rows, groups, total: report.rows.length, row: report.rows[0], group: groups[0], onSelect() {}, onClose() {} }));
     assert.doesNotMatch(markup, /Balance effect|Baki change|Baki increases|Baki reduces/);
-    for (const text of ["Asha Shah", "Cake", reports.formatReportMoney(report.rows[0].amountPaise)]) assert.ok(markup.includes(text), file + ": " + text);
+    for (const text of ["Asha Shah", reports.formatReportMoney(report.rows[0].amountPaise)]) assert.ok(markup.includes(text), file + ": " + text);
     if (file === "reports-detail") {
-      for (const text of ["Date (UTC)", "Type", "Amount", "Description", "Current sale totals", "Received so far", "Baki"]) assert.ok(markup.includes(text), text);
+      for (const text of ["Cake", "Date (UTC)", "Type", "Amount", "Description", "Sale and payment history", "Received", "Pending"]) assert.ok(markup.includes(text), text);
     } else {
       assert.ok(markup.includes('dateTime="2026-11-09"'));
       assert.ok(markup.includes("Sale"));
-      assert.ok(markup.includes("Payment Received"));
+      assert.ok(markup.includes("Payment received"));
     }
   }
 });
