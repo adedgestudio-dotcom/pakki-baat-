@@ -182,3 +182,24 @@ test("rendered sale rows expose receipt chains, lifetime/period labels and read-
   assert.ok(groupedMarkup(project(fixtures[5]).groups).includes("Unlinked receipt / event"));
   assert.ok(groupedMarkup(project(fixtures[10]).groups).includes("Unclassified event"));
 });
+
+
+test("grouped cards omit per-event balance history but retain receipt dates, amounts and labels", () => {
+  for (const fixture of fixtures) {
+    const { groups } = project(fixture);
+    const markup = groupedMarkup(groups);
+    assert.doesNotMatch(markup, /Baki (?:increases|reduces|change)|balance history|running balance|balance after/i);
+    for (const group of groups) {
+      if (group.lifetime) {
+        for (const label of ["Lifetime total", "Received so far - lifetime", "Lifetime baki"]) assert.ok(markup.includes(label));
+      }
+      for (const receipt of group.receipts) {
+        for (const event of receipt.events) {
+          assert.ok(markup.includes(event.role), event.role);
+          assert.ok(markup.includes('dateTime="' + event.row.day + '"'), event.row.day);
+          assert.ok(markup.includes(flat.formatReportMoney(event.row.amountPaise)));
+        }
+      }
+    }
+  }
+});

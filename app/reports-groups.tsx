@@ -1,5 +1,4 @@
 import { formatReportMoney, type ReportTransaction } from "@/lib/reports";
-import { reportBakiLabel } from "@/lib/reports-ui";
 import type { GroupEvent, ReportGroup } from "@/lib/reports-groups";
 
 function EventList({ events, onSelect }: { events: GroupEvent[]; onSelect: (row: ReportTransaction) => void }) {
@@ -7,7 +6,6 @@ function EventList({ events, onSelect }: { events: GroupEvent[]; onSelect: (row:
     <div><strong>{event.role}</strong> <time dateTime={event.row.day}>{event.row.day} (UTC)</time> <strong>{formatReportMoney(event.row.amountPaise)}</strong></div>
     <small>{event.matches ? "Matches current filters" : "Context only - outside current filters"}</small>
     <p>{event.row.description}</p>
-    <p>{reportBakiLabel(event.row)}</p>
     <button type="button" className="reports-detail-link" onClick={() => onSelect(event.row)}>View transaction</button>
   </li>)}</ol>;
 }
