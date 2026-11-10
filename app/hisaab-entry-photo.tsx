@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { currentSession } from "@/lib/cloud";
 import { validatePhoto } from "@/lib/entry-photo";
 
-export default function HisaabEntryPhoto({ ownerId, entryId, canUpload }: { ownerId: string | null; entryId: string; canUpload: boolean }) {
+export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean }) {
   const root = useRef<HTMLElement>(null), generation = useRef(0), objectUrl = useRef("");
   const requests = useRef(new Set<AbortController>()), uploading = useRef(false);
   const [url, setUrl] = useState(""), [checked, setChecked] = useState(false), [online, setOnline] = useState(true);
@@ -59,6 +59,8 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload }: { owne
     };
     setOnline(navigator.onLine); readWhenVisible();
     details?.addEventListener("toggle", readWhenVisible);
+    const photoChanged = (event: Event) => { if ((event as CustomEvent).detail === `${ownerId}:${entryId}`) void load(); };
+    window.addEventListener("hisaab-photo-changed", photoChanged);
     window.addEventListener("online", connectionChanged); window.addEventListener("offline", connectionChanged);
     const pendingRequests = requests.current;
     return () => {
@@ -66,9 +68,10 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload }: { owne
       for (const request of pendingRequests) request.abort();
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
       details?.removeEventListener("toggle", readWhenVisible);
+      window.removeEventListener("hisaab-photo-changed", photoChanged);
       window.removeEventListener("online", connectionChanged); window.removeEventListener("offline", connectionChanged);
     };
-  }, [load, clearImage]);
+  }, [load, clearImage, ownerId, entryId]);
   async function upload(file: File) {
     if (!ownerId || !online || !navigator.onLine || !canUpload || !checked || uploading.current || url) return;
     try { validatePhoto(file); } catch (cause) { setError(cause instanceof Error ? cause.message : "Invalid photo."); return; }
@@ -80,10 +83,12 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload }: { owne
       if (token !== generation.current) return;
       if (!response.ok && response.status !== 409) throw new Error((await response.json()).error || "Upload failed. Retry online.");
       setRetryFile(null); await load();
+      window.dispatchEvent(new CustomEvent("hisaab-photo-changed", { detail: `${ownerId}:${entryId}` }));
     } catch (cause) {
       if (token === generation.current) setError(cause instanceof Error ? cause.message : "Upload failed. Retry online.");
     } finally { if (token === generation.current) { uploading.current = false; setBusy(false); } }
   }
+  if (countOnly) return <small className="hisaab-photo-count">{!ownerId || !checked ? "Photos unavailable" : `${url ? 1 : 0} photos`}</small>;
   if (!ownerId) return null;
   return (
     <section ref={root} className="hisaab-entry-photo" aria-label="Entry photo">
@@ -98,7 +103,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload }: { owne
           {/* The native file input stays in the label for keyboard and screen-reader use. */}
           <label className={busy ? "hisaab-entry-photo-upload is-busy" : "hisaab-entry-photo-upload"}>
             <span aria-hidden="true">Add photo</span>
-            <input type="file" className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
+            <input type="file" capture={capture} className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
               onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
           </label>
         </>

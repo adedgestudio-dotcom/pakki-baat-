@@ -10,6 +10,9 @@ import AudioPlayer from "./audio-player";
 import Reports from "./reports";
 import ReleaseUpdateCard from "./release-update";
 import { updateReloadBlocked } from "@/lib/release-update";
+import ChatCustomer, { ChatHistory } from "./chat-hisaab";
+import ChatSheet from "./chat-sheet";
+import ChatEntryFields from "./chat-entry-fields";
 import HisaabPayments from "./hisaab-payments";
 import HisaabEntryPhoto from "./hisaab-entry-photo";
 import SignedOutState from "./signed-out-state";
@@ -3666,15 +3669,15 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setPaymentJob(job);
     setPaymentAmount("");
   }
-  function saveQuickPayment() {
+  function saveQuickPayment(details?: { date: string; note: string }) {
     if (!paymentJob || !requireActiveSubscriptionForSaving()) return;
     if (submittedPaymentJobRef.current === paymentJob) return;
     try {
       confirmFinancialWrite();
       const payment: Payment = {
         id: crypto.randomUUID(), customer: paymentJob.customer, jobId: paymentJob.id,
-        amount: paymentRupees(paymentPaise(paymentAmount)), date: day(),
-        note: "Quick payment", createdAt: new Date().toISOString(),
+        amount: paymentRupees(paymentPaise(paymentAmount)), date: details?.date || day(),
+        note: details?.note || "Quick payment", createdAt: new Date().toISOString(),
       };
       const next = planQuickPayment(financialStateRef.current, paymentJob, paymentAmount, payment);
       rememberUndo("Payment updated ?");
@@ -5731,7 +5734,11 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                         )}
                       </>
                     ) : (
-                      <section className="customer-detail">
+                      <ChatCustomer key={`${accountId}:${selectedCustomer}`} customer={selectedCustomer!} pending={selectedBaki} jobs={customerJobs} payments={payments}
+                        ownerId={accountId} canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
+                        onBack={() => setSelectedCustomer(null)} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
+                        message={message} onMessage={setMessage} onCapture={() => { setCustomerChatOpen(true); setEntryMode("quick"); capture(); }}
+                        onVoice={async (file, duration, transcript) => { setCustomerChatOpen(true); setEntryMode("quick"); await sendVoice(file, duration, transcript); }} voiceBusy={voiceBusy} voiceSeconds={voiceSecondsRemaining}>
                         <div className="customer-profile-head">
                           <span className="avatar large customer-profile-avatar">
                             {selectedCustomer?.[0] || "?"}
@@ -5810,6 +5817,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                             </button>
                           </div>
                         )}
+                        <ChatSheet open={customerChatOpen} label="Add entry" onClose={() => setCustomerChatOpen(false)}>
                         {customerChatOpen ? (
                           <section className="smart-entry-panel">
                             <div className="smart-entry-head">
@@ -6004,6 +6012,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                     finishCustomerChat();
                                   }}
                                 >
+                                  <ChatEntryFields customer={selectedCustomer!} onTotal={value => updatePendingAmount("total", value)} />
                                   <label className="full">
                                     What’s the work? *
                                     <textarea
@@ -6136,6 +6145,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                             </div>
                           </div>
                         )}
+                        </ChatSheet>
                         <div className="customer-book-section">
                           <div className="section-title-row">
                             <div>
@@ -6143,7 +6153,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                               <h2>History</h2>
                             </div>
                           </div>
-                          <div className="saved-entry-grid">
+                          <ChatHistory>
                             {customerJobs.map((j, index) => {
                               const entryPayments = payments.filter(payment => payment.jobId === j.id && payment.customer === j.customer);
                               return <article
@@ -6210,14 +6220,14 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                   <button type="button" className="card-action" onClick={event => { const details = event.currentTarget.closest(".hisaab-history-card")?.querySelector<HTMLDetailsElement>(".hisaab-more-details"); if (details) details.open = true; }}><Icon name="plan" size={16} /> Photos</button>
                                   <button type="button" className="card-action" onClick={() => setDraft(j)}><Icon name="edit" size={16} /> Edit</button>
                                   <button type="button" className="card-action reminder-action" onClick={() => openReminder(j)}><Icon name="bell" size={16} /> Remind</button>
-                                  <details className="hisaab-more-actions"><summary className="card-action"><Icon name="list" size={16} /> More</summary><div>
+                                  <details className="hisaab-more-actions" open><summary className="card-action"><Icon name="list" size={16} /> More</summary><div>
                                     <button type="button" className="card-action receipt-action" onClick={() => openReceipt(j)}><Icon name="copy" size={16} /> Receipt</button>
-                                    <button type="button" className="card-action whatsapp-action" onClick={() => openWhatsApp(j)}><Icon name="chat" size={16} /> WhatsApp</button>
+                                    <button type="button" className="card-action whatsapp-action" onClick={() => openWhatsApp(j)}><Icon name="chat" size={16} /> Remind on WhatsApp</button>
                                     {ledgerModeForAccount(accountId || "") && <button type="button" className="card-action" onClick={() => setTab("Reports")}><Icon name="clock" size={16} /> History</button>}
                                     <button type="button" className="card-action delete-action" onClick={() => deleteEntry(j)}><Icon name="trash" size={16} /> Delete</button>
                                   </div></details>
                                 </div>
-                                <details className="hisaab-more-details">
+                                <details className="hisaab-more-details" open>
                                   <summary className="hisaab-expand-hint">More details · Payments ({entryPayments.length}) <span aria-hidden="true">⌄</span></summary>
                                   <div className="hisaab-history-expanded">
                                   <p className="hisaab-due-detail">
@@ -6277,7 +6287,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                 </details>
                               </article>;
                             })}
-                          </div>
+                          </ChatHistory>
                         </div>
                         {customerReminders.length > 0 && (
                           <div className="customer-book-section">
@@ -6303,7 +6313,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                             ))}
                           </div>
                         )}
-                      </section>
+                      </ChatCustomer>
                     )}
                   </>
                 );
@@ -8170,7 +8180,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           </div>
         )}
         {paymentJob && (
-          <div className="modal-backdrop" onClick={() => setPaymentJob(null)}>
+          <ChatSheet open label="Add payment" onClose={() => setPaymentJob(null)}>
             <section
               className="quick-payment-modal"
               role="dialog"
@@ -8204,7 +8214,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  saveQuickPayment();
+                  const fields = new FormData(e.currentTarget);
+                  saveQuickPayment({ date: String(fields.get("date") || day()), note: String(fields.get("note") || "") });
                 }}
               >
                 <label>
@@ -8221,6 +8232,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     onChange={(e) => setPaymentAmount(e.target.value)}
                   />
                 </label>
+                <label>Date<input name="date" type="date" required defaultValue={day()} /></label>
+                <label>Note (optional)<input name="note" maxLength={500} /></label>
                 <button
                   type="submit"
                   className="primary"
@@ -8230,7 +8243,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </button>
               </form>
             </section>
-          </div>
+          </ChatSheet>
         )}
         {editingPayment && (
           <div className="modal-backdrop" onClick={closeEditPayment}>
