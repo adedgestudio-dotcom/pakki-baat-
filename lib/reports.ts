@@ -118,7 +118,7 @@ export function legacyReport(snapshot: Snapshot): Report {
   if (new Set(rows.map(row => row.id)).size !== rows.length) throw Error("Legacy records contain duplicate IDs; totals are unavailable.");
   return { rows, warnings: [...new Set(warnings)], activeOutstandingPaise: activeOutstanding(snapshot) };
 }
-export function selectReport(report: Report, filter: ReportFilter) {
+export function selectReport(report: Report, filter: ReportFilter, pendingRowIds?: ReadonlySet<string>) {
   if ((filter.from && !validReportDay(filter.from)) || (filter.to && !validReportDay(filter.to)) || (filter.from && filter.to && filter.from > filter.to)) throw Error("Choose a valid From / To date range.");
   const period = report.rows.filter(row => (!filter.from || row.day >= filter.from) && (!filter.to || row.day <= filter.to));
   const sales = sum(period.map(row => row.salesEffect)), payments = sum(period.map(row => row.paymentEffect));
@@ -127,7 +127,7 @@ export function selectReport(report: Report, filter: ReportFilter) {
   const nameWords = (value: string) => value.toLowerCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean);
   const queryWords = nameWords(query);
   const numericSearch = /^\d+(?:\.\d+)?$/.test(numericQuery);
-  const rows = period.filter(row => (filter.kind === "all" || row.kind === filter.kind || filter.kind === "correction" && row.kind === "reversal") && (!query || queryWords.length > 0 && queryWords.every(word => nameWords(row.customer).some(name => name.startsWith(word))) || numericSearch && String(row.amountPaise / 100).includes(numericQuery)));
+  const rows = period.filter(row => (filter.kind === "pending_sales" ? !!pendingRowIds?.has(row.id) : filter.kind === "all" || row.kind === filter.kind || filter.kind === "correction" && row.kind === "reversal") && (!query || queryWords.length > 0 && queryWords.every(word => nameWords(row.customer).some(name => name.startsWith(word))) || numericSearch && String(row.amountPaise / 100).includes(numericQuery)));
   rows.sort((a, b) => {
     const result = filter.sort === "amount" ? a.amountPaise - b.amountPaise : filter.sort === "customer" ? a.customer.localeCompare(b.customer) : a.day.localeCompare(b.day);
     return (result || a.id.localeCompare(b.id)) * (filter.descending ? -1 : 1);

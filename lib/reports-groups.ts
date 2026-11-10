@@ -26,6 +26,10 @@ export type ReportGroup = {
   detailRow: ReportTransaction;
 };
 
+export function pendingReportJobIds(groups: readonly ReportGroup[]): Set<string> {
+  return new Set(groups.filter(group => group.jobId && group.lifetime && group.lifetime.bakiPaise > 0).map(group => group.jobId!));
+}
+
 function sum(values: number[]) {
   return values.reduce((total, value) => {
     const next = total + value;

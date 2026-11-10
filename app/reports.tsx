@@ -8,7 +8,7 @@ import { advancedReportTypes, reportJobId, createReportUiState, orderReportDates
 import "./reports.css";
 import ReportsPrintDocument from "./reports-print";
 import ReportsGroups from "./reports-groups";
-import { groupReportRows, type ReportGroup } from "@/lib/reports-groups";
+import { groupReportRows, pendingReportJobIds, type ReportGroup } from "@/lib/reports-groups";
 import ReportsTransactionDetail from "./reports-detail";
 
 type Props = { ownerId: string | null; ledgerEnabled: boolean; snapshot: Snapshot; cloudSaveVersion: number; pending: boolean };
@@ -41,8 +41,15 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
   let report: ReturnType<typeof legacyReport>, view: ReturnType<typeof selectReport>, groups: ReportGroup[];
   try {
     report = ledgerEnabled && current?.state === "loaded" ? ledgerReport(current.rows, ownerId, snapshot) : legacyReport(snapshot);
-    view = selectReport(report, filter);
-    groups = groupReportRows(ownerId, report, snapshot, view.rows, filter, ledgerEnabled && current?.state === "loaded" ? current.rows : undefined);
+    const ledgerRows = ledgerEnabled && current?.state === "loaded" ? current.rows : undefined;
+    if (filter.kind === "pending_sales") {
+      const allFilter = { ...filter, kind: "all" };
+      const candidates = groupReportRows(ownerId, report, snapshot, selectReport(report, allFilter).rows, allFilter, ledgerRows);
+      const pendingJobs = pendingReportJobIds(candidates);
+      const pendingRows = new Set(candidates.filter(group => group.jobId && pendingJobs.has(group.jobId)).flatMap(group => group.matches.map(row => row.id)));
+      view = selectReport(report, filter, pendingRows);
+    } else view = selectReport(report, filter);
+    groups = groupReportRows(ownerId, report, snapshot, view.rows, filter, ledgerRows);
   } catch (cause) {
     return <section className="panel reports-page reports-state"><h1>Reports</h1><p role="alert">{cause instanceof Error ? cause.message : "Report unavailable."}</p><button className="outline" onClick={refresh}>Reload history</button></section>;
   }
@@ -79,7 +86,7 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
         <label>Period<select value={ui.draft.period} onChange={event => dispatch({ type: "period", period: event.target.value as ReportPeriod, now: new Date() })}><option value="today">Today</option><option value="seven">Last 7 days</option><option value="thirty">Last 30 days</option><option value="custom">Custom range</option></select></label>
         {ui.draft.period === "custom" && <><label>From<input type="date" value={draft.from} onChange={event => update("from", event.target.value)} /></label><label>To<input type="date" value={draft.to} onChange={event => update("to", event.target.value)} /></label></>}
         <label>Customer or amount<input type="search" placeholder="Name or ₹ amount" value={draft.search} onChange={event => update("search", event.target.value)} /></label>
-        <label>Transactions<select value={advancedReportTypes.includes(draft.kind) ? "advanced" : draft.kind} onChange={event => update("kind", event.target.value)}>{["all", "charge", "payment", "correction"].map(kind => <option key={kind} value={kind}>{reportTypeLabels[kind]}</option>)}{advancedReportTypes.includes(draft.kind) && <option value="advanced" disabled>{reportTypeLabels[draft.kind]} (Advanced)</option>}</select></label>
+        <label>Transactions<select value={advancedReportTypes.includes(draft.kind) ? "advanced" : draft.kind} onChange={event => update("kind", event.target.value)}>{["all", "charge", "payment", "correction", "pending_sales"].map(kind => <option key={kind} value={kind}>{reportTypeLabels[kind]}</option>)}{advancedReportTypes.includes(draft.kind) && <option value="advanced" disabled>{reportTypeLabels[draft.kind]} (Advanced)</option>}</select></label>
       </div>
       {ui.draft.period === "custom" && <p className="reports-semantics">Leave either date blank for an open range, or both blank for all dates.</p>}
       <details className="reports-advanced"><summary>Advanced Filters</summary><div className="reports-filters">

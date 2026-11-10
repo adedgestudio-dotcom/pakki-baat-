@@ -10,7 +10,7 @@ export type ReportUiAction =
   | { type: "more" };
 
 export const reportTypeLabels: Record<string, string> = {
-  all: "All Transactions", charge: "Sales", payment: "Payments Received", correction: "Corrections",
+  all: "All Transactions", charge: "Sales", payment: "Payments Received", correction: "Corrections", pending_sales: "Pending sales",
   reversal: "Reversals", adjustment: "Adjustments", opening_balance: "Opening Balances",
 };
 export const advancedReportTypes = ["reversal", "adjustment", "opening_balance"];
