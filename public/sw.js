@@ -55,7 +55,8 @@ async function cacheAppShell() {
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     await cacheAppShell();
-    await self.skipWaiting();
+    // Updated workers wait for the user's explicit Update action. First-time
+    // installs still activate normally when there is no existing controller.
   })());
 });
 

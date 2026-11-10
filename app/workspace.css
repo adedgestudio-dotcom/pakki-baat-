@@ -7817,6 +7817,32 @@ select:focus-visible {
 }
 /* Desktop: banner (top right) and toast (bottom centre) keep their own fixed spots. */
 .status-stack { display: contents; }
+.release-update-card {
+  position: fixed;
+  z-index: 119;
+  top: 76px;
+  right: 18px;
+  max-width: min(360px, calc(100vw - 24px));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid #b9d5c9;
+  border-radius: 13px;
+  background: #f3faf6;
+  color: #263f35;
+  box-shadow: 0 8px 28px #16352b20;
+}
+.release-update-card > span { display: grid; gap: 3px; min-width: 0; }
+.release-update-card strong { font-size: 13px; }
+.release-update-card small { color: #52645b; font-size: 11px; line-height: 1.4; }
+.release-update-card button { min-height: 44px; flex-shrink: 0; }
+[data-theme="dark"] .release-update-card {
+  border-color: #3f6254;
+  background: #1b2d26;
+  color: #edf4ef;
+}
+[data-theme="dark"] .release-update-card small { color: #b9c9c1; }
 /* Phones: one fixed bottom stack, so a banner and a toast sit one above the other and never overlap. */
 @media (max-width: 800px) {
   .status-stack {
@@ -7832,7 +7858,8 @@ select:focus-visible {
     pointer-events: none;
   }
   .status-stack > .offline-banner,
-  .status-stack > .toast {
+  .status-stack > .toast,
+  .status-stack > .release-update-card {
     position: static;
     top: auto;
     right: auto;

@@ -8,6 +8,8 @@ import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import AudioPlayer from "./audio-player";
 import Reports from "./reports";
+import ReleaseUpdateCard from "./release-update";
+import { updateReloadBlocked } from "@/lib/release-update";
 import HisaabPayments from "./hisaab-payments";
 import HisaabEntryPhoto from "./hisaab-entry-photo";
 import SignedOutState from "./signed-out-state";
@@ -4325,6 +4327,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   // Shown only after the session check finishes, so signed-in users never see it flash.
   const signedOut = ready && !loggedIn;
   const hisaabLoaded = ready && (!loggedIn || loadedAccountId === accountId);
+  const releaseUpdateBlocked = updateReloadBlocked({
+    entryOpen: customerChatOpen,
+    hasDraft: Boolean(pendingJob) || Boolean(draft),
+    hasText: Boolean(message.trim()),
+    voiceBusy,
+  });
   const signedOutCard = (title: string, text: string) =>
     signedOut && (
       <SignedOutState
@@ -4347,6 +4355,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
         {/* On phones the banner and the toast share one bottom stack so they never overlap. */}
         <div className="status-stack">
+        <ReleaseUpdateCard blocked={releaseUpdateBlocked} online={isOnline} />
         {legacyWorkspaceReadOnly && (
           <div
             className="offline-banner offline-banner-wrap"
