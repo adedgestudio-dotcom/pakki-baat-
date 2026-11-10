@@ -15,15 +15,17 @@ export default function ReportsGroups({ groups, total, onSelect }: {
 }) {
   return <section className="reports-grouped-history" aria-label="Sales and receipt history">
     <header><h2>Sales and receipt history</h2><p>{total} sale / fallback groups match the current filters.</p></header>
-    <p className="reports-semantics">Groups match your search and transaction filter. Expand for lifetime history; context-only events do not add to the filtered history or CSV. Period activity below uses dates only, just like the summary cards.</p>
-    {groups.map(group => <details key={group.id} className="reports-sale-group">
+    {groups.map(group => {
+      const firstSaleDate = group.sales.filter(event => event.role !== "Reversal").map(event => event.row.day).sort()[0];
+      return <details key={group.id} className="reports-sale-group">
       <summary>
-        <span className="reports-group-name"><strong>{group.customer}</strong><small>{group.label}{group.jobId ? " - Job " + group.jobId : ""}</small><span>{group.job?.work || group.detailRow.description}</span></span>
+        <span className="reports-group-name"><strong>{group.customer}</strong><span>{group.job?.work || group.detailRow.description}</span><small>{group.label}{firstSaleDate ? <> - First sale <time dateTime={firstSaleDate}>{firstSaleDate}</time> (UTC)</> : " - First sale date unavailable"}</small></span>
         {group.lifetime ? <span className="reports-group-values" aria-label="Lifetime figures">
           <span><small>Lifetime total</small><strong>{formatReportMoney(group.lifetime.totalPaise)}</strong></span>
           <span><small>Received so far - lifetime</small><strong>{formatReportMoney(group.lifetime.receivedPaise)}</strong></span>
           <span><small>Lifetime baki</small><strong>{formatReportMoney(group.lifetime.bakiPaise)}</strong></span>
         </span> : <span>Expand to view events - no sale total inferred</span>}
+        <span className="reports-group-toggle"><svg className="reports-group-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg><span className="reports-open-hint">Tap to open</span><span className="reports-close-hint">Tap to close</span></span>
       </summary>
       <div className="reports-group-content">
         <p>{group.lifetimeSource ? group.lifetimeSource + " lifetime figures. " : ""}{group.matches.length} matching transaction(s). Other events are shown as context, including events outside the selected period.</p>
@@ -39,7 +41,7 @@ export default function ReportsGroups({ groups, total, onSelect }: {
         {group.jobId && !group.receipts.length && <p>No receipt records are linked to this sale.</p>}
         {group.other.length > 0 && <section aria-label="Unclassified or unlinked history"><h3>Other events</h3><EventList events={group.other} onSelect={onSelect} /></section>}
       </div>
-    </details>)}
+    </details>; })}
     {!groups.length && <p className="reports-empty">No transactions in this report. Try a longer period or a custom range, then click Show Report.</p>}
   </section>;
 }

@@ -203,3 +203,28 @@ test("grouped cards omit per-event balance history but retain receipt dates, amo
     }
   }
 });
+
+
+test("sale disclosure has open/close hints and first sale date without the job ID", () => {
+  const { groups } = project(fixtures[7]);
+  const markup = groupedMarkup(groups);
+  const summary = markup.match(/<summary>[\s\S]*?<\/summary>/)[0];
+  for (const text of ["Tap to open", "Tap to close", "reports-group-chevron", "Asha", "Cake", 'dateTime="2026-10-01"']) assert.ok(summary.includes(text), text);
+  assert.ok(!summary.includes("Job "));
+  assert.ok(!markup.includes("Groups match your search"));
+  const css = fs.readFileSync(path.join(__dirname, "../app/reports.css"), "utf8");
+  assert.ok(css.includes('.reports-sale-group[open]>summary .reports-open-hint{display:none}'));
+  assert.ok(css.includes('.reports-sale-group[open]>summary .reports-close-hint{display:inline}'));
+  assert.ok(css.includes('.reports-sale-group[open]>summary .reports-group-chevron{transform:rotate(180deg)}'));
+  assert.ok(css.includes('[data-theme="dark"] .reports-page{--reports-expanded-surface:'));
+  assert.ok(css.includes('background:var(--reports-expanded-surface)'));
+});
+
+test("one collapsed reading guide follows the list and contains the longer explanations", () => {
+  const screen = fs.readFileSync(path.join(__dirname, "../app/reports.tsx"), "utf8");
+  const guide = screen.match(/<details className="reports-accounting">[\s\S]*?<\/details>/g);
+  assert.equal(guide.length, 1);
+  assert.ok(guide[0].includes('<summary>How to read this</summary>'));
+  for (const text of ["Groups match your search", "Presets use your local calendar", "Sales and receipts use the applied date range"]) assert.ok(guide[0].includes(text), text);
+  assert.ok(screen.indexOf(guide[0]) > screen.indexOf('<ReportsGroups'));
+});
