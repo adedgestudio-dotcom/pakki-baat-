@@ -790,10 +790,18 @@ export default function Workspace() {
     let cancelled = false;
     let sessionSequence = 0;
     let hydratedUserId: string | null = null;
+    let hydratingUserId: string | null = null;
+    let retrySession: Session | null = null;
 
     async function applySession(session: Session | null) {
       if (cancelled) return;
-      if (session && hydratedUserId === session.user.id) return;
+      const nextUserId = session?.user.id || LOCAL_WORKSPACE_ID;
+      // Auth can notify again while getSession/cloud reads are still pending.
+      // Claim this account before any await, including guest and offline restores.
+      if (hydratedUserId === nextUserId || hydratingUserId === nextUserId) return;
+      retrySession = null;
+      hydratingUserId = nextUserId;
+      hydratedUserId = null;
       const sequence = ++sessionSequence;
       setTrialSubscription({
         ownerId: session?.user.id || null,
@@ -971,8 +979,11 @@ export default function Workspace() {
         // The trial welcome is the first-run onboarding. The full guide remains available from Help.
       }
 
+      if (cancelled || sequence !== sessionSequence) return;
+
       if (!session) {
-        hydratedUserId = null;
+        hydratedUserId = LOCAL_WORKSPACE_ID;
+        hydratingUserId = null;
         setSubscriptionPlan(null);
         setSubscriptionStatus(null);
         setSubscriptionPeriodEnd(null);
@@ -1056,10 +1067,13 @@ export default function Workspace() {
           activeUserIdRef.current === session.user.id
         ) {
           cloudHydratedRef.current = false;
+          hydratedUserId = session.user.id;
+          retrySession = session;
           const localSnapshot = readLocalWorkspace(session.user.id);
           if (localSnapshot) {
             workspaceUserIdRef.current = session.user.id;
             restore(localSnapshot);
+            setLoadedAccountId(session.user.id);
           } else {
             setToast("Could not load your cloud workspace.");
           }
@@ -1070,6 +1084,7 @@ export default function Workspace() {
           sequence === sessionSequence &&
           activeUserIdRef.current === session.user.id
         ) {
+          hydratingUserId = null;
           cloudHydratedRef.current = loaded && !conflict;
           setReady(true);
         }
@@ -1081,6 +1096,14 @@ export default function Workspace() {
       .catch(() => setToast("Could not check Google sign-in."))
       .finally(() => {});
 
+    function retryWorkspaceOnOnline() {
+      // A real reconnect may retry a failed read; repeated auth notifications may not.
+      if (!retrySession || hydratingUserId || activeUserIdRef.current !== retrySession.user.id) return;
+      hydratedUserId = null;
+      void applySession(retrySession);
+    }
+    window.addEventListener("online", retryWorkspaceOnOnline);
+
     const stopWatching = watchSession((session) => {
       void applySession(session);
     });
@@ -1088,6 +1111,7 @@ export default function Workspace() {
     return () => {
       cancelled = true;
       stopWatching();
+      window.removeEventListener("online", retryWorkspaceOnOnline);
     };
   }, []);
   useEffect(() => {
@@ -4293,6 +4317,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   const legacyWorkspaceReadOnly = loggedIn && ready && !ledgerModeForAccount(accountId || "");
   // Shown only after the session check finishes, so signed-in users never see it flash.
   const signedOut = ready && !loggedIn;
+  const hisaabLoaded = ready && (!loggedIn || loadedAccountId === accountId);
   const signedOutCard = (title: string, text: string) =>
     signedOut && (
       <SignedOutState
@@ -5661,7 +5686,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                               );
                             })}
                         </div>
-                        {!customerNames.length && (
+                        {!customerNames.length && !hisaabLoaded && (
+                          <div className="empty" role="status">
+                            <p>{ready ? "Could not load your Hisaab. Reconnect and try again." : "Loading your Hisaab..."}</p>
+                          </div>
+                        )}
+                        {hisaabLoaded && !customerNames.length && (
                           <div className="empty">
                             <h3>Your hisaab book is empty</h3>
                             <p>
