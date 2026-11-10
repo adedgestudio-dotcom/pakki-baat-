@@ -13482,3 +13482,22 @@ footer .product-footer-meta .app-version{display:inline;margin:0;color:inherit;f
 @media(max-width:800px){
  footer:is(.product-footer,.settings-brand-footer){padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
 }
+
+/* Render-time entry labels remain legible on narrow cards and both themes. */
+.hisaab-history-summary .hisaab-entry-number {
+  display: inline-block;
+  justify-self: start;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #e3eee8;
+  color: #285447;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+[data-theme="dark"] .hisaab-history-summary .hisaab-entry-number {
+  background: #263e33;
+  color: #c8e5d5;
+}

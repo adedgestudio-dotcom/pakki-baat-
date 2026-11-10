@@ -4004,6 +4004,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   const customerJobs = selectedCustomer
     ? jobs.filter((j) => j.customer === selectedCustomer)
     : [];
+  // Display-only numbering; keep the saved records and their visual order intact.
+  const customerEntryNumbers = new Map(
+    [...customerJobs].sort((a, b) => {
+      const first = Date.parse(a.createdAt || "");
+      const second = Date.parse(b.createdAt || "");
+      // Undated legacy entries follow dated ones; IDs break ties consistently.
+      return (Number.isFinite(first) ? first : Infinity) -
+        (Number.isFinite(second) ? second : Infinity) || a.id.localeCompare(b.id);
+    }).map((job, index) => [job.id, index + 1])
+  );
   const customerReminders = selectedCustomer
     ? reminders.filter((r) => r.customer === selectedCustomer && !r.done)
     : [];
@@ -6124,6 +6134,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                 }-${j.date || "saved"}-${index}`}
                               >
                                 <summary className="hisaab-history-summary">
+                                  <small className="hisaab-entry-number">Entry {customerEntryNumbers.get(j.id)}</small>
                                   <small className="saved-entry-created-date">
                                     Added{" "}
                                     {j.createdAt
