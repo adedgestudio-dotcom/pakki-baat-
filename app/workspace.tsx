@@ -5736,7 +5736,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     ) : (
                       <ChatCustomer key={`${accountId}:${selectedCustomer}`} customer={selectedCustomer!} pending={selectedBaki} jobs={customerJobs} payments={payments}
                         ownerId={accountId} canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
-                        onBack={() => setSelectedCustomer(null)} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
+                        onBack={() => { window.history.pushState({ pakkiBaat: true, tab: "Hisaab", customer: null }, ""); setSelectedCustomer(null); setCustomerChatOpen(false); }} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
+                        onReceipt={openReceipt} onWhatsApp={openWhatsApp} onReminder={openReminder} onDelete={deleteEntry} onEdit={setDraft} onHistory={() => setTab("Reports")} hasHistory={ledgerModeForAccount(accountId || "")}
                         message={message} onMessage={setMessage} onCapture={() => { setCustomerChatOpen(true); setEntryMode("quick"); capture(); }}
                         onVoice={async (file, duration, transcript) => { setCustomerChatOpen(true); setEntryMode("quick"); await sendVoice(file, duration, transcript); }} voiceBusy={voiceBusy} voiceSeconds={voiceSecondsRemaining}>
                         <div className="customer-profile-head">
@@ -6029,6 +6030,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                       }
                                     />
                                   </label>
+                                  <ChatEntryFields customer={selectedCustomer!} onTotal={value => updatePendingAmount("total", value)} placement="after" />
                                   <div className="inline-form-grid">
                                     <label>
                                       Total amount (₹)

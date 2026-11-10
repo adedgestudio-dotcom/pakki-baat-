@@ -46,3 +46,15 @@ body:has(.chat-hisaab) .mobile-nav { display: none !important; }
 @keyframes hisaab-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes hisaab-dim { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .hisaab-sheet, .hisaab-sheet::backdrop { animation: none; } }
+.chat-hisaab { height: calc(100dvh - 100px); min-height: 360px; display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+.chat-hisaab > .customer-profile-head { flex: none; min-width: 0; }
+.chat-hisaab > .customer-book-section:has(.hisaab-chat-log), .chat-hisaab > .customer-book-section:has(.hisaab-entry-page) { flex: 1; min-height: 0; overflow: hidden; margin: 0; }
+.chat-hisaab > .customer-book-section:has(.hisaab-entry-page) { overflow-y: auto; }
+.chat-hisaab > .customer-book-section:not(:has(.hisaab-chat-log, .hisaab-entry-page)) { flex: none; max-height: 110px; overflow-y: auto; }
+.hisaab-chat-head { flex: none; z-index: 3; }
+.hisaab-chat-head button:first-child { width: 44px; height: 44px; flex: none; }
+.hisaab-chat-log { height: 100%; max-height: none; min-height: 0; padding-bottom: calc(130px + env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+.hisaab-bubble-actions { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; gap: 0; }
+.hisaab-bubble-actions button { justify-self: center; }
+.hisaab-bubble small, .hisaab-bubble .hisaab-photo-count { display: block; margin: 0; padding: 0; font-size: 12px; line-height: 1.35; text-align: left; }
+.hisaab-sheet-content { max-height: 90dvh; overflow-y: auto; }

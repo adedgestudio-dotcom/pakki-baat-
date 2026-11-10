@@ -27,7 +27,12 @@ test('entries render as accessible chat bubbles with summary and three muted act
 test('bottom bar has exactly clip, prominent add entry, and mode buttons', () => {
   const html = renderToStaticMarkup(React.createElement(ui.ChatBottomBar, { onClip: noop, onAdd: noop, onMode: noop, keyboard: false }));
   assert.equal((html.match(/<button/g) || []).length, 3);
-  for (const text of ['Attach', 'Add entry', 'Voice entry', 'primary hisaab-add']) assert.ok(html.includes(text));
+  for (const text of ['More entry actions', 'Add entry', 'Voice entry', 'primary hisaab-add']) assert.ok(html.includes(text));
+});
+test('plus menu restores every saved entry action', () => {
+  const html = renderToStaticMarkup(React.createElement(ui.EntryActionMenu, { onChoose: noop, hasEntry: true, hasHistory: true }));
+  for (const text of ['Add photo', 'Receipt', 'WhatsApp', 'Reminder', 'Add payment', 'Edit entry', 'History of changes', 'Delete entry']) assert.ok(html.includes(text), text);
+  assert.equal((html.match(/<button/g) || []).length, 8);
 });
 test('clip menu has four options and screenshot is disabled', () => {
   const element = ui.ClipMenu({ onChoose: noop });
