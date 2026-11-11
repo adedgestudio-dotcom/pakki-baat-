@@ -274,6 +274,7 @@ export default function Workspace() {
       useState("My small business"),
     [message, setMessage] = useState(""),
     [draft, setDraft] = useState<Job | null>(null),
+    [editError, setEditError] = useState(""),
     [pendingJob, setPendingJob] = useState<Job | null>(null),
     [pendingReminderText, setPendingReminderText] = useState(""),
     [chatStep, setChatStep] = useState<ChatStep>("customer"),
@@ -486,6 +487,7 @@ export default function Workspace() {
   useEffect(() => {
     pendingJobRef.current = pendingJob;
   }, [pendingJob]);
+  useEffect(() => { if (draft) { setEditError(""); savedDraftRef.current = null; } }, [Boolean(draft), draft?.id]);
   useEffect(() => {
     chatTurnsRef.current = chatTurns;
   }, [chatTurns]);
@@ -2940,10 +2942,12 @@ export default function Workspace() {
     );
   }
   function save() {
-    if (draft) { try { validateEntryMoney(draft); } catch (error) { setToast(error instanceof Error ? error.message : "Invalid amount."); return; } }
-    if (!draft || !draft.customer.trim() || !draft.work.trim()) return;
-    if (savedDraftRef.current === draft) return;
-    if (!requireActiveSubscriptionForSaving()) return;
+    const fail = (message: string) => { setEditError(message); setToast(message); };
+    if (!draft) { fail("Open an entry before saving changes."); return; }
+    try { validateEntryMoney(draft); } catch (error) { fail(error instanceof Error ? error.message : "Invalid amount."); return; }
+    if (!draft.customer.trim() || !draft.work.trim()) { fail("Add a customer name and work description."); return; }
+    if (savedDraftRef.current === draft) { fail("This entry was already saved. Reopen it to edit again."); return; }
+    if (!requireActiveSubscriptionForSaving()) { fail("Saving is unavailable until your account can edit entries."); return; }
     if (
       !Number.isFinite(draft.total) ||
       !Number.isFinite(draft.paid) ||
@@ -2951,7 +2955,7 @@ export default function Workspace() {
       draft.paid < 0 ||
       draft.paid > draft.total
     ) {
-      setToast("Check the total and received amounts.");
+      fail("Check the total and received amounts.");
       return;
     }
     const item = {
@@ -2960,7 +2964,7 @@ export default function Workspace() {
       customer: draft.customer.trim(),
       work: draft.work.trim(),
     };
-    if (!canAddCustomer(item.customer)) return;
+    if (!canAddCustomer(item.customer)) { fail("Customer limit reached. Choose an existing customer or upgrade your plan."); return; }
     const previous = jobs.find((j) => j.id === item.id);
     const previousPaid = previous?.paid || 0;
     if (
@@ -2968,7 +2972,7 @@ export default function Workspace() {
       ledgerModeForAccount(activeUserIdRef.current || "") &&
       item.paid < previousPaid
     ) {
-      setToast(
+      fail(
         "To reduce the received amount, use Edit Payment in the customer view."
       );
       return;
@@ -5572,7 +5576,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                         ownerId={accountId} canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
                         onBack={() => { window.history.replaceState({ pakkiBaat: true, tab: "Hisaab", customer: null, customerChatOpen: false }, ""); setSelectedCustomer(null); setCustomerChatOpen(false); }} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
                         whatsappNumber={customerPhones[selectedCustomer!] || ""} onEditPhone={() => openPhoneEditor(selectedCustomer!)}
-                        onReceipt={openReceipt} onWhatsApp={openWhatsApp} onReminder={openReminder} onDelete={deleteEntry} onEdit={setDraft} onHistory={() => setTab("Reports")} hasHistory={ledgerModeForAccount(accountId || "")}
+                        onReceipt={openReceipt} onWhatsApp={openWhatsApp} onReminder={openReminder} onDelete={deleteEntry} onEdit={(job) => { savedDraftRef.current = null; setEditError(""); setDraft(job); }} onHistory={() => setTab("Reports")} hasHistory={ledgerModeForAccount(accountId || "")}
                         message={message} onMessage={setMessage} onCapture={() => { setCustomerChatOpen(true); setEntryMode("quick"); capture(); }}
                         onVoice={async (file, duration, transcript) => { setCustomerChatOpen(true); setEntryMode("quick"); await sendVoice(file, duration, transcript); }} voiceBusy={voiceBusy} voiceSeconds={voiceSecondsRemaining}>
                         <div className="customer-profile-head">
@@ -8718,6 +8722,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               </div>
               <p>Fill in anything missing. Nothing is sent automatically.</p>
               <form
+                noValidate
+                onChangeCapture={() => setEditError("")}
                 onSubmit={(e) => {
                   e.preventDefault();
                   save();
@@ -8829,6 +8835,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <p>{draft.source}</p>
                   </details>
                 )}
+                <p role="alert" className="modal-error">{editError}</p>
                 <div className="modal-actions">
                   {draft.id && (
                     <button

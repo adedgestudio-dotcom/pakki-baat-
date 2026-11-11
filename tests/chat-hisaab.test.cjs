@@ -34,7 +34,28 @@ test('bubble pencil opens the edit form while the bubble body opens detail', () 
   assert.equal(opened, 1);
   assert.equal(edited, 1);
   assert.match(fs.readFileSync('app/chat-hisaab.tsx', 'utf8'), /onEdit=\{\(\) => ctx\.onEdit\(job\)\}/);
-  assert.match(fs.readFileSync('app/chat-hisaab.css', 'utf8'), /\.modal-backdrop:has\(#review-title\) \{ z-index: 120/);
+  assert.match(fs.readFileSync('app/chat-hisaab.css', 'utf8'), /\.modal-backdrop:has\(#review-title\) \{ z-index: 110/);
+});
+test('Edit modal submits through save and shows every failure inline', () => {
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  const modal = workspace.slice(workspace.indexOf('{draft && ('));
+  const save = workspace.slice(workspace.indexOf('  function save() {'), workspace.indexOf('  const replyText ='));
+  assert.match(modal, /<form\s+noValidate\s+onChangeCapture=\{\(\) => setEditError\(""\)\}/);
+  assert.match(modal, /<p role="alert" className="modal-error">\{editError\}<\/p>/);
+  assert.match(workspace, /onEdit=\{\(job\) => \{ savedDraftRef\.current = null; setEditError\(""\); setDraft\(job\); \}\}/);
+  for (const path of ['validateEntryMoney(draft)', 'draft.customer.trim()', 'savedDraftRef.current === draft', 'requireActiveSubscriptionForSaving()', 'canAddCustomer(item.customer)', 'item.paid < previousPaid']) assert.ok(save.includes(path), path);
+  assert.match(save, /const fail = \(message: string\) => \{ setEditError\(message\); setToast\(message\); \}/);
+  assert.match(save, /if \(item.paid > previousPaid\) \{/);
+  assert.match(save, /setJobs\(\(p\) => \[item, \.\.\.p\.filter\(\(j\) => j\.id !== item\.id\)\]\)/);
+});
+test('chat-only top bar, brand, and floating footer keep status above Edit', () => {
+  const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
+  const css = fs.readFileSync('app/chat-hisaab.css', 'utf8');
+  assert.match(chat, /<small className="hisaab-brand">pakki baat\.<\/small>/);
+  assert.match(css, /body:has\(\.chat-hisaab\) \.topbar[^\n]*display: none !important/);
+  assert.match(css, /\.hisaab-compose \{[^}]*bottom: calc\(12px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(css, /\.modal-backdrop:has\(#review-title\) \{ z-index: 110/);
+  assert.match(css, /body:has\(\.chat-hisaab\) \.toast \{ z-index: 120/);
 });
 test('Add payment chip is replaced with Paid after full payment', () => {
   const unpaid = bubble();
