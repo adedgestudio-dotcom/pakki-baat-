@@ -30,7 +30,7 @@ test('bubble pencil opens the edit form while the bubble body opens detail', () 
   assert.match(chat, /className="hisaab-bubble" onClick=\{onOpen\}/);
   assert.match(chat, /aria-label="Edit entry"[^>]*onClick=\{onEdit\}/);
   assert.match(chat, /onEdit=\{\(\) => ctx\.onEdit\(job\)\}/);
-  assert.match(fs.readFileSync('app/chat-hisaab.css', 'utf8'), /\.modal-backdrop:has\(#review-title\) \{ z-index: 110/);
+  assert.match(fs.readFileSync('app/chat-hisaab.css', 'utf8'), /body:has\(\.chat-hisaab\) \.modal-backdrop \{ z-index: 110/);
 });
 test('photo picking previews privately and POST waits for Attach photo', () => {
   const photo = fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8');
@@ -77,7 +77,8 @@ test('chat-only top bar, brand, and floating footer keep status above Edit', () 
   assert.match(chat, /<small className="hisaab-brand">pakki baat\.<\/small>/);
   assert.match(css, /body:has\(\.chat-hisaab\) \.topbar[^\n]*display: none !important/);
   assert.match(css, /\.hisaab-compose \{[^}]*bottom: calc\(12px \+ env\(safe-area-inset-bottom\)\)/);
-  assert.match(css, /\.modal-backdrop:has\(#review-title\) \{ z-index: 110/);
+  assert.match(css, /body:has\(\.chat-hisaab\) \.modal-backdrop \{ z-index: 110/);
+  assert.match(css, /\.modal-backdrop > :first-child \{[^}]*max-height: calc\(100dvh - 24px\)[^}]*padding-bottom: calc\(16px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(css, /body:has\(\.chat-hisaab\) \.toast \{ z-index: 120/);
 });
 test('Add payment chip is replaced with Paid after full payment', () => {
@@ -151,14 +152,41 @@ test('WhatsApp banner cascade and detail actions keep their intended layouts', (
   const chatCss = fs.readFileSync('app/chat-hisaab.css', 'utf8');
   const menuCss = fs.readFileSync('app/chat-hisaab-menus.css', 'utf8');
   const workspaceCss = fs.readFileSync('app/workspace.css', 'utf8');
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
   const banner = chatCss.match(/\.chat-hisaab \.customer-phone-link \{[^}]*\}/)?.[0] || '';
   assert.match(banner, /width: 100%/);
   assert.match(banner, /overflow: visible/);
   assert.doesNotMatch(banner, /overflow: hidden|999px/);
   assert.doesNotMatch(menuCss + workspaceCss, /\.chat-hisaab \.customer-phone-link \{/);
   assert.match(chatCss, /\.hisaab-entry-page \.hisaab-history-card \.hisaab-quick-actions \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-more-actions > div \{ display: contents/);
+  const actions = workspace.slice(workspace.indexOf('<div className="hisaab-quick-actions" aria-label="Entry actions">'), workspace.indexOf('</div>', workspace.indexOf('<div className="hisaab-quick-actions" aria-label="Entry actions">')));
+  assert.doesNotMatch(actions, /<details|<summary|hisaab-more-actions/);
+  for (const action of ['Add payment', 'Photos', 'Edit', 'Remind', 'Receipt', 'WhatsApp', 'History', 'Delete']) assert.ok(actions.includes(action), action);
+  assert.doesNotMatch(chatCss, /\.hisaab-entry-page \.hisaab-more-actions/);
+  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-quick-actions button:nth-last-child\(2\):nth-child\(odd\) \{ grid-column: 1 \/ -1/);
   assert.match(chatCss, /\.hisaab-entry-page \.hisaab-quick-actions \.delete-action \{ grid-column: 1 \/ -1/);
+  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-history-summary dl \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-card-statuses \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
+test('ledger-mode entry and customer deletion do not offer impossible Undo', () => {
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  for (const name of ['confirmDeleteCustomer', 'confirmDeleteEntry']) {
+    const body = workspace.slice(workspace.indexOf(`async function ${name}()`), workspace.indexOf('  async function ', workspace.indexOf(`async function ${name}()`) + 1));
+    assert.match(body, /if \(ledgerModeForAccount\(activeUserIdRef\.current \|\| ""\)\) setLastUndo\(null\);\s*else rememberUndo\(/);
+    assert.match(body, /savePreDeleteSafetyCopy\(\)/);
+  }
+  assert.match(workspace, /This can&apos;t be undone\. A safety copy is saved first\./);
+  assert.equal((workspace.match(/This can&apos;t be undone\. A safety copy is saved first\./g) || []).length, 2);
+});
+
+test('deleted detail auto-leaves only after its entry was seen in this chat mount', () => {
+  const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
+  assert.match(chat, /function leaveDetail\(\) \{ if \(history\.state\?\.hisaabEntry\) history\.back\(\); else setDetail\(""\); \}/);
+  assert.match(chat, /seenDetails = useRef\(new Set<string>\(\)\)/);
+  assert.match(chat, /ctx\.jobs\.some\(job => job\.id === ctx\.detail\)\) seenDetails\.current\.add\(ctx\.detail\); else if \(seenDetails\.current\.delete\(ctx\.detail\)\) ctx\.leaveDetail\(\)/);
+  assert.match(chat, /seenDetails\.current\.has\(ctx\.detail\) \? null : <p>This entry is no longer available\.<\/p>/);
+  assert.match(chat, /savedScrollTop\.current = end\.current\?\.parentElement\?\.scrollTop/);
 });
 test('saved drafts cannot reopen an entry at launch, on Hisaab, or on app focus', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');

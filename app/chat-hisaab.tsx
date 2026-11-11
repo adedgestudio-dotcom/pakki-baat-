@@ -21,7 +21,7 @@ type Props = {
   onVoice: (file: File, duration: number, transcript: string) => Promise<void>;
   voiceBusy: boolean; voiceSeconds: number;
 };
-const ChatContext = createContext<(Props & { detail: string; navigate: (id: string) => void }) | null>(null);
+const ChatContext = createContext<(Props & { detail: string; navigate: (id: string) => void; leaveDetail: () => void }) | null>(null);
 function Icon({ name, size }: { name: string; size: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">{name === "plus" ? <path d="M12 5v14M5 12h14"/> : name === "copy" ? <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></> : <path d="m4 16 12-12 4 4L8 20H4v-4ZM14 6l4 4"/>}</svg>;
 }
@@ -39,6 +39,7 @@ export default function ChatCustomer(props: Props) {
   function navigate(id: string) {
     history.pushState({ ...history.state, hisaabEntry: id }, ""); setDetail(id);
   }
+  function leaveDetail() { if (history.state?.hisaabEntry) history.back(); else setDetail(""); }
   const orderedJobs = [...props.jobs].sort((a, b) => (Date.parse(a.createdAt || "") || Infinity) - (Date.parse(b.createdAt || "") || Infinity) || a.id.localeCompare(b.id));
   const actionJob = props.jobs.find(job => job.id === (detail || actionEntry)) || orderedJobs.at(-1);
   function chooseAction(choice: string) {
@@ -55,7 +56,7 @@ export default function ChatCustomer(props: Props) {
     if (choice === "delete") props.onDelete(actionJob);
   }
   const closePhoto = () => { setPhoto(""); setPhotoFile(null); };
-  return <ChatContext.Provider value={{ ...props, detail, navigate }}><section className={`customer-detail chat-hisaab${detail ? " has-detail" : ""}`}>
+  return <ChatContext.Provider value={{ ...props, detail, navigate, leaveDetail }}><section className={`customer-detail chat-hisaab${detail ? " has-detail" : ""}`}>
     <header className="hisaab-chat-head"><button aria-label="Back to Hisaab customers" onClick={() => { if (history.state?.customer && history.length > 1) history.back(); else if (detail) { history.replaceState({ ...history.state, hisaabEntry: "" }, ""); setDetail(""); } else props.onBack(); }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="m15 18-6-6 6-6M9 12h12"/></svg></button><h1><small className="hisaab-brand">pakki baat.</small>{props.customer}</h1><span>Pending {money(props.pending)}</span>{detail && <button aria-label="More entry actions" onClick={() => setMenu(true)}><Icon name="plus" size={24}/></button>}</header>
     {props.children}
     {!detail && <footer className="hisaab-compose">
@@ -78,12 +79,14 @@ export function ChatEntryBubble({ job, number, payments, ownerId = null, onOpen,
 export function ChatHistory({ children }: { children: ReactNode }) {
   const ctx = useContext(ChatContext)!;
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (!ctx.detail) { const log = end.current?.parentElement; log?.scrollTo({ top: log.scrollHeight }); } }, [ctx.jobs.length, ctx.detail]);
+  const seenDetails = useRef(new Set<string>()), savedScrollTop = useRef<number | null>(null);
+  useEffect(() => { if (!ctx.detail) return; if (ctx.jobs.some(job => job.id === ctx.detail)) seenDetails.current.add(ctx.detail); else if (seenDetails.current.delete(ctx.detail)) ctx.leaveDetail(); }, [ctx.detail, ctx.jobs, ctx.leaveDetail]);
+  useEffect(() => { if (!ctx.detail) { const log = end.current?.parentElement; log?.scrollTo({ top: savedScrollTop.current ?? log.scrollHeight }); } }, [ctx.jobs.length, ctx.detail]);
   const cards = Children.toArray(children);
   if (ctx.detail) {
     const index = ctx.jobs.findIndex(job => job.id === ctx.detail);
-    return <div className="hisaab-entry-page">{index < 0 ? <p>This entry is no longer available.</p> : cards[index]}</div>;
+    return <div className="hisaab-entry-page">{index < 0 ? seenDetails.current.has(ctx.detail) ? null : <p>This entry is no longer available.</p> : cards[index]}</div>;
   }
   const ordered = [...ctx.jobs].sort((a, b) => (Date.parse(a.createdAt || "") || Infinity) - (Date.parse(b.createdAt || "") || Infinity) || a.id.localeCompare(b.id));
-  return <div className="hisaab-chat-log" aria-label="Customer entries">{ordered.length === 0 && <p className="hisaab-chat-empty">Your entries will appear here. Add your first entry below.</p>}{ordered.map((job, index) => <ChatEntryBubble key={job.id} job={job} number={index + 1} ownerId={ctx.ownerId} payments={ctx.payments.filter(p => p.jobId === job.id && p.customer === job.customer)} onOpen={() => ctx.navigate(job.id)} onPayment={() => ctx.onPayment(job)} onEdit={() => ctx.onEdit(job)} onCopy={async () => { try { await navigator.clipboard.writeText(`Entry ${index + 1}\n${job.customer}\n${job.work}\nTotal ${money(job.total)}\nPending ${money(job.total - job.paid)}`); ctx.onToast("Entry copied"); } catch { ctx.onToast("Could not copy. Please allow clipboard access."); } }}/>) }<div ref={end}/></div>;
+  return <div className="hisaab-chat-log" aria-label="Customer entries">{ordered.length === 0 && <p className="hisaab-chat-empty">Your entries will appear here. Add your first entry below.</p>}{ordered.map((job, index) => <ChatEntryBubble key={job.id} job={job} number={index + 1} ownerId={ctx.ownerId} payments={ctx.payments.filter(p => p.jobId === job.id && p.customer === job.customer)} onOpen={() => { savedScrollTop.current = end.current?.parentElement?.scrollTop ?? null; ctx.navigate(job.id); }} onPayment={() => ctx.onPayment(job)} onEdit={() => ctx.onEdit(job)} onCopy={async () => { try { await navigator.clipboard.writeText(`Entry ${index + 1}\n${job.customer}\n${job.work}\nTotal ${money(job.total)}\nPending ${money(job.total - job.paid)}`); ctx.onToast("Entry copied"); } catch { ctx.onToast("Could not copy. Please allow clipboard access."); } }}/>) }<div ref={end}/></div>;
 }

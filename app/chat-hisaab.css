@@ -20,7 +20,8 @@
 .hisaab-bubble-actions .hisaab-icon-action { width: 38px; height: 38px; min-width: 38px; min-height: 38px; }
 .hisaab-paid-tag { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; background: #e9ede8; color: #728075; font-size: 13px; font-weight: 650; }
 .hisaab-compose { position: fixed; bottom: calc(12px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(calc(100% - 24px), 656px); padding: 8px; border-radius: 32px; border: 1px solid #d3dad2; border-top: 1px solid #d3dad2; background: #f8f8f5; z-index: 90; box-shadow: 0 8px 24px #243f3026; }
-body:has(.chat-hisaab) .modal-backdrop:has(#review-title) { z-index: 110; }
+body:has(.chat-hisaab) .modal-backdrop { z-index: 110; }
+body:has(.chat-hisaab) .modal-backdrop > :first-child { max-height: calc(100dvh - 24px); overflow-y: auto; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 body:has(.chat-hisaab) .toast { z-index: 120; }
 body:has(.chat-hisaab) .mobile-nav { display: none !important; }
 body:has(.chat-hisaab) .topbar, body:has(.chat-hisaab) .sidebar { display: none !important; }
@@ -47,11 +48,15 @@ body:has(.chat-hisaab) .content { max-width: none; margin: 0; padding: 0; }
 .hisaab-entry-page { padding: 16px; }
 .hisaab-entry-page .hisaab-more-details > summary { display: none; }
 .hisaab-entry-page .hisaab-history-card .hisaab-quick-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.hisaab-entry-page .hisaab-more-actions, .hisaab-entry-page .hisaab-more-actions[open] { display: contents; }
-.hisaab-entry-page .hisaab-more-actions > summary { display: none; }
-.hisaab-entry-page .hisaab-more-actions > div { display: contents; }
 .hisaab-entry-page .hisaab-quick-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; height: 44px; white-space: nowrap; }
+.hisaab-entry-page .hisaab-quick-actions button:nth-last-child(2):nth-child(odd) { grid-column: 1 / -1; }
 .hisaab-entry-page .hisaab-quick-actions .delete-action { grid-column: 1 / -1; }
+.hisaab-entry-page .hisaab-history-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.hisaab-entry-page .hisaab-history-summary > strong, .hisaab-entry-page .hisaab-history-summary dl, .hisaab-entry-page .hisaab-card-statuses { grid-column: 1 / -1; }
+.hisaab-entry-page .hisaab-history-summary .saved-entry-created-date { justify-self: end; }
+.hisaab-entry-page .hisaab-history-summary dl { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.hisaab-entry-page .hisaab-card-statuses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.hisaab-entry-page .hisaab-card-statuses > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hisaab-entry-page .hisaab-more-details > .hisaab-history-expanded { display: block; }
 .hisaab-chat-empty { color: #69766d; padding: 32px 12px; }
 .chat-hisaab.has-detail { padding-bottom: 24px; }

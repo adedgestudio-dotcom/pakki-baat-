@@ -3659,7 +3659,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     if (!deleteCustomer || !requireActiveSubscriptionForSaving()) return;
     if (!(await savePreDeleteSafetyCopy())) return;
     const name = deleteCustomer;
-    rememberUndo("Customer deleted");
+    if (ledgerModeForAccount(activeUserIdRef.current || "")) setLastUndo(null);
+    else rememberUndo("Customer deleted");
     const jobIds = new Set(
       jobs.filter((j) => j.customer === name).map((j) => j.id)
     );
@@ -3690,7 +3691,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     if (!(await savePreDeleteSafetyCopy())) return;
     const job = deleteJob;
     const message = "Entry deleted";
-    rememberUndo(message);
+    if (ledgerModeForAccount(activeUserIdRef.current || "")) setLastUndo(null);
+    else rememberUndo(message);
     setJobs((items) => items.filter((item) => item.id !== job.id));
     setPayments((items) => items.filter((item) => item.jobId !== job.id));
     setReminders((items) => items.filter((item) => item.jobId !== job.id));
@@ -6066,12 +6068,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                   <button type="button" className="card-action" onClick={event => { const details = event.currentTarget.closest(".hisaab-history-card")?.querySelector<HTMLDetailsElement>(".hisaab-more-details"); if (details) details.open = true; }}><Icon name="plan" size={16} /> Photos</button>
                                   <button type="button" className="card-action" onClick={() => setDraft(j)}><Icon name="edit" size={16} /> Edit</button>
                                   <button type="button" className="card-action reminder-action" onClick={() => openReminder(j)}><Icon name="bell" size={16} /> Remind</button>
-                                  <details className="hisaab-more-actions" open><summary className="card-action"><Icon name="list" size={16} /> More</summary><div>
                                     <button type="button" className="card-action receipt-action" onClick={() => openReceipt(j)}><Icon name="copy" size={16} /> Receipt</button>
                                     <button type="button" className="card-action whatsapp-action" onClick={() => openWhatsApp(j)}><Icon name="chat" size={16} /> WhatsApp</button>
                                     {ledgerModeForAccount(accountId || "") && <button type="button" className="card-action" onClick={() => setTab("Reports")}><Icon name="clock" size={16} /> History</button>}
                                     <button type="button" className="card-action delete-action" onClick={() => deleteEntry(j)}><Icon name="trash" size={16} /> Delete</button>
-                                  </div></details>
                                 </div>
                                 <details className="hisaab-more-details" open>
                                   <summary className="hisaab-expand-hint">More details · Payments ({entryPayments.length}) <span aria-hidden="true">⌄</span></summary>
@@ -7863,6 +7863,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 This removes this customer and their hisaab entries, payments,
                 notes and reminders.
               </p>
+              <p>This can&apos;t be undone. A safety copy is saved first.</p>
               <div className="modal-actions">
                 <button
                   type="button"
@@ -7919,7 +7920,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               </div>
               <p id="delete-entry-description">
                 Any payment history and reminders linked to this entry will also
-                be removed. You can still undo immediately after deleting.
+                be removed. This can&apos;t be undone. A safety copy is saved first.
               </p>
               <div className="delete-confirm-actions">
                 <button
