@@ -5450,8 +5450,6 @@ select:focus-visible {
   color: #245f4d;
   text-decoration: underline;
 }
-.chat-hisaab .customer-profile-copy { width: 100%; min-width: 0; }
-.chat-hisaab .customer-phone-link { display: block; width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 12px; line-height: 1.35; background: #e5ede5; border-radius: 10px; white-space: normal; overflow-wrap: anywhere; }
 .customer-action-strip {
   display: flex;
   flex-wrap: wrap;

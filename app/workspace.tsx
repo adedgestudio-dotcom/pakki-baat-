@@ -6061,7 +6061,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                   <button type="button" className="card-action reminder-action" onClick={() => openReminder(j)}><Icon name="bell" size={16} /> Remind</button>
                                   <details className="hisaab-more-actions" open><summary className="card-action"><Icon name="list" size={16} /> More</summary><div>
                                     <button type="button" className="card-action receipt-action" onClick={() => openReceipt(j)}><Icon name="copy" size={16} /> Receipt</button>
-                                    <button type="button" className="card-action whatsapp-action" onClick={() => openWhatsApp(j)}><Icon name="chat" size={16} /> Remind on WhatsApp</button>
+                                    <button type="button" className="card-action whatsapp-action" onClick={() => openWhatsApp(j)}><Icon name="chat" size={16} /> WhatsApp</button>
                                     {ledgerModeForAccount(accountId || "") && <button type="button" className="card-action" onClick={() => setTab("Reports")}><Icon name="clock" size={16} /> History</button>}
                                     <button type="button" className="card-action delete-action" onClick={() => deleteEntry(j)}><Icon name="trash" size={16} /> Delete</button>
                                   </div></details>

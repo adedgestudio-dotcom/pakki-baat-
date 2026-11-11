@@ -19,11 +19,29 @@ const ui = load('app/chat-hisaab.tsx', {
 });
 const job = { id: 'entry-1', customer: 'Sara', work: 'Chocolate cake', total: 200, paid: 0, date: '', time: '', status: 'Waiting' };
 const noop = () => {};
-const bubble = (entry = job, payments = []) => renderToStaticMarkup(React.createElement(ui.ChatEntryBubble, { job: entry, number: 1, payments, onOpen: noop, onCopy: noop, onPayment: noop }));
+const bubble = (entry = job, payments = []) => renderToStaticMarkup(React.createElement(ui.ChatEntryBubble, { job: entry, number: 1, payments, onOpen: noop, onCopy: noop, onPayment: noop, onEdit: noop }));
 test('entries render as accessible chat bubbles with summary and three muted actions', () => {
   const html = bubble();
   for (const text of ['Entry 1', 'Chocolate cake', 'Total', 'Pending', '0 payments', 'Add payment', 'Copy entry', 'Edit entry']) assert.ok(html.includes(text), text);
   assert.equal((html.match(/<button/g) || []).length, 4);
+});
+test('bubble pencil opens the edit form while the bubble body opens detail', () => {
+  let opened = 0, edited = 0;
+  const element = ui.ChatEntryBubble({ job, number: 1, payments: [], onOpen: () => opened++, onEdit: () => edited++, onPayment: noop, onCopy: noop });
+  const [body, actions] = element.props.children;
+  body.props.onClick();
+  actions.props.children[2].props.onClick();
+  assert.equal(opened, 1);
+  assert.equal(edited, 1);
+  assert.match(fs.readFileSync('app/chat-hisaab.tsx', 'utf8'), /onEdit=\{\(\) => ctx\.onEdit\(job\)\}/);
+  assert.match(fs.readFileSync('app/chat-hisaab.css', 'utf8'), /\.modal-backdrop:has\(#review-title\) \{ z-index: 120/);
+});
+test('Add payment chip is replaced with Paid after full payment', () => {
+  const unpaid = bubble();
+  const paid = bubble({ ...job, paid: job.total });
+  assert.match(unpaid, /class="hisaab-payment-chip"[^>]*>.*Add payment/);
+  assert.doesNotMatch(paid, /hisaab-payment-chip/);
+  assert.match(paid, /class="hisaab-paid-tag">Paid/);
 });
 test('bottom bar has exactly actions, add entry, and attach with no message or mic', () => {
   const html = renderToStaticMarkup(React.createElement(ui.ChatBottomBar, { onActions: noop, onAdd: noop, onAttach: noop }));
@@ -63,7 +81,20 @@ test('entry tabs remount one content branch and the sheet has one scroller', () 
   assert.match(sheetCss, /\.hisaab-sheet-content \{[^}]*overflow-y: auto/);
   assert.match(sheetCss, /\.hisaab-sheet \{[^}]*overflow: hidden/);
   assert.doesNotMatch(css + sheetCss, /\.hisaab-sheet[^{}]*\{[^{}]*position:\s*sticky/);
-  assert.match(css, /\.chat-hisaab \.customer-phone-link \{[^}]*white-space: nowrap/);
+  assert.match(sheetCss, /\.chat-hisaab \.customer-phone-link \{[^}]*white-space: nowrap/);
+});
+test('WhatsApp banner cascade and detail actions keep their intended layouts', () => {
+  const chatCss = fs.readFileSync('app/chat-hisaab.css', 'utf8');
+  const menuCss = fs.readFileSync('app/chat-hisaab-menus.css', 'utf8');
+  const workspaceCss = fs.readFileSync('app/workspace.css', 'utf8');
+  const banner = chatCss.match(/\.chat-hisaab \.customer-phone-link \{[^}]*\}/)?.[0] || '';
+  assert.match(banner, /width: 100%/);
+  assert.match(banner, /overflow: visible/);
+  assert.doesNotMatch(banner, /overflow: hidden|999px/);
+  assert.doesNotMatch(menuCss + workspaceCss, /\.chat-hisaab \.customer-phone-link \{/);
+  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-history-card \.hisaab-quick-actions \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-more-actions > div \{ display: contents/);
+  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-quick-actions \.delete-action \{ grid-column: 1 \/ -1/);
 });
 test('saved drafts cannot reopen an entry at launch, on Hisaab, or on app focus', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
