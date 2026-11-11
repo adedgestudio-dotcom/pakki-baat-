@@ -1523,10 +1523,12 @@ export default function Workspace() {
     if (t === "Hisaab") setCustomerChatOpen(false);
     window.history.pushState(
       {
+        ...window.history.state,
         pakkiBaat: true,
         tab: t,
         customer: undefined,
         customerChatOpen: false,
+        hisaabEntry: "",
         entryMode: t === "Hisaab" ? entryMode : undefined,
       },
       ""
@@ -1609,6 +1611,7 @@ export default function Workspace() {
 
     window.history.replaceState(
       {
+        ...window.history.state,
         pakkiBaat: true,
         tab: restoredTab,
         customer: restoredCustomer || undefined,
@@ -1649,7 +1652,7 @@ export default function Workspace() {
       localStorage.setItem("pakki-baat-last-tab", tab);
       localStorage.setItem("pakki-baat-last-view", JSON.stringify(view));
     } catch {}
-    if (!window.history.state?.hisaabSheet) window.history.replaceState({ pakkiBaat: true, ...view }, "");
+    window.history.replaceState({ ...window.history.state, pakkiBaat: true, ...view }, "");
   }, [tab, selectedCustomer, customerChatOpen, entryMode]);
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -1660,11 +1663,9 @@ export default function Workspace() {
         customerChatOpen?: boolean;
         entryMode?: "quick" | "form";
       } | null;
-      if (window.history.state?.hisaabSheet || document.querySelector("dialog.hisaab-sheet[open]")) return;
-      setNewCustomerOpen(false);
+      const leavingChat = Boolean(selectedCustomerRef.current) && (state?.tab !== "Hisaab" || state.customer !== selectedCustomerRef.current);
+      if (leavingChat) { setNewCustomerOpen(false); setPendingJob(null); setMessage(""); }
       setCustomerChatOpen(false);
-      setPendingJob(null);
-      setMessage("");
       if (state?.pakkiBaat) {
         setTab(state.tab || "Today");
         setSelectedCustomer(state.customer || null);
@@ -1681,10 +1682,12 @@ export default function Workspace() {
   function openCustomerFromHisaab(name: string) {
     window.history.pushState(
       {
+        ...window.history.state,
         pakkiBaat: true,
         tab: "Hisaab",
         customer: name,
         customerChatOpen: false,
+        hisaabEntry: "",
         entryMode,
       },
       ""
@@ -5574,7 +5577,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     ) : (
                       <ChatCustomer key={`${accountId}:${selectedCustomer}`} customer={selectedCustomer!} pending={selectedBaki} jobs={customerJobs} payments={payments}
                         ownerId={accountId} canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
-                        onBack={() => { window.history.replaceState({ pakkiBaat: true, tab: "Hisaab", customer: null, customerChatOpen: false }, ""); setSelectedCustomer(null); setCustomerChatOpen(false); }} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
+                        onBack={() => { window.history.replaceState({ ...window.history.state, pakkiBaat: true, tab: "Hisaab", customer: null, customerChatOpen: false, hisaabEntry: "" }, ""); setSelectedCustomer(null); setCustomerChatOpen(false); }} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
                         whatsappNumber={customerPhones[selectedCustomer!] || ""} onEditPhone={() => openPhoneEditor(selectedCustomer!)}
                         onReceipt={openReceipt} onWhatsApp={openWhatsApp} onReminder={openReminder} onDelete={deleteEntry} onEdit={(job) => { savedDraftRef.current = null; setEditError(""); setDraft(job); }} onHistory={() => setTab("Reports")} hasHistory={ledgerModeForAccount(accountId || "")}
                         message={message} onMessage={setMessage} onCapture={() => { setCustomerChatOpen(true); setEntryMode("quick"); capture(); }}

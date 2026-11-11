@@ -9,13 +9,8 @@ export default function ChatSheet({ open, onClose, label, children, scrollKey }:
     const dialog = ref.current;
     if (!open || !dialog) return;
     const previous = document.activeElement as HTMLElement | null;
-    const marker = `hisaab-${Date.now()}-${Math.random()}`;
-    if (window.history.state?.hisaabSheet) window.history.replaceState({ ...window.history.state, hisaabSheet: marker }, "");
-    else window.history.pushState({ ...window.history.state, hisaabSheet: marker }, "");
-    const handleBack = () => { if (window.history.state?.hisaabSheet !== marker) onClose(); };
-    window.addEventListener("popstate", handleBack);
     dialog.showModal();
-    return () => { window.removeEventListener("popstate", handleBack); dialog.close(); previous?.focus(); window.setTimeout(() => { if (window.history.state?.hisaabSheet === marker) window.history.back(); }, 0); };
+    return () => { dialog.close(); previous?.focus(); };
   }, [open]);
   if (!open || typeof document === "undefined") return null;
   return createPortal(<dialog ref={ref} className="hisaab-sheet" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>

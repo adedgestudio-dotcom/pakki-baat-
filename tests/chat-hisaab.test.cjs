@@ -42,7 +42,7 @@ test('photo picking previews privately and POST waits for Attach photo', () => {
   assert.match(photo, /onAttach=\{\(\) => \{ if \(!checked\) void load\(\); else void upload\(previewFile\); \}\}/);
   assert.match(photo, /scopedFetch\(\{ method: "POST", body: form \}\)/);
 });
-test('photo shrink, bubble thumb, camera shortcut and viewer share the private fetch', () => {
+test('photo shrink, bubble thumb and viewer share the private fetch without a bubble camera', () => {
   const photo = fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8');
   const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
   const shrink = fs.readFileSync('app/shrink-photo.ts', 'utf8');
@@ -51,13 +51,13 @@ test('photo shrink, bubble thumb, camera shortcut and viewer share the private f
   assert.match(shrink, /createImageBitmap\(file, \{ imageOrientation: "from-image" \}\)/);
   assert.match(shrink, /"image\/jpeg"/);
   assert.match(photo, /if \(thumb\) return/);
-  assert.match(chat, /canUpload=\{false\} thumb onPresence=\{setHasPhoto\}/);
+  assert.match(chat, /canUpload=\{false\} thumb\//);
   assert.doesNotMatch(chat, /countOnly|0 photos/);
   assert.equal((photo.match(/scopedFetch\(\)/g) || []).length, 1);
-  assert.match(chat, /hasPhoto === false && onCamera/);
-  assert.match(viewer, /history\.pushState|history\.back\(\)|popstate|showModal/);
-  for (const token of ['history.pushState', 'history.back()', 'popstate', 'showModal']) assert.ok(viewer.includes(token), token);
-  assert.match(fs.readFileSync('app/chat-sheet.tsx', 'utf8'), /history\.state\?\.hisaabSheet !== marker/);
+  assert.doesNotMatch(chat, /onCamera|openPhoto|hasPhoto|aria-label="Add photo"/);
+  assert.match(viewer, /showModal/);
+  assert.doesNotMatch(viewer, /history\.|popstate/);
+  assert.doesNotMatch(fs.readFileSync('app/chat-sheet.tsx', 'utf8'), /history\.|popstate/);
 });
 test('Edit modal submits through save and shows every failure inline', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
@@ -105,16 +105,36 @@ test('clip menu has four options and screenshot is disabled', () => {
   for (const text of ['Camera', 'Gallery', 'Paste message', 'Screenshot', 'Coming soon']) assert.ok(html.includes(text));
   assert.equal(element.props.children[3].props.disabled, true);
 });
-test('back arrow clears customer without opening entry and sheet close consumes history', () => {
+test('back arrow and entry detail use state-only navigation; sheet close stays in chat', () => {
   const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
   const sheet = fs.readFileSync('app/chat-sheet.tsx', 'utf8');
-  assert.match(chat, /aria-label="Back to Hisaab customers"[^\n]*props\.onBack\(\)/);
+  assert.match(chat, /aria-label="Back to Hisaab customers"[^\n]*history\.back\(\)[^\n]*props\.onBack\(\)/);
   assert.doesNotMatch(chat.match(/aria-label="Back to Hisaab customers"[^\n]*/)?.[0] || '', /onAdd|onQuick|startEntry/);
+  assert.match(chat, /history\.pushState\(\{ \.\.\.history\.state, hisaabEntry: id \}, ""\)/);
+  assert.match(chat, /setDetail\(history\.state\?\.hisaabEntry \|\| ""\)/);
+  assert.doesNotMatch(chat, /searchParams|new URL\(location\.href\)/);
   assert.match(workspace, /restoredCustomerChatOpen = false/);
   assert.match(workspace, /customerChatOpen: false,/);
-  assert.match(sheet, /history\.back\(\)/);
-  assert.match(sheet, /popstate/);
+  assert.doesNotMatch(sheet, /history\.|popstate/);
+  assert.match(sheet, /onCancel=\{event => \{ event\.preventDefault\(\); onClose\(\); \}\}/);
+  assert.match(workspace, /const leavingChat = Boolean\(selectedCustomerRef\.current\)/);
+  assert.doesNotMatch(workspace, /history\.state\?\.hisaabSheet|dialog\.hisaab-sheet\[open\]/);
+});
+
+test('camera and Gallery open the picker in the tap handler, then show selected photo preview', () => {
+  const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
+  const photo = fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8');
+  const choice = chat.slice(chat.indexOf('function chooseAction('), chat.indexOf('const closePhoto ='));
+  assert.match(choice, /photoPicker\.current\.click\(\)/);
+  assert.match(choice, /setAttribute\("capture", "environment"\)/);
+  assert.match(choice, /removeAttribute\("capture"\)/);
+  assert.doesNotMatch(choice, /setPhoto\(/);
+  assert.match(chat, /<input ref=\{photoPicker\} type="file"[^\n]*onChange=\{event => \{ const file = event\.target\.files\?\.\[0\]; event\.target\.value = ""; if \(!file\) return; setPhotoFile\(file\); setPhoto\("preview"\); \}\}/);
+  assert.match(chat, /initialFile=\{photoFile\} onPreviewCancel=\{closePhoto\} onAttached=/);
+  assert.match(photo, /useState<File \| null>\(initialFile \|\| null\)/);
+  assert.doesNotMatch(photo, /autoPick|autoPicked/);
+  assert.match(chat, /props\.onToast\("Photo attached"\)/);
 });
 test('entry tabs remount one content branch and the sheet has one scroller', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');

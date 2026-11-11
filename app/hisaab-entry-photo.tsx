@@ -7,14 +7,12 @@ import { shrinkPhoto } from "./shrink-photo";
 import PhotoPreview from "./photo-preview";
 import PhotoViewer from "./photo-viewer";
 
-export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false, thumb = false, autoPick = false, entryNumber, onPresence }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean; thumb?: boolean; autoPick?: boolean; entryNumber?: number; onPresence?: (present: boolean | null) => void }) {
+export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false, thumb = false, initialFile, entryNumber, onAttached, onPreviewCancel }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean; thumb?: boolean; initialFile?: File | null; entryNumber?: number; onAttached?: () => void; onPreviewCancel?: () => void }) {
   const root = useRef<HTMLElement>(null), generation = useRef(0), objectUrl = useRef("");
-  const requests = useRef(new Set<AbortController>()), uploading = useRef(false), picker = useRef<HTMLInputElement>(null), autoPicked = useRef(false);
+  const requests = useRef(new Set<AbortController>()), uploading = useRef(false);
   const [url, setUrl] = useState(""), [checked, setChecked] = useState(false), [online, setOnline] = useState(true);
-  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [previewFile, setPreviewFile] = useState<File | null>(null), [previewUrl, setPreviewUrl] = useState(""), [viewer, setViewer] = useState(false), [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [previewFile, setPreviewFile] = useState<File | null>(initialFile || null), [previewUrl, setPreviewUrl] = useState(() => initialFile ? URL.createObjectURL(initialFile) : ""), [viewer, setViewer] = useState(false), [status, setStatus] = useState("");
   useEffect(() => { if (previewUrl) return () => URL.revokeObjectURL(previewUrl); }, [previewUrl]);
-  useEffect(() => { onPresence?.(checked && online ? Boolean(url) : null); }, [checked, online, url, onPresence]);
-  useEffect(() => { if (autoPick && checked && online && !url && !previewFile && canUpload && !autoPicked.current && picker.current) { autoPicked.current = true; picker.current.click(); } }, [autoPick, checked, online, url, previewFile, canUpload]);
   const clearImage = useCallback(() => {
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     objectUrl.current = "";
@@ -95,6 +93,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
       if (!response.ok) throw new Error((await response.json()).error || "Upload failed. Retry online.");
       setPreviewFile(null); setPreviewUrl(""); setStatus("Photo attached"); await load();
       window.dispatchEvent(new CustomEvent("hisaab-photo-changed", { detail: `${ownerId}:${entryId}` }));
+      onAttached?.();
     } catch (cause) {
       if (token === generation.current) setError(cause instanceof Error ? cause.message : "Upload failed. Retry online.");
     } finally { if (token === generation.current) { uploading.current = false; setBusy(false); } }
@@ -108,7 +107,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
       <small>JPG, PNG or WebP, up to 4 MB. Needs internet.</small>
       {entryNumber && url && !previewFile && !status && <p role="alert">Entry {entryNumber} already has a photo. Choose another entry.</p>}
       {!online ? <p>Reconnect to view or add this entry&apos;s photo.</p> : previewFile && previewUrl ? (
-        <PhotoPreview src={previewUrl} busy={busy} error={error} existing={!!url} ready={(checked || !!error) && online && canUpload} entryNumber={entryNumber} onCancel={() => { setPreviewFile(null); setPreviewUrl(""); setError(""); }} onAttach={() => { if (!checked) void load(); else void upload(previewFile); }}/>
+        <PhotoPreview src={previewUrl} busy={busy} error={error} existing={!!url} ready={(checked || !!error) && online && canUpload} entryNumber={entryNumber} onCancel={() => { setPreviewFile(null); setPreviewUrl(""); setError(""); onPreviewCancel?.(); }} onAttach={() => { if (!checked) void load(); else void upload(previewFile); }}/>
       ) : url ? (
         // Private authenticated bytes are displayed through a short-lived object URL, never a public asset URL.
         <button type="button" className="hisaab-photo-image-button" aria-label="View photo" onClick={() => setViewer(true)}><img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" /></button>
@@ -118,7 +117,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
           {/* The native file input stays in the label for keyboard and screen-reader use. */}
           <label className={busy ? "hisaab-entry-photo-upload is-busy" : "hisaab-entry-photo-upload"}>
             <span aria-hidden="true">Add photo</span>
-            <input ref={picker} type="file" capture={capture} className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
+            <input type="file" capture={capture} className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
               onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!PHOTO_TYPES.some(type => type === file.type)) { setError("Choose a JPG, PNG or WebP photo."); return; } setError(""); setPreviewFile(file); setPreviewUrl(URL.createObjectURL(file)); }} />
           </label>
         </>
