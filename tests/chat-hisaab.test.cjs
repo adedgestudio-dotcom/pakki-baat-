@@ -12,9 +12,10 @@ function load(file, mocks = {}) {
   return module.exports;
 }
 const money = load('lib/money.ts');
+const menus = load('app/chat-hisaab-menus.tsx');
 const ui = load('app/chat-hisaab.tsx', {
   '@/lib/money': money, './simple-voice-button': () => null,
-  './hisaab-entry-photo': () => null, './chat-sheet': () => null, './chat-hisaab.css': {},
+  './hisaab-entry-photo': () => null, './chat-sheet': () => null, './chat-hisaab.css': {}, './chat-hisaab-menus.css': {}, './chat-hisaab-menus': menus,
 });
 const job = { id: 'entry-1', customer: 'Sara', work: 'Chocolate cake', total: 200, paid: 0, date: '', time: '', status: 'Waiting' };
 const noop = () => {};
@@ -24,10 +25,11 @@ test('entries render as accessible chat bubbles with summary and three muted act
   for (const text of ['Entry 1', 'Chocolate cake', 'Total', 'Pending', '0 payments', 'Add payment', 'Copy entry', 'Edit entry']) assert.ok(html.includes(text), text);
   assert.equal((html.match(/<button/g) || []).length, 4);
 });
-test('bottom bar has exactly clip, prominent add entry, and mode buttons', () => {
-  const html = renderToStaticMarkup(React.createElement(ui.ChatBottomBar, { onClip: noop, onAdd: noop, onMode: noop, keyboard: false }));
+test('bottom bar has exactly actions, add entry, and attach with no message or mic', () => {
+  const html = renderToStaticMarkup(React.createElement(ui.ChatBottomBar, { onActions: noop, onAdd: noop, onAttach: noop }));
   assert.equal((html.match(/<button/g) || []).length, 3);
-  for (const text of ['More entry actions', 'Add entry', 'Voice entry', 'primary hisaab-add']) assert.ok(html.includes(text));
+  for (const text of ['Entry actions', 'Add entry', 'Attach', 'primary hisaab-add']) assert.ok(html.includes(text));
+  for (const text of ['Voice entry', 'Type a message', 'Send', '<input']) assert.ok(!html.includes(text));
 });
 test('plus menu restores every saved entry action', () => {
   const html = renderToStaticMarkup(React.createElement(ui.EntryActionMenu, { onChoose: noop, hasEntry: true, hasHistory: true }));
@@ -40,6 +42,25 @@ test('clip menu has four options and screenshot is disabled', () => {
   assert.equal((html.match(/<button/g) || []).length, 4);
   for (const text of ['Camera', 'Gallery', 'Paste message', 'Screenshot', 'Coming soon']) assert.ok(html.includes(text));
   assert.equal(element.props.children[3].props.disabled, true);
+});
+test('back arrow clears customer without opening entry and sheet close consumes history', () => {
+  const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  const sheet = fs.readFileSync('app/chat-sheet.tsx', 'utf8');
+  assert.match(chat, /aria-label="Back to Hisaab customers"[^\n]*props\.onBack\(\)/);
+  assert.doesNotMatch(chat.match(/aria-label="Back to Hisaab customers"[^\n]*/)?.[0] || '', /onAdd|onQuick|startEntry/);
+  assert.match(workspace, /restoredCustomerChatOpen = false/);
+  assert.match(workspace, /customerChatOpen: false,/);
+  assert.match(sheet, /history\.back\(\)/);
+  assert.match(sheet, /popstate/);
+});
+test('entry tabs swap one content branch and the sheet keeps tabs visible while scrolling', () => {
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  const css = fs.readFileSync('app/chat-hisaab-menus.css', 'utf8');
+  assert.match(workspace, /entryMode === "quick" \? \(\s*<>/);
+  assert.match(css, /\.hisaab-sheet-content \{[^}]*overflow-y: auto/);
+  assert.match(css, /\.hisaab-sheet \.entry-mode-tabs \{[^}]*position: sticky/);
+  assert.match(css, /\.chat-hisaab \.customer-phone-link \{[^}]*white-space: nowrap/);
 });
 test('saving payment through existing financial planner updates pending and count on rerender', () => {
   const safety = load('lib/payment-safety.ts');

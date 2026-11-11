@@ -8,11 +8,16 @@ export default function ChatSheet({ open, onClose, label, children }: { open: bo
     const dialog = ref.current;
     if (!open || !dialog) return;
     const previous = document.activeElement as HTMLElement | null;
+    const marker = `hisaab-${Date.now()}-${Math.random()}`;
+    if (window.history.state?.hisaabSheet) window.history.replaceState({ ...window.history.state, hisaabSheet: marker }, "");
+    else window.history.pushState({ ...window.history.state, hisaabSheet: marker }, "");
+    const handleBack = () => onClose();
+    window.addEventListener("popstate", handleBack);
     dialog.showModal();
-    return () => { dialog.close(); previous?.focus(); };
+    return () => { window.removeEventListener("popstate", handleBack); dialog.close(); previous?.focus(); window.setTimeout(() => { if (window.history.state?.hisaabSheet === marker) window.history.back(); }, 0); };
   }, [open]);
   if (!open || typeof document === "undefined") return null;
-  return createPortal(<dialog ref={ref} className="hisaab-sheet" aria-label={label} onCancel={onClose} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+  return createPortal(<dialog ref={ref} className="hisaab-sheet" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="hisaab-sheet-content"><button type="button" className="hisaab-sheet-close" aria-label={`Close ${label}`} onClick={onClose}>×</button>{children}</div>
   </dialog>, document.body);
 }

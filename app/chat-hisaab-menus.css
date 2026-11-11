@@ -1,0 +1,31 @@
+.hisaab-bottom-bar > button:not(.primary) { width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-radius: 50%; background: #faf9f4; border: 1px solid #d5ded4; box-shadow: 0 2px 7px #263c2b1c; color: #315a40; }
+.hisaab-bottom-bar .hisaab-add { min-height: 48px; }
+.hisaab-actions { display: grid; gap: 10px; }
+.hisaab-entry-chip { display: inline-flex !important; width: fit-content; max-width: 100%; position: relative; align-items: center; gap: 5px !important; padding: 8px 12px; margin: 0 0 2px !important; border-radius: 999px; background: #e6efe5; color: #315a40; font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; }
+.hisaab-entry-chip select { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.hisaab-actions h3 { margin: 0 0 5px; font-size: 12px; color: #738077; text-transform: uppercase; letter-spacing: .08em; }
+.hisaab-action-group { border: 1px solid #e0e6dd; border-radius: 15px; overflow: hidden; background: #fffefa; }
+.hisaab-action-group button, .hisaab-action-delete { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 11px; padding: 7px 11px; border: 0; background: transparent; color: #253b30; text-align: left; }
+.hisaab-action-group button + button { border-top: 1px solid #edf0eb; }
+.hisaab-action-icon { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 11px; background: #eaf3e9; color: #447455; font-size: 19px; }
+.hisaab-action-copy { flex: 1; display: grid; gap: 1px; }
+.hisaab-action-copy strong, .hisaab-action-delete strong { font-size: 14px; font-weight: 650; }
+.hisaab-action-copy small { font-size: 11px; color: #748078; }
+.hisaab-action-chevron { margin-left: auto; color: #97a49a; font-size: 22px; }
+.hisaab-action-delete { margin-top: 3px; border-radius: 13px; background: #fff8f6; color: #b24843; }
+.hisaab-action-delete .hisaab-action-icon { background: #fae9e6; color: #b24843; }
+.hisaab-actions button:disabled, .hisaab-attach-grid button:disabled { opacity: .45; }
+.hisaab-attach-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 15px 0 3px; }
+.hisaab-attach-grid button { border: 0; background: transparent; display: grid; justify-items: center; align-content: start; gap: 8px; color: #33493a; font-size: 12px; padding: 0; }
+.hisaab-attach-icon { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 50%; background: #e6eee5; color: #487254; font-size: 26px; }
+.hisaab-attach-grid button:nth-child(2) .hisaab-attach-icon { background: #ebe9f0; color: #6b647c; }
+.hisaab-attach-grid button:nth-child(3) .hisaab-attach-icon { background: #eeeae0; color: #786d50; }
+.hisaab-attach-grid small { font-size: 10px; color: #7c8980; }
+.hisaab-paste-text { width: 100%; min-height: 130px; resize: vertical; border: 1px solid #cbd7cb; border-radius: 12px; padding: 12px; }
+.hisaab-paste-submit { width: 100%; margin-top: 12px; }
+.hisaab-sheet { display: flex; flex-direction: column; max-height: 90dvh; }
+.hisaab-sheet-content { min-height: 0; max-height: 90dvh; overflow-y: auto; padding-top: 16px; }
+.hisaab-sheet-close { position: sticky; top: 0; z-index: 6; border-radius: 50%; background: #f8f8f5; }
+.hisaab-sheet .smart-entry-head { position: static; }
+.hisaab-sheet .entry-mode-tabs { position: sticky; top: 44px; z-index: 4; background: #f8f8f5; }
+.chat-hisaab .customer-phone-link { width: fit-content; max-width: 100%; min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 999px; }

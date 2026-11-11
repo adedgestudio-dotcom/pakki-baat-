@@ -1716,14 +1716,10 @@ export default function Workspace() {
         candidateCustomer.trim()
           ? candidateCustomer
           : null;
+      restoredCustomer = null;
 
-      restoredCustomerChatOpen =
-        Boolean(restoredCustomer) &&
-        Boolean(
-          historyState?.pakkiBaat
-            ? historyState.customerChatOpen
-            : saved?.customerChatOpen
-        );
+      // Sheets are transient UI; reopening the app must start with the chat closed.
+      restoredCustomerChatOpen = false;
 
       const candidateEntryMode = historyState?.pakkiBaat
         ? historyState.entryMode
@@ -1771,13 +1767,10 @@ export default function Workspace() {
     } catch {}
     const view = {
       tab,
-      // Keep the active Hisaab customer/form while the user temporarily visits another tab.
+      // Keep the active customer while the user temporarily visits another tab.
       customer:
         tab === "Hisaab" ? selectedCustomer : previousView?.customer || null,
-      customerChatOpen:
-        tab === "Hisaab"
-          ? Boolean(selectedCustomer) && customerChatOpen
-          : Boolean(previousView?.customerChatOpen),
+      customerChatOpen: false,
       entryMode:
         tab === "Hisaab" ? entryMode : previousView?.entryMode || entryMode,
     };
@@ -1785,7 +1778,7 @@ export default function Workspace() {
       localStorage.setItem("pakki-baat-last-tab", tab);
       localStorage.setItem("pakki-baat-last-view", JSON.stringify(view));
     } catch {}
-    window.history.replaceState({ pakkiBaat: true, ...view }, "");
+    if (!window.history.state?.hisaabSheet) window.history.replaceState({ pakkiBaat: true, ...view }, "");
   }, [tab, selectedCustomer, customerChatOpen, entryMode]);
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -1796,6 +1789,7 @@ export default function Workspace() {
         customerChatOpen?: boolean;
         entryMode?: "quick" | "form";
       } | null;
+      if (window.history.state?.hisaabSheet || document.querySelector("dialog.hisaab-sheet[open]")) return;
       setNewCustomerOpen(false);
       setCustomerChatOpen(false);
       setPendingJob(null);
@@ -5736,7 +5730,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     ) : (
                       <ChatCustomer key={`${accountId}:${selectedCustomer}`} customer={selectedCustomer!} pending={selectedBaki} jobs={customerJobs} payments={payments}
                         ownerId={accountId} canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
-                        onBack={() => { window.history.pushState({ pakkiBaat: true, tab: "Hisaab", customer: null }, ""); setSelectedCustomer(null); setCustomerChatOpen(false); }} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
+                        onBack={() => { window.history.replaceState({ pakkiBaat: true, tab: "Hisaab", customer: null, customerChatOpen: false }, ""); setSelectedCustomer(null); setCustomerChatOpen(false); }} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
+                        whatsappNumber={customerPhones[selectedCustomer!] || ""} onEditPhone={() => openPhoneEditor(selectedCustomer!)}
                         onReceipt={openReceipt} onWhatsApp={openWhatsApp} onReminder={openReminder} onDelete={deleteEntry} onEdit={setDraft} onHistory={() => setTab("Reports")} hasHistory={ledgerModeForAccount(accountId || "")}
                         message={message} onMessage={setMessage} onCapture={() => { setCustomerChatOpen(true); setEntryMode("quick"); capture(); }}
                         onVoice={async (file, duration, transcript) => { setCustomerChatOpen(true); setEntryMode("quick"); await sendVoice(file, duration, transcript); }} voiceBusy={voiceBusy} voiceSeconds={voiceSecondsRemaining}>
@@ -5758,7 +5753,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                               onClick={() => openPhoneEditor(selectedCustomer!)}
                             >
                               {customerPhones[selectedCustomer!]
-                                ? "WhatsApp +" +
+                                ? "WhatsApp: +" +
                                   customerPhones[selectedCustomer!]
                                 : "+ Add WhatsApp number"}
                             </button>
