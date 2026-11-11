@@ -9,6 +9,7 @@
 .hisaab-chat-head .hisaab-brand { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 700; color: #2d7667; letter-spacing: .02em; line-height: 1; }
 .hisaab-chat-head > span { font-size: 12px; padding: 7px 10px; background: #dde9df; border-radius: 20px; white-space: nowrap; }
 .hisaab-chat-head button, .hisaab-bubble-actions button, .hisaab-bottom-bar > button:not(.primary) { background: transparent; border: 0; color: #6b756f; min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; }
+.hisaab-chat-head button[aria-label="More entry actions"] { flex: none; width: 44px; height: 44px; border: 1px solid #cbd9cc; border-radius: 50%; background: #e6eee5; color: #296445; }
 .hisaab-chat-log { display: flex; flex-direction: column; gap: 18px; padding: 16px; max-height: calc(100dvh - 310px); min-height: 220px; overflow-y: auto; }
 .hisaab-chat-entry { width: min(88%, 390px); align-self: flex-start; }
 .hisaab-bubble { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 8px; padding: 16px; width: 100%; background: #f8f8f5; color: #253b30; border: 1px solid #dedfd5; border-radius: 4px 18px 18px 18px; box-shadow: 0 3px 9px #243f3012; overflow-wrap: anywhere; }
@@ -47,10 +48,6 @@ body:has(.chat-hisaab) .content { max-width: none; margin: 0; padding: 0; }
 .hisaab-clip-options small { display: block; }
 .hisaab-entry-page { padding: 16px; }
 .hisaab-entry-page .hisaab-more-details > summary { display: none; }
-.hisaab-entry-page .hisaab-history-card .hisaab-quick-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.hisaab-entry-page .hisaab-quick-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; height: 44px; white-space: nowrap; }
-.hisaab-entry-page .hisaab-quick-actions button:nth-last-child(2):nth-child(odd) { grid-column: 1 / -1; }
-.hisaab-entry-page .hisaab-quick-actions .delete-action { grid-column: 1 / -1; }
 .hisaab-entry-page .hisaab-history-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .hisaab-entry-page .hisaab-history-summary > strong, .hisaab-entry-page .hisaab-history-summary dl, .hisaab-entry-page .hisaab-card-statuses { grid-column: 1 / -1; }
 .hisaab-entry-page .hisaab-history-summary .saved-entry-created-date { justify-self: end; }
@@ -64,6 +61,7 @@ body:has(.chat-hisaab) .content { max-width: none; margin: 0; padding: 0; }
 [data-theme="dark"] .hisaab-bubble, [data-theme="dark"] .hisaab-chat-head, [data-theme="dark"] .hisaab-compose, [data-theme="dark"] .hisaab-sheet { background: #26382d; color: #eef4ef; border-color: #43584a; }
 [data-theme="dark"] .hisaab-bubble small, [data-theme="dark"] .hisaab-photo-count { color: #b1c4b7; }
 [data-theme="dark"] .hisaab-chat-head > span { background: #36513f; }
+[data-theme="dark"] .hisaab-chat-head button[aria-label="More entry actions"] { background: #36513f; color: #eef4ef; border-color: #537a61; }
 @keyframes hisaab-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes hisaab-dim { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .hisaab-sheet, .hisaab-sheet::backdrop { animation: none; } }

@@ -81,7 +81,7 @@ export function ChatHistory({ children }: { children: ReactNode }) {
   const end = useRef<HTMLDivElement>(null);
   const seenDetails = useRef(new Set<string>()), savedScrollTop = useRef<number | null>(null);
   useEffect(() => { if (!ctx.detail) return; if (ctx.jobs.some(job => job.id === ctx.detail)) seenDetails.current.add(ctx.detail); else if (seenDetails.current.delete(ctx.detail)) ctx.leaveDetail(); }, [ctx.detail, ctx.jobs, ctx.leaveDetail]);
-  useEffect(() => { if (!ctx.detail) { const log = end.current?.parentElement; log?.scrollTo({ top: savedScrollTop.current ?? log.scrollHeight }); } }, [ctx.jobs.length, ctx.detail]);
+  useEffect(() => { if (!ctx.detail) { const log = end.current?.parentElement; if (log) { log.scrollTo({ top: savedScrollTop.current ?? log.scrollHeight }); savedScrollTop.current = null; } } }, [ctx.jobs.length, ctx.detail]);
   const cards = Children.toArray(children);
   if (ctx.detail) {
     const index = ctx.jobs.findIndex(job => job.id === ctx.detail);

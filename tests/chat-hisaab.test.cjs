@@ -148,7 +148,7 @@ test('entry tabs remount one content branch and the sheet has one scroller', () 
   assert.doesNotMatch(css + sheetCss, /\.hisaab-sheet[^{}]*\{[^{}]*position:\s*sticky/);
   assert.match(sheetCss, /\.chat-hisaab \.customer-phone-link \{[^}]*white-space: nowrap/);
 });
-test('WhatsApp banner cascade and detail actions keep their intended layouts', () => {
+test('WhatsApp banner and clean detail card keep their intended layouts', () => {
   const chatCss = fs.readFileSync('app/chat-hisaab.css', 'utf8');
   const menuCss = fs.readFileSync('app/chat-hisaab-menus.css', 'utf8');
   const workspaceCss = fs.readFileSync('app/workspace.css', 'utf8');
@@ -158,15 +158,19 @@ test('WhatsApp banner cascade and detail actions keep their intended layouts', (
   assert.match(banner, /overflow: visible/);
   assert.doesNotMatch(banner, /overflow: hidden|999px/);
   assert.doesNotMatch(menuCss + workspaceCss, /\.chat-hisaab \.customer-phone-link \{/);
-  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-history-card \.hisaab-quick-actions \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  const actions = workspace.slice(workspace.indexOf('<div className="hisaab-quick-actions" aria-label="Entry actions">'), workspace.indexOf('</div>', workspace.indexOf('<div className="hisaab-quick-actions" aria-label="Entry actions">')));
-  assert.doesNotMatch(actions, /<details|<summary|hisaab-more-actions/);
-  for (const action of ['Add payment', 'Photos', 'Edit', 'Remind', 'Receipt', 'WhatsApp', 'History', 'Delete']) assert.ok(actions.includes(action), action);
-  assert.doesNotMatch(chatCss, /\.hisaab-entry-page \.hisaab-more-actions/);
-  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-quick-actions button:nth-last-child\(2\):nth-child\(odd\) \{ grid-column: 1 \/ -1/);
-  assert.match(chatCss, /\.hisaab-entry-page \.hisaab-quick-actions \.delete-action \{ grid-column: 1 \/ -1/);
+  const cardStart = workspace.indexOf('return <article\n                                className="saved-detail-card customer-saved-card hisaab-history-card"');
+  const card = workspace.slice(cardStart, workspace.indexOf('</article>;', cardStart));
+  assert.doesNotMatch(card, /hisaab-quick-actions|hisaab-more-actions/);
+  assert.match(card, /<HisaabEntryPhoto[^>]*viewOnly/s);
+  assert.doesNotMatch(chatCss, /\.hisaab-entry-page \.hisaab-(?:quick-actions|more-actions)/);
+  assert.match(chatCss, /\.hisaab-chat-head button\[aria-label="More entry actions"\] \{[^}]*width: 44px; height: 44px;[^}]*color: #296445/);
   assert.match(chatCss, /\.hisaab-entry-page \.hisaab-history-summary dl \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(chatCss, /\.hisaab-entry-page \.hisaab-card-statuses \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  const photo = fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8');
+  const viewOnly = photo.slice(photo.indexOf('if (viewOnly) return'), photo.indexOf('if (!ownerId)'));
+  assert.match(viewOnly, /aria-label="View photo"/);
+  assert.match(viewOnly, /<PhotoViewer open=\{viewer\}/);
+  assert.doesNotMatch(viewOnly, /Add photo|No photos yet|JPG, PNG|Photos\{/);
 });
 
 test('ledger-mode entry and customer deletion do not offer impossible Undo', () => {
@@ -187,6 +191,7 @@ test('deleted detail auto-leaves only after its entry was seen in this chat moun
   assert.match(chat, /ctx\.jobs\.some\(job => job\.id === ctx\.detail\)\) seenDetails\.current\.add\(ctx\.detail\); else if \(seenDetails\.current\.delete\(ctx\.detail\)\) ctx\.leaveDetail\(\)/);
   assert.match(chat, /seenDetails\.current\.has\(ctx\.detail\) \? null : <p>This entry is no longer available\.<\/p>/);
   assert.match(chat, /savedScrollTop\.current = end\.current\?\.parentElement\?\.scrollTop/);
+  assert.match(chat, /log\.scrollTo\(\{ top: savedScrollTop\.current \?\? log\.scrollHeight \}\); savedScrollTop\.current = null/);
 });
 test('saved drafts cannot reopen an entry at launch, on Hisaab, or on app focus', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');

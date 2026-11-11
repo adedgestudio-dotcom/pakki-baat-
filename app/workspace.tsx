@@ -6063,16 +6063,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                     </span>
                                   </span>
                                 </div>
-                                <div className="hisaab-quick-actions" aria-label="Entry actions">
-                                  {j.paid < j.total && <button type="button" className="card-action payment-action" onClick={() => openPayment(j)}><Icon name="plus" size={16} /> Add payment</button>}
-                                  <button type="button" className="card-action" onClick={event => { const details = event.currentTarget.closest(".hisaab-history-card")?.querySelector<HTMLDetailsElement>(".hisaab-more-details"); if (details) details.open = true; }}><Icon name="plan" size={16} /> Photos</button>
-                                  <button type="button" className="card-action" onClick={() => setDraft(j)}><Icon name="edit" size={16} /> Edit</button>
-                                  <button type="button" className="card-action reminder-action" onClick={() => openReminder(j)}><Icon name="bell" size={16} /> Remind</button>
-                                    <button type="button" className="card-action receipt-action" onClick={() => openReceipt(j)}><Icon name="copy" size={16} /> Receipt</button>
-                                    <button type="button" className="card-action whatsapp-action" onClick={() => openWhatsApp(j)}><Icon name="chat" size={16} /> WhatsApp</button>
-                                    {ledgerModeForAccount(accountId || "") && <button type="button" className="card-action" onClick={() => setTab("Reports")}><Icon name="clock" size={16} /> History</button>}
-                                    <button type="button" className="card-action delete-action" onClick={() => deleteEntry(j)}><Icon name="trash" size={16} /> Delete</button>
-                                </div>
                                 <details className="hisaab-more-details" open>
                                   <summary className="hisaab-expand-hint">More details · Payments ({entryPayments.length}) <span aria-hidden="true">⌄</span></summary>
                                   <div className="hisaab-history-expanded">
@@ -6084,6 +6074,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                     key={`${accountId}:${j.id}`}
                                     ownerId={accountId}
                                     entryId={j.id}
+                                    viewOnly
                                     canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
                                   />
                                   <HisaabPayments

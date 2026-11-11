@@ -4,35 +4,28 @@ const fs = require("node:fs");
 const path = require("node:path");
 const read = name => fs.readFileSync(path.join(__dirname, "../app", name), "utf8");
 
-test("every saved-entry action remains reachable from its card", () => {
+test("saved-entry detail is information only, with actions in the header plus sheet", () => {
   const source = read("workspace.tsx");
   const start = source.indexOf('return <article\n                                className="saved-detail-card customer-saved-card hisaab-history-card"');
   const end = source.indexOf("</article>;", start);
   assert.ok(start > 0 && end > start);
   const card = source.slice(start, end);
-  const quick = card.slice(card.indexOf('<div className="hisaab-quick-actions"'), card.indexOf('<details className="hisaab-more-details"'));
-  assert.ok(!quick.includes('<details className="hisaab-more-actions"'));
+  assert.ok(!card.includes('hisaab-quick-actions'));
+  assert.ok(!card.includes('hisaab-more-actions'));
   const detail = card.slice(card.indexOf('<details className="hisaab-more-details"'));
-  for (const [label, handler] of [
-    ["Add payment", "openPayment(j)"], ["Photos", 'details.open = true'],
-    ["Edit", "setDraft(j)"], ["Remind", "openReminder(j)"],
-  ]) { assert.ok(quick.includes(label), label); assert.ok(quick.includes(handler), handler); }
-  for (const [label, handler] of [
-    ["Receipt", "openReceipt(j)"], ["WhatsApp", "openWhatsApp(j)"],
-    ["History", 'setTab("Reports")'], ["Delete", "deleteEntry(j)"],
-  ]) { assert.ok(quick.includes(label), label); assert.ok(quick.includes(handler), handler); }
+  for (const text of ['hisaab-entry-number', 'saved-entry-created-date', 'Total', 'Received', 'Baki', 'Work:', 'Payment:', 'Due:']) assert.ok(card.includes(text), text);
   assert.ok(detail.includes("More details"));
   assert.ok(detail.includes("Payments ({entryPayments.length})"));
-  for (const action of ["<HisaabEntryPhoto", "<HisaabPayments", "onCorrect={openEditPayment}", 'updateJobStatus(j, "Waiting")', 'updateJobStatus(j, "Confirmed")', 'updateJobStatus(j, "Completed")']) assert.ok(detail.includes(action), action);
-  assert.ok(read("hisaab-entry-photo.tsx").includes("No photos yet. Tap Add photo."));
+  for (const action of ["<HisaabEntryPhoto", "viewOnly", "<HisaabPayments", "onCorrect={openEditPayment}", 'updateJobStatus(j, "Waiting")', 'updateJobStatus(j, "Confirmed")', 'updateJobStatus(j, "Completed")']) assert.ok(detail.includes(action), action);
+  assert.ok(read("chat-hisaab.tsx").includes('aria-label="More entry actions"'));
 });
 
-test("quick actions are large, wrap on phones and retain readable card surfaces", () => {
+test("detail card retains readable amounts and status rows", () => {
   const css = read("workspace.css");
   const chatCss = read("chat-hisaab.css");
-  assert.ok(css.includes(".hisaab-quick-actions>.card-action,.customer-saved-card .hisaab-more-actions>summary{min-width:0;min-height:44px"));
-  assert.ok(css.includes("@media(max-width:560px){.hisaab-history-card .hisaab-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))"));
-  assert.ok(chatCss.includes(".hisaab-entry-page .hisaab-history-card .hisaab-quick-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }"));
+  assert.ok(chatCss.includes(".hisaab-entry-page .hisaab-history-summary dl { grid-template-columns: repeat(3, minmax(0, 1fr));"));
+  assert.ok(chatCss.includes(".hisaab-entry-page .hisaab-card-statuses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));"));
+  assert.ok(!chatCss.includes(".hisaab-entry-page .hisaab-quick-actions"));
   assert.ok(css.includes(".hisaab-history-card{background:#fffaf2;border-color:#d6d4ca"));
   assert.ok(css.includes('[data-theme="dark"] .hisaab-history-card{background:#17271f;border-color:#43584a'));
 });

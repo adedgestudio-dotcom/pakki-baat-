@@ -7,7 +7,7 @@ import { shrinkPhoto } from "./shrink-photo";
 import PhotoPreview from "./photo-preview";
 import PhotoViewer from "./photo-viewer";
 
-export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false, thumb = false, initialFile, entryNumber, onAttached, onPreviewCancel }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean; thumb?: boolean; initialFile?: File | null; entryNumber?: number; onAttached?: () => void; onPreviewCancel?: () => void }) {
+export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false, thumb = false, viewOnly = false, initialFile, entryNumber, onAttached, onPreviewCancel }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean; thumb?: boolean; viewOnly?: boolean; initialFile?: File | null; entryNumber?: number; onAttached?: () => void; onPreviewCancel?: () => void }) {
   const root = useRef<HTMLElement>(null), generation = useRef(0), objectUrl = useRef("");
   const requests = useRef(new Set<AbortController>()), uploading = useRef(false);
   const [url, setUrl] = useState(""), [checked, setChecked] = useState(false), [online, setOnline] = useState(true);
@@ -100,6 +100,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
   }
   if (thumb) return <>{online && checked && url && <button type="button" className="hisaab-photo-thumb" aria-label="View photo" onClick={event => { event.stopPropagation(); setViewer(true); }}><img src={url} alt="" /></button>}<PhotoViewer open={viewer} src={url} onClose={() => setViewer(false)}/></>;
   if (countOnly) return url && online && checked ? <small className="hisaab-photo-count">1 photo</small> : null;
+  if (viewOnly) return <>{online && checked && url && <button type="button" className="hisaab-photo-image-button" aria-label="View photo" onClick={() => setViewer(true)}><img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" /></button>}<PhotoViewer open={viewer} src={url} onClose={() => setViewer(false)}/></>;
   if (!ownerId) return null;
   return (
     <section ref={root} className="hisaab-entry-photo" aria-label="Entry photo">
