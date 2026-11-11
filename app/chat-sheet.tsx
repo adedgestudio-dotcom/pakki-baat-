@@ -12,7 +12,7 @@ export default function ChatSheet({ open, onClose, label, children, scrollKey }:
     const marker = `hisaab-${Date.now()}-${Math.random()}`;
     if (window.history.state?.hisaabSheet) window.history.replaceState({ ...window.history.state, hisaabSheet: marker }, "");
     else window.history.pushState({ ...window.history.state, hisaabSheet: marker }, "");
-    const handleBack = () => onClose();
+    const handleBack = () => { if (window.history.state?.hisaabSheet !== marker) onClose(); };
     window.addEventListener("popstate", handleBack);
     dialog.showModal();
     return () => { window.removeEventListener("popstate", handleBack); dialog.close(); previous?.focus(); window.setTimeout(() => { if (window.history.state?.hisaabSheet === marker) window.history.back(); }, 0); };

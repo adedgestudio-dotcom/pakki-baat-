@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { currentSession } from "@/lib/cloud";
-import { validatePhoto } from "@/lib/entry-photo";
+import { PHOTO_MAX_BYTES, PHOTO_TYPES, validatePhoto } from "@/lib/entry-photo";
+import { shrinkPhoto } from "./shrink-photo";
+import PhotoPreview from "./photo-preview";
+import PhotoViewer from "./photo-viewer";
 
-export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean }) {
+export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false, thumb = false, autoPick = false, entryNumber, onPresence }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean; thumb?: boolean; autoPick?: boolean; entryNumber?: number; onPresence?: (present: boolean | null) => void }) {
   const root = useRef<HTMLElement>(null), generation = useRef(0), objectUrl = useRef("");
-  const requests = useRef(new Set<AbortController>()), uploading = useRef(false);
+  const requests = useRef(new Set<AbortController>()), uploading = useRef(false), picker = useRef<HTMLInputElement>(null), autoPicked = useRef(false);
   const [url, setUrl] = useState(""), [checked, setChecked] = useState(false), [online, setOnline] = useState(true);
-  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [retryFile, setRetryFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false), [error, setError] = useState(""), [previewFile, setPreviewFile] = useState<File | null>(null), [previewUrl, setPreviewUrl] = useState(""), [viewer, setViewer] = useState(false), [status, setStatus] = useState("");
+  useEffect(() => { if (previewUrl) return () => URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  useEffect(() => { onPresence?.(checked && online ? Boolean(url) : null); }, [checked, online, url, onPresence]);
+  useEffect(() => { if (autoPick && checked && online && !url && !previewFile && canUpload && !autoPicked.current && picker.current) { autoPicked.current = true; picker.current.click(); } }, [autoPick, checked, online, url, previewFile, canUpload]);
   const clearImage = useCallback(() => {
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
     objectUrl.current = "";
@@ -46,6 +52,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
   }, [ownerId, scopedFetch, clearImage]);
   useEffect(() => {
     generation.current++;
+    clearImage(); setChecked(false); setStatus(""); setError("");
     const details = root.current?.closest("details");
     const readWhenVisible = () => { if (!details || details.open) void load(); };
     const connectionChanged = () => {
@@ -59,7 +66,7 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
     };
     setOnline(navigator.onLine); readWhenVisible();
     details?.addEventListener("toggle", readWhenVisible);
-    const photoChanged = (event: Event) => { if ((event as CustomEvent).detail === `${ownerId}:${entryId}`) void load(); };
+    const photoChanged = (event: Event) => { if ((event as CustomEvent).detail === `${ownerId}:${entryId}` && !uploading.current) void load(); };
     window.addEventListener("hisaab-photo-changed", photoChanged);
     window.addEventListener("online", connectionChanged); window.addEventListener("offline", connectionChanged);
     const pendingRequests = requests.current;
@@ -73,44 +80,54 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
     };
   }, [load, clearImage, ownerId, entryId]);
   async function upload(file: File) {
-    if (!ownerId || !online || !navigator.onLine || !canUpload || !checked || uploading.current || url) return;
-    try { validatePhoto(file); } catch (cause) { setError(cause instanceof Error ? cause.message : "Invalid photo."); return; }
+    if (!ownerId || !online || !navigator.onLine || !canUpload || !checked || uploading.current || url || !previewFile) return;
     const token = generation.current;
-    uploading.current = true; setBusy(true); setRetryFile(file); setError("");
+    uploading.current = true; setBusy(true); setError("");
     try {
-      const form = new FormData(); form.set("entryId", entryId); form.set("photo", file);
+      let prepared = file;
+      try { prepared = await shrinkPhoto(file); } catch { prepared = file; }
+      if (prepared.size > PHOTO_MAX_BYTES) { try { prepared = await shrinkPhoto(file, 1280, 0.65); } catch { prepared = file; } }
+      validatePhoto(prepared);
+      const form = new FormData(); form.set("entryId", entryId); form.set("photo", prepared);
       const response = await scopedFetch({ method: "POST", body: form });
       if (token !== generation.current) return;
-      if (!response.ok && response.status !== 409) throw new Error((await response.json()).error || "Upload failed. Retry online.");
-      setRetryFile(null); await load();
+      if (response.status === 409) { await load(); throw new Error(`Entry ${entryNumber || ""} already has a photo. Choose another entry.`); }
+      if (!response.ok) throw new Error((await response.json()).error || "Upload failed. Retry online.");
+      setPreviewFile(null); setPreviewUrl(""); setStatus("Photo attached"); await load();
       window.dispatchEvent(new CustomEvent("hisaab-photo-changed", { detail: `${ownerId}:${entryId}` }));
     } catch (cause) {
       if (token === generation.current) setError(cause instanceof Error ? cause.message : "Upload failed. Retry online.");
     } finally { if (token === generation.current) { uploading.current = false; setBusy(false); } }
   }
-  if (countOnly) return <small className="hisaab-photo-count">{!ownerId || !checked ? "Photos unavailable" : `${url ? 1 : 0} photos`}</small>;
+  if (thumb) return <>{online && checked && url && <button type="button" className="hisaab-photo-thumb" aria-label="View photo" onClick={event => { event.stopPropagation(); setViewer(true); }}><img src={url} alt="" /></button>}<PhotoViewer open={viewer} src={url} onClose={() => setViewer(false)}/></>;
+  if (countOnly) return url && online && checked ? <small className="hisaab-photo-count">1 photo</small> : null;
   if (!ownerId) return null;
   return (
     <section ref={root} className="hisaab-entry-photo" aria-label="Entry photo">
       <strong>Photos{url ? " (1)" : ""}</strong>
       <small>JPG, PNG or WebP, up to 4 MB. Needs internet.</small>
-      {!online ? <p>Reconnect to view or add this entry&apos;s photo.</p> : url ? (
+      {entryNumber && url && !previewFile && !status && <p role="alert">Entry {entryNumber} already has a photo. Choose another entry.</p>}
+      {!online ? <p>Reconnect to view or add this entry&apos;s photo.</p> : previewFile && previewUrl ? (
+        <PhotoPreview src={previewUrl} busy={busy} error={error} existing={!!url} ready={(checked || !!error) && online && canUpload} entryNumber={entryNumber} onCancel={() => { setPreviewFile(null); setPreviewUrl(""); setError(""); }} onAttach={() => { if (!checked) void load(); else void upload(previewFile); }}/>
+      ) : url ? (
         // Private authenticated bytes are displayed through a short-lived object URL, never a public asset URL.
-        <img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" />
+        <button type="button" className="hisaab-photo-image-button" aria-label="View photo" onClick={() => setViewer(true)}><img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" /></button>
       ) : checked && canUpload ? (
         <>
           <p>No photos yet. Tap Add photo.</p>
           {/* The native file input stays in the label for keyboard and screen-reader use. */}
           <label className={busy ? "hisaab-entry-photo-upload is-busy" : "hisaab-entry-photo-upload"}>
             <span aria-hidden="true">Add photo</span>
-            <input type="file" capture={capture} className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
-              onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
+            <input ref={picker} type="file" capture={capture} className="hisaab-entry-photo-input" aria-label="Add entry photo" accept="image/jpeg,image/png,image/webp" disabled={busy}
+              onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!PHOTO_TYPES.some(type => type === file.type)) { setError("Choose a JPG, PNG or WebP photo."); return; } setError(""); setPreviewFile(file); setPreviewUrl(URL.createObjectURL(file)); }} />
           </label>
         </>
       ) : checked ? <p>No photo attached. An active plan is required to upload.</p> : <p>Open this entry online to check its photo.</p>}
-      {busy && <p role="status">Uploading photo…</p>}
-      {error && <p role="alert">{error}</p>}
-      {online && error && <button type="button" className="outline" disabled={busy} onClick={() => { if (retryFile && checked) void upload(retryFile); else void load(); }}>Retry photo</button>}
+      {busy && <p role="status">Uploading…</p>}
+      {status && <p role="status">{status}</p>}
+      {error && !previewFile && <p role="alert">{error}</p>}
+      {online && error && !previewFile && <button type="button" className="outline" disabled={busy} onClick={() => void load()}>Retry photo</button>}
+      <PhotoViewer open={viewer} src={url} onClose={() => setViewer(false)}/>
     </section>
   );
 }

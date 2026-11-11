@@ -26,15 +26,38 @@ test('entries render as accessible chat bubbles with summary and three muted act
   assert.equal((html.match(/<button/g) || []).length, 4);
 });
 test('bubble pencil opens the edit form while the bubble body opens detail', () => {
-  let opened = 0, edited = 0;
-  const element = ui.ChatEntryBubble({ job, number: 1, payments: [], onOpen: () => opened++, onEdit: () => edited++, onPayment: noop, onCopy: noop });
-  const [body, actions] = element.props.children;
-  body.props.onClick();
-  actions.props.children[2].props.onClick();
-  assert.equal(opened, 1);
-  assert.equal(edited, 1);
-  assert.match(fs.readFileSync('app/chat-hisaab.tsx', 'utf8'), /onEdit=\{\(\) => ctx\.onEdit\(job\)\}/);
+  const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
+  assert.match(chat, /className="hisaab-bubble" onClick=\{onOpen\}/);
+  assert.match(chat, /aria-label="Edit entry"[^>]*onClick=\{onEdit\}/);
+  assert.match(chat, /onEdit=\{\(\) => ctx\.onEdit\(job\)\}/);
   assert.match(fs.readFileSync('app/chat-hisaab.css', 'utf8'), /\.modal-backdrop:has\(#review-title\) \{ z-index: 110/);
+});
+test('photo picking previews privately and POST waits for Attach photo', () => {
+  const photo = fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8');
+  const preview = fs.readFileSync('app/photo-preview.tsx', 'utf8');
+  const change = photo.match(/onChange=\{event => \{ const file = event\.target\.files\?\.\[0\];[^\n]*/)?.[0] || '';
+  assert.match(change, /setPreviewFile\(file\); setPreviewUrl\(URL\.createObjectURL\(file\)\)/);
+  assert.doesNotMatch(change, /upload\(/);
+  assert.match(preview, /onClick=\{onAttach\}/);
+  assert.match(photo, /onAttach=\{\(\) => \{ if \(!checked\) void load\(\); else void upload\(previewFile\); \}\}/);
+  assert.match(photo, /scopedFetch\(\{ method: "POST", body: form \}\)/);
+});
+test('photo shrink, bubble thumb, camera shortcut and viewer share the private fetch', () => {
+  const photo = fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8');
+  const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
+  const shrink = fs.readFileSync('app/shrink-photo.ts', 'utf8');
+  const viewer = fs.readFileSync('app/photo-viewer.tsx', 'utf8');
+  assert.match(shrink, /maxSide = 1600, quality = 0\.82/);
+  assert.match(shrink, /createImageBitmap\(file, \{ imageOrientation: "from-image" \}\)/);
+  assert.match(shrink, /"image\/jpeg"/);
+  assert.match(photo, /if \(thumb\) return/);
+  assert.match(chat, /canUpload=\{false\} thumb onPresence=\{setHasPhoto\}/);
+  assert.doesNotMatch(chat, /countOnly|0 photos/);
+  assert.equal((photo.match(/scopedFetch\(\)/g) || []).length, 1);
+  assert.match(chat, /hasPhoto === false && onCamera/);
+  assert.match(viewer, /history\.pushState|history\.back\(\)|popstate|showModal/);
+  for (const token of ['history.pushState', 'history.back()', 'popstate', 'showModal']) assert.ok(viewer.includes(token), token);
+  assert.match(fs.readFileSync('app/chat-sheet.tsx', 'utf8'), /history\.state\?\.hisaabSheet !== marker/);
 });
 test('Edit modal submits through save and shows every failure inline', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
