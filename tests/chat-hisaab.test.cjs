@@ -54,13 +54,24 @@ test('back arrow clears customer without opening entry and sheet close consumes 
   assert.match(sheet, /history\.back\(\)/);
   assert.match(sheet, /popstate/);
 });
-test('entry tabs swap one content branch and the sheet keeps tabs visible while scrolling', () => {
+test('entry tabs remount one content branch and the sheet has one scroller', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
   const css = fs.readFileSync('app/chat-hisaab-menus.css', 'utf8');
-  assert.match(workspace, /entryMode === "quick" \? \(\s*<>/);
-  assert.match(css, /\.hisaab-sheet-content \{[^}]*overflow-y: auto/);
-  assert.match(css, /\.hisaab-sheet \.entry-mode-tabs \{[^}]*position: sticky/);
+  const sheetCss = fs.readFileSync('app/chat-hisaab.css', 'utf8');
+  assert.match(workspace, /<div key=\{entryMode\}>\s*\{entryMode === "quick" \? \(/);
+  assert.match(workspace, /scrollKey=\{entryMode\}/);
+  assert.match(sheetCss, /\.hisaab-sheet-content \{[^}]*overflow-y: auto/);
+  assert.match(sheetCss, /\.hisaab-sheet \{[^}]*overflow: hidden/);
+  assert.doesNotMatch(css + sheetCss, /\.hisaab-sheet[^{}]*\{[^{}]*position:\s*sticky/);
   assert.match(css, /\.chat-hisaab \.customer-phone-link \{[^}]*white-space: nowrap/);
+});
+test('saved drafts cannot reopen an entry at launch, on Hisaab, or on app focus', () => {
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  assert.match(workspace, /localStorage\.removeItem\(entryDraftKey\(session\.user\.id\)\)/);
+  assert.doesNotMatch(workspace, /localStorage\.getItem\(entryDraftKey/);
+  assert.doesNotMatch(workspace, /restoreCurrentEntryDraft|entryDraftRestoredForUserRef/);
+  assert.doesNotMatch(workspace, /addEventListener\("(?:focus|pageshow)"/);
+  assert.match(workspace, /<ChatSheet open=\{customerChatOpen\}[^\n]*onClose=\{\(\) => \{[^\n]*clearEntryDraft\(\)/);
 });
 test('saving payment through existing financial planner updates pending and count on rerender', () => {
   const safety = load('lib/payment-safety.ts');

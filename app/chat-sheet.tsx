@@ -2,8 +2,9 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-export default function ChatSheet({ open, onClose, label, children }: { open: boolean; onClose: () => void; label: string; children: ReactNode }) {
+export default function ChatSheet({ open, onClose, label, children, scrollKey }: { open: boolean; onClose: () => void; label: string; children: ReactNode; scrollKey?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (open) { const content = ref.current?.querySelector<HTMLElement>(".hisaab-sheet-content"); if (content) content.scrollTop = 0; } }, [open, scrollKey]);
   useEffect(() => {
     const dialog = ref.current;
     if (!open || !dialog) return;

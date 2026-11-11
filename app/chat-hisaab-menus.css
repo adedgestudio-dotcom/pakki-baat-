@@ -23,9 +23,8 @@
 .hisaab-attach-grid small { font-size: 10px; color: #7c8980; }
 .hisaab-paste-text { width: 100%; min-height: 130px; resize: vertical; border: 1px solid #cbd7cb; border-radius: 12px; padding: 12px; }
 .hisaab-paste-submit { width: 100%; margin-top: 12px; }
-.hisaab-sheet { display: flex; flex-direction: column; max-height: 90dvh; }
-.hisaab-sheet-content { min-height: 0; max-height: 90dvh; overflow-y: auto; padding-top: 16px; }
-.hisaab-sheet-close { position: sticky; top: 0; z-index: 6; border-radius: 50%; background: #f8f8f5; }
+.hisaab-sheet-close { border-radius: 50%; background: #f8f8f5; }
 .hisaab-sheet .smart-entry-head { position: static; }
-.hisaab-sheet .entry-mode-tabs { position: sticky; top: 44px; z-index: 4; background: #f8f8f5; }
+.hisaab-sheet .entry-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; position: static; margin: 0 0 14px; background: #f8f8f5; }
+.hisaab-sheet .chat-composer, .hisaab-sheet .composer { position: static; margin-top: 0; }
 .chat-hisaab .customer-phone-link { width: fit-content; max-width: 100%; min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 999px; }

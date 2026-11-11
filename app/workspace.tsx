@@ -433,7 +433,6 @@ export default function Workspace() {
   const submittedPaymentJobRef = useRef<Job | null>(null);
   const firedReminderKeysRef = useRef(new Set<string>());
   const navigationRestoredRef = useRef(false);
-  const entryDraftRestoredForUserRef = useRef<string | null>(null);
   const chatHistoryHydratedForUserRef = useRef<string | null>(null);
   const pendingJobRef = useRef<Job | null>(null);
   // One assistant request at a time; a second send would merge into a stale card.
@@ -441,8 +440,6 @@ export default function Workspace() {
   const chatTurnsRef = useRef<ChatTurn[]>([]);
   const selectedCustomerRef = useRef<string | null>(null);
   const customerChatOpenRef = useRef(false);
-  const messageRef = useRef("");
-  const entryModeRef = useRef<"quick" | "form">("quick");
   const dailyBackupCoordinatorRef =
     useRef<WorkspaceDailyBackupCoordinator | null>(null);
   const dailyBackupLifecycleRef = useRef<WorkspaceDailyBackupLifecycle | null>(
@@ -502,12 +499,6 @@ export default function Workspace() {
   useEffect(() => {
     customerChatOpenRef.current = customerChatOpen;
   }, [customerChatOpen]);
-  useEffect(() => {
-    messageRef.current = message;
-  }, [message]);
-  useEffect(() => {
-    entryModeRef.current = entryMode;
-  }, [entryMode]);
 
   useEffect(() => {
     const standalone =
@@ -834,7 +825,6 @@ export default function Workspace() {
         pendingJobRef.current = null;
         customerChatOpenRef.current = false;
         selectedCustomerRef.current = null;
-        messageRef.current = "";
         setPendingJob(null);
         setDraft(null);
         setLastUndo(null);
@@ -901,43 +891,8 @@ export default function Workspace() {
         setInstallWelcomeOpen(false);
       }
 
-      if (session && entryDraftRestoredForUserRef.current !== session.user.id) {
-        entryDraftRestoredForUserRef.current = session.user.id;
-        try {
-          const rawEntryDraft = localStorage.getItem(
-            entryDraftKey(session.user.id)
-          );
-          if (rawEntryDraft) {
-            const savedEntryDraft = JSON.parse(rawEntryDraft) as {
-              customer?: string;
-              pending?: Job | null;
-              message?: string;
-              entryMode?: "quick" | "form";
-              open?: boolean;
-            };
-            if (
-              savedEntryDraft.open &&
-              typeof savedEntryDraft.customer === "string" &&
-              savedEntryDraft.customer.trim() &&
-              savedEntryDraft.pending &&
-              typeof savedEntryDraft.pending === "object"
-            ) {
-              setSelectedCustomer(savedEntryDraft.customer);
-              setPendingJob(savedEntryDraft.pending);
-              setMessage(
-                typeof savedEntryDraft.message === "string"
-                  ? savedEntryDraft.message
-                  : ""
-              );
-              setEntryMode(
-                savedEntryDraft.entryMode === "form" ? "form" : "quick"
-              );
-              setCustomerChatOpen(true);
-            }
-          }
-        } catch {
-          // Ignore an invalid local entry draft and keep the normal workspace state.
-        }
+      if (session) {
+        try { localStorage.removeItem(entryDraftKey(session.user.id)); } catch {}
       }
 
       if (session) {
@@ -1117,93 +1072,6 @@ export default function Workspace() {
       window.removeEventListener("online", retryWorkspaceOnOnline);
     };
   }, []);
-  useEffect(() => {
-    const userId = activeUserIdRef.current;
-    if (!userId || !customerChatOpen || !selectedCustomer || !pendingJob)
-      return;
-    try {
-      localStorage.setItem(
-        entryDraftKey(userId),
-        JSON.stringify({
-          customer: selectedCustomer,
-          pending: pendingJob,
-          message,
-          entryMode,
-          open: true,
-        })
-      );
-    } catch {
-      // Keep the in-memory form usable even when browser storage is unavailable.
-    }
-  }, [customerChatOpen, selectedCustomer, pendingJob, message, entryMode]);
-
-  useEffect(() => {
-    function persistCurrentEntryDraft() {
-      const userId = activeUserIdRef.current;
-      const currentPending = pendingJobRef.current;
-      const currentCustomer = selectedCustomerRef.current;
-      if (
-        !userId ||
-        !customerChatOpenRef.current ||
-        !currentCustomer ||
-        !currentPending
-      )
-        return;
-      try {
-        localStorage.setItem(
-          entryDraftKey(userId),
-          JSON.stringify({
-            customer: currentCustomer,
-            pending: currentPending,
-            message: messageRef.current,
-            entryMode: entryModeRef.current,
-            open: true,
-          })
-        );
-      } catch {}
-    }
-    function restoreCurrentEntryDraft() {
-      const userId = activeUserIdRef.current;
-      if (!userId) return;
-      try {
-        const raw = localStorage.getItem(entryDraftKey(userId));
-        if (!raw) return;
-        const saved = JSON.parse(raw) as {
-          customer?: string;
-          pending?: Job;
-          message?: string;
-          entryMode?: "quick" | "form";
-          open?: boolean;
-        };
-        if (!saved.open || !saved.customer || !saved.pending) return;
-        // On mobile the PWA can be suspended and the auth/workspace listener may
-        // rehydrate saved data. Always put the unfinished entry back on top.
-        setSelectedCustomer(saved.customer);
-        setPendingJob(saved.pending);
-        setMessage(saved.message || "");
-        setEntryMode(saved.entryMode === "form" ? "form" : "quick");
-        setCustomerChatOpen(true);
-      } catch {}
-    }
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") persistCurrentEntryDraft();
-      else restoreCurrentEntryDraft();
-    };
-    const onPageHide = () => persistCurrentEntryDraft();
-    const onPageShow = () => restoreCurrentEntryDraft();
-    const onFocus = () => restoreCurrentEntryDraft();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("pagehide", onPageHide);
-    window.addEventListener("pageshow", onPageShow);
-    window.addEventListener("focus", onFocus);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("pagehide", onPageHide);
-      window.removeEventListener("pageshow", onPageShow);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, []);
-
   useEffect(() => {
     if (!ready) return;
     const snapshot = {
@@ -1649,13 +1517,14 @@ export default function Workspace() {
       return;
     }
     if (t === tab && !selectedCustomer && !customerChatOpen) return;
-    if (t === "My assistant") setSelectedCustomer(null);
+    if (t === "My assistant" || t === "Hisaab") setSelectedCustomer(null);
+    if (t === "Hisaab") setCustomerChatOpen(false);
     window.history.pushState(
       {
         pakkiBaat: true,
         tab: t,
-        customer: t === "Hisaab" ? selectedCustomer || undefined : undefined,
-        customerChatOpen: t === "Hisaab" ? customerChatOpen : undefined,
+        customer: undefined,
+        customerChatOpen: false,
         entryMode: t === "Hisaab" ? entryMode : undefined,
       },
       ""
@@ -1797,7 +1666,7 @@ export default function Workspace() {
       if (state?.pakkiBaat) {
         setTab(state.tab || "Today");
         setSelectedCustomer(state.customer || null);
-        setCustomerChatOpen(Boolean(state.customer && state.customerChatOpen));
+        setCustomerChatOpen(false);
         if (state.entryMode) setEntryMode(state.entryMode);
       } else {
         setSelectedCustomer(null);
@@ -5556,35 +5425,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             )}
             {tab === "Hisaab" &&
               (() => {
-                // Restore an unfinished Hisaab form when returning from another app tab.
-                if (!selectedCustomer) {
-                  try {
-                    const userId = activeUserIdRef.current;
-                    const raw = userId
-                      ? localStorage.getItem(entryDraftKey(userId))
-                      : null;
-                    const saved = raw
-                      ? (JSON.parse(raw) as {
-                          customer?: string;
-                          pending?: Job;
-                          message?: string;
-                          entryMode?: "quick" | "form";
-                          open?: boolean;
-                        })
-                      : null;
-                    if (saved?.open && saved.customer && saved.pending) {
-                      queueMicrotask(() => {
-                        setSelectedCustomer(saved.customer!);
-                        setPendingJob(saved.pending!);
-                        setMessage(saved.message || "");
-                        setEntryMode(
-                          saved.entryMode === "form" ? "form" : "quick"
-                        );
-                        setCustomerChatOpen(true);
-                      });
-                    }
-                  } catch {}
-                }
                 return (
                   <>
                     {!selectedCustomer ? (
@@ -5813,7 +5653,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                             </button>
                           </div>
                         )}
-                        <ChatSheet open={customerChatOpen} label="Add entry" onClose={() => setCustomerChatOpen(false)}>
+                        <ChatSheet open={customerChatOpen} label="Add entry" scrollKey={entryMode} onClose={() => { setCustomerChatOpen(false); setPendingJob(null); setMessage(""); clearEntryDraft(); }}>
                         {customerChatOpen ? (
                           <section className="smart-entry-panel">
                             <div className="smart-entry-head">
@@ -5865,6 +5705,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                 Form
                               </button>
                             </div>
+                            <div key={entryMode}>
                             {entryMode === "quick" ? (
                               <>
                                 <ChatComposer
@@ -5951,7 +5792,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                             setPendingReminderText("");
                                             setChatStep("customer");
                                             setReceivedAmountTouched(false);
-                                            // Otherwise focus/pageshow restores the discarded card.
+                                            // Discard any stored copy of this card.
                                             clearEntryDraft();
                                           }}
                                         >
@@ -6116,6 +5957,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                 </form>
                               )
                             )}
+                            </div>
                           </section>
                         ) : (
                           <div className="entry-choice">
