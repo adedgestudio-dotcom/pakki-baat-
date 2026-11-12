@@ -25,7 +25,6 @@
 .hisaab-bubble-actions { display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 8px; margin-top: 8px; }
 .hisaab-bubble-actions-main { display: flex; justify-content: flex-start; align-items: center; gap: 8px; }
 .hisaab-bubble-actions .hisaab-payment-chip { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: auto; height: 36px; min-width: 0; min-height: 36px; padding: 0 14px; border: 1px solid #cfdccf; border-radius: 999px; background: #e6eee5; color: #296445; font-size: 13px; font-weight: 650; white-space: nowrap; }
-.hisaab-bubble-actions .hisaab-fix-chip { display: inline-flex; align-items: center; justify-content: center; width: auto; height: 36px; min-width: 0; min-height: 36px; padding: 0 14px; border: 1px solid #cfdccf; border-radius: 999px; background: transparent; color: #296445; font-size: 13px; font-weight: 650; white-space: nowrap; }
 .hisaab-fix-payment-list { display: grid; gap: 8px; }
 .hisaab-fix-payment-list button { width: 100%; min-height: 48px; padding: 10px 12px; text-align: left; border: 1px solid #cfdccf; border-radius: 12px; background: #f4f7f2; color: #253b30; }
 .hisaab-bubble-actions .hisaab-icon-action { width: 38px; height: 38px; min-width: 38px; min-height: 38px; }
@@ -72,7 +71,7 @@ body:has(.chat-hisaab) .content { max-width: none; margin: 0; padding: 0; }
 [data-theme="dark"] .hisaab-bubble small, [data-theme="dark"] .hisaab-photo-count { color: #b1c4b7; }
 [data-theme="dark"] .hisaab-bubble-money dt { color: #b1c4b7; }
 [data-theme="dark"] .hisaab-bubble-money .is-pending { color: #e5aa92; }
-[data-theme="dark"] .hisaab-bubble-money .is-settled, [data-theme="dark"] .hisaab-bubble-actions .hisaab-fix-chip { color: #9bd4b8; }
+[data-theme="dark"] .hisaab-bubble-money .is-settled { color: #9bd4b8; }
 [data-theme="dark"] .hisaab-fix-payment-list button { background: #26382d; color: #eef4ef; border-color: #43584a; }
 [data-theme="dark"] .hisaab-chat-head > span { background: #36513f; }
 [data-theme="dark"] .hisaab-chat-head button[aria-label="More entry actions"] { background: #36513f; color: #eef4ef; border-color: #537a61; }

@@ -20,7 +20,7 @@ const ui = load('app/chat-hisaab.tsx', {
 const Viewer = load('app/photo-viewer.tsx', { 'react-dom': { createPortal: element => element }, './photo-flow.css': {} }, { document: {} }).default;
 const job = { id: 'entry-1', customer: 'Sara', work: 'Chocolate cake', total: 200, paid: 0, date: '', time: '', status: 'Waiting' };
 const noop = () => {};
-const bubble = (entry = job, payments = [], options = {}) => renderToStaticMarkup(React.createElement(ui.ChatEntryBubble, { job: entry, number: 1, payments, onCopy: noop, onPayment: noop, onFixPayment: noop, onEdit: noop, ...options }));
+const bubble = (entry = job) => renderToStaticMarkup(React.createElement(ui.ChatEntryBubble, { job: entry, number: 1, onCopy: noop, onPayment: noop, onEdit: noop }));
 test('entry cards are not buttons and show Total, Paid and Pending with three actions', () => {
   const html = bubble();
   for (const text of ['Entry 1', 'Chocolate cake', 'Total', 'Paid', 'Pending', 'Add payment', 'Copy entry', 'Edit entry']) assert.ok(html.includes(text), text);
@@ -104,20 +104,21 @@ test('Add payment chip is replaced with Paid after full payment', () => {
   assert.doesNotMatch(paid, /hisaab-payment-chip/);
   assert.match(paid, /class="hisaab-paid-tag">Paid/);
 });
-test('Fix amount requires payments and edit access, including on a fully paid entry', () => {
-  const payment = { id: 'payment-1', jobId: job.id, customer: job.customer, amount: 200, date: '2026-11-10', createdAt: '2026-11-10T12:00:00Z' };
-  assert.doesNotMatch(bubble(job, [payment]), /Fix payment amount/);
-  assert.doesNotMatch(bubble(job, [], { canFixPayments: true }), /Fix payment amount/);
-  const html = bubble({ ...job, paid: job.total }, [payment], { canFixPayments: true });
-  assert.match(html, /aria-label="Fix payment amount"[^>]*>Fix amount/);
+test('entry card has no Fix amount action, even when fully paid', () => {
+  assert.doesNotMatch(bubble(), /Fix amount/);
+  const html = bubble({ ...job, paid: job.total });
+  assert.doesNotMatch(html, /Fix amount/);
   assert.match(html, /class="hisaab-paid-tag">Paid/);
+  assert.equal((html.match(/<button/g) || []).length, 2);
 });
 test('one payment opens correction directly; multiple payments open a newest-first chooser', () => {
   const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
-  assert.match(chat, /if \(payments.length === 1\) onFixPayment\(payments\[0\]\); else setFixOpen\(true\)/);
+  assert.match(chat, /props\.payments\.filter\(payment => payment\.jobId === actionJob\.id && payment\.customer === actionJob\.customer\)/);
+  assert.match(chat, /choice === "fix"\) \{ if \(actionPayments\.length === 0\) props\.onToast\("No payments to fix yet\."\); else if \(actionPayments\.length === 1\) props\.onFixPayment\(actionPayments\[0\]\); else setFixOpen\(true\)/);
   assert.match(chat, /<ChatSheet open=\{fixOpen\} label="Fix amount"/);
-  assert.match(chat, /sortedPayments\.map\(payment => <button[^>]*onClick=\{\(\) => \{ setFixOpen\(false\); onFixPayment\(payment\); \}\}/);
+  assert.match(chat, /sortedPayments\.map\(payment => <button[^>]*onClick=\{\(\) => \{ setFixOpen\(false\); props\.onFixPayment\(payment\); \}\}/);
   assert.match(chat, /Date\.parse\(b\.date \|\| ""\)[^\n]*Date\.parse\(a\.date \|\| ""\)/);
+  assert.match(chat, /canFix=\{props\.canFixPayments && actionPayments\.length > 0\}/);
   const css = fs.readFileSync('app/chat-hisaab.css', 'utf8');
   assert.match(css, /\.hisaab-bubble-money \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.hisaab-bubble-money \.is-pending \{ color: #9b4a2f/);
@@ -129,9 +130,12 @@ test('bottom bar has exactly actions, add entry, and attach with no message or m
   for (const text of ['Voice entry', 'Type a message', 'Send', '<input']) assert.ok(!html.includes(text));
 });
 test('plus menu restores every saved entry action', () => {
-  const html = renderToStaticMarkup(React.createElement(ui.EntryActionMenu, { onChoose: noop, hasEntry: true, hasHistory: true }));
-  for (const text of ['Add photo', 'Receipt', 'WhatsApp', 'Reminder', 'Add payment', 'Edit entry', 'History of changes', 'Delete entry']) assert.ok(html.includes(text), text);
-  assert.equal((html.match(/<button/g) || []).length, 8);
+  const html = renderToStaticMarkup(React.createElement(ui.EntryActionMenu, { onChoose: noop, hasEntry: true, hasHistory: true, canFix: true }));
+  for (const text of ['Add photo', 'Receipt', 'WhatsApp', 'Reminder', 'Add payment', 'Fix amount', 'Edit entry', 'History of changes', 'Delete entry']) assert.ok(html.includes(text), text);
+  assert.match(html, /Add payment[\s\S]*Fix amount[\s\S]*Receipt[\s\S]*Reminder[\s\S]*WhatsApp/);
+  assert.equal((html.match(/<button/g) || []).length, 9);
+  const unavailable = renderToStaticMarkup(React.createElement(ui.EntryActionMenu, { onChoose: noop, hasEntry: true, hasHistory: true, canFix: false }));
+  assert.match(unavailable, /<button[^>]*disabled=""[^>]*>[\s\S]*?<strong>Fix amount<\/strong>/);
 });
 test('clip menu has four options and screenshot is disabled', () => {
   const element = ui.ClipMenu({ onChoose: noop });

@@ -2,15 +2,15 @@
 import type { Job } from "@/lib/data";
 
 const actions = [
-  { group: "Money", rows: [["payment", "Add payment", "Record money received", "₹"], ["receipt", "Receipt", "View or share receipt", "▤"], ["reminder", "Reminder", "Set a follow-up", "◷"], ["whatsapp", "WhatsApp", "Send a message", "◉"]] },
+  { group: "Money", rows: [["payment", "Add payment", "Record money received", "₹"], ["fix", "Fix amount", "Correct a payment amount", "✎"], ["receipt", "Receipt", "View or share receipt", "▤"], ["reminder", "Reminder", "Set a follow-up", "◷"], ["whatsapp", "WhatsApp", "Send a message", "◉"]] },
   { group: "Entry", rows: [["photo", "Add photo", "Attach to this entry", "▧"], ["edit", "Edit entry", "Change entry details", "✎"], ["history", "History of changes", "See previous edits", "↺"]] },
 ] as const;
 
-export function EntryActionMenu({ onChoose, hasEntry, hasHistory, jobs = [], selected = "", onSelect }: { onChoose: (choice: string) => void; hasEntry: boolean; hasHistory: boolean; jobs?: Job[]; selected?: string; onSelect?: (id: string) => void }) {
+export function EntryActionMenu({ onChoose, hasEntry, hasHistory, canFix, jobs = [], selected = "", onSelect }: { onChoose: (choice: string) => void; hasEntry: boolean; hasHistory: boolean; canFix: boolean; jobs?: Job[]; selected?: string; onSelect?: (id: string) => void }) {
   const index = jobs.findIndex(job => job.id === selected);
   return <div className="hisaab-actions" aria-label="Entry actions">
     {jobs.length > 0 && <label className="hisaab-entry-chip">For: Entry {index + 1} · {jobs[index]?.work || jobs.at(-1)?.work}<select aria-label="Choose entry" value={selected} onChange={event => onSelect?.(event.target.value)}>{jobs.map((job, i) => <option key={job.id} value={job.id}>Entry {i + 1} · {job.work}</option>)}</select><span aria-hidden="true">⌄</span></label>}
-    {actions.map(group => <section key={group.group}><h3>{group.group}</h3><div className="hisaab-action-group">{group.rows.map(([id, label, hint, icon]) => <button key={id} type="button" disabled={id === "history" ? !hasHistory : !hasEntry} onClick={() => onChoose(id)}><span className="hisaab-action-icon" aria-hidden="true">{icon}</span><span className="hisaab-action-copy"><strong>{label}</strong><small>{hint}</small></span><span className="hisaab-action-chevron" aria-hidden="true">›</span></button>)}</div></section>)}
+    {actions.map(group => <section key={group.group}><h3>{group.group}</h3><div className="hisaab-action-group">{group.rows.map(([id, label, hint, icon]) => <button key={id} type="button" disabled={id === "history" ? !hasHistory : id === "fix" ? !canFix : !hasEntry} onClick={() => onChoose(id)}><span className="hisaab-action-icon" aria-hidden="true">{icon}</span><span className="hisaab-action-copy"><strong>{label}</strong><small>{hint}</small></span><span className="hisaab-action-chevron" aria-hidden="true">›</span></button>)}</div></section>)}
     <button className="hisaab-action-delete" type="button" disabled={!hasEntry} onClick={() => onChoose("delete")}><span className="hisaab-action-icon" aria-hidden="true">⌫</span><strong>Delete entry</strong><span className="hisaab-action-chevron" aria-hidden="true">›</span></button>
   </div>;
 }

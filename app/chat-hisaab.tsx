@@ -27,7 +27,7 @@ function Icon({ name, size }: { name: string; size: number }) {
 }
 export default function ChatCustomer(props: Props) {
   const [detail, setDetail] = useState("");
-  const [menu, setMenu] = useState(false), [attach, setAttach] = useState(false), [paste, setPaste] = useState(false), [pasteText, setPasteText] = useState("");
+  const [menu, setMenu] = useState(false), [fixOpen, setFixOpen] = useState(false), [attach, setAttach] = useState(false), [paste, setPaste] = useState(false), [pasteText, setPasteText] = useState("");
   const [photo, setPhoto] = useState(""), [photoEntry, setPhotoEntry] = useState(""), [actionEntry, setActionEntry] = useState(""), [photoFile, setPhotoFile] = useState<File | null>(null);
   const photoPicker = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -42,12 +42,15 @@ export default function ChatCustomer(props: Props) {
   function leaveDetail() { if (history.state?.hisaabEntry) history.back(); else setDetail(""); }
   const orderedJobs = [...props.jobs].sort((a, b) => (Date.parse(a.createdAt || "") || Infinity) - (Date.parse(b.createdAt || "") || Infinity) || a.id.localeCompare(b.id));
   const actionJob = props.jobs.find(job => job.id === (detail || actionEntry)) || orderedJobs.at(-1);
+  const actionPayments = actionJob ? props.payments.filter(payment => payment.jobId === actionJob.id && payment.customer === actionJob.customer) : [];
+  const sortedPayments = [...actionPayments].sort((a, b) => (Date.parse(b.date || "") || 0) - (Date.parse(a.date || "") || 0) || (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0) || b.id.localeCompare(a.id));
   function chooseAction(choice: string) {
     setMenu(false); setAttach(false);
     if (choice === "paste") { setPaste(true); return; }
     if (choice === "camera" || choice === "gallery" || choice === "photo") { if (!actionJob || !photoPicker.current) return; setPhotoEntry(actionJob.id); if (choice === "camera") photoPicker.current.setAttribute("capture", "environment"); else photoPicker.current.removeAttribute("capture"); photoPicker.current.click(); return; }
     if (choice === "history") { props.onHistory(); return; }
     if (!actionJob) return;
+    if (choice === "fix") { if (actionPayments.length === 0) props.onToast("No payments to fix yet."); else if (actionPayments.length === 1) props.onFixPayment(actionPayments[0]); else setFixOpen(true); return; }
     if (choice === "receipt") props.onReceipt(actionJob);
     if (choice === "whatsapp") { if (!props.whatsappNumber) props.onEditPhone?.(); else props.onWhatsApp(actionJob); }
     if (choice === "reminder") props.onReminder(actionJob);
@@ -62,22 +65,20 @@ export default function ChatCustomer(props: Props) {
     {!detail && <footer className="hisaab-compose">
       <ChatBottomBar onActions={() => setMenu(true)} onAdd={props.onAdd} onAttach={() => setAttach(true)}/>
     </footer>}
-    <ChatSheet open={menu} label="Entry actions" onClose={() => setMenu(false)}><EntryActionMenu onChoose={chooseAction} hasEntry={!!actionJob} hasHistory={props.hasHistory} jobs={orderedJobs} selected={actionJob?.id} onSelect={setActionEntry}/></ChatSheet>
+    <ChatSheet open={menu} label="Entry actions" onClose={() => setMenu(false)}><EntryActionMenu onChoose={chooseAction} hasEntry={!!actionJob} hasHistory={props.hasHistory} canFix={props.canFixPayments && actionPayments.length > 0} jobs={orderedJobs} selected={actionJob?.id} onSelect={setActionEntry}/></ChatSheet>
+    <ChatSheet open={fixOpen} label="Fix amount" onClose={() => setFixOpen(false)}><h2>Fix amount</h2><div className="hisaab-fix-payment-list">{sortedPayments.map(payment => <button type="button" key={payment.id} onClick={() => { setFixOpen(false); props.onFixPayment(payment); }}>{payment.date || "Date not set"} · {payment.note || "Payment"} · {money(payment.amount)}</button>)}</div></ChatSheet>
     <ChatSheet open={attach} label="Attach" onClose={() => setAttach(false)}><h2>Attach</h2><ClipMenu onChoose={chooseAction}/></ChatSheet>
     <ChatSheet open={paste} label="Paste message" onClose={() => setPaste(false)}><h2>Paste message</h2><p>Paste a customer message to turn it into an entry.</p><textarea className="hisaab-paste-text" value={pasteText} onChange={event => setPasteText(event.target.value)}/><button className="primary hisaab-paste-submit" disabled={!pasteText.trim()} onClick={() => { props.onQuick(); props.onMessage(pasteText); setPaste(false); }}>Continue in Quick entry</button></ChatSheet>
     <input ref={photoPicker} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose entry photo" hidden onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; setPhotoFile(file); setPhoto("preview"); }}/>
     <ChatSheet open={!!photo} label="Attach photo" onClose={closePhoto}><h2>Attach photo</h2>{props.jobs.length && photoFile ? <><label className="hisaab-photo-target">For: Entry {orderedJobs.findIndex(job => job.id === photoEntry) + 1} · {orderedJobs.find(job => job.id === photoEntry)?.work}<select aria-label="Attach to entry" value={photoEntry} onChange={e => setPhotoEntry(e.target.value)}>{orderedJobs.map((job, index) => <option key={job.id} value={job.id}>Entry {index + 1} · {job.work}</option>)}</select></label><HisaabEntryPhoto ownerId={props.ownerId} entryId={photoEntry} entryNumber={orderedJobs.findIndex(job => job.id === photoEntry) + 1} canUpload={props.canUpload} initialFile={photoFile} onPreviewCancel={closePhoto} onAttached={() => { closePhoto(); props.onToast("Photo attached"); }}/></> : null}</ChatSheet>
   </section></ChatContext.Provider>;
 }
-export function ChatEntryBubble({ job, number, payments, ownerId = null, canDelete = false, canFixPayments = false, onDeleted, onPayment, onFixPayment, onCopy, onEdit }: { job: Job; number: number; payments: Payment[]; ownerId?: string | null; canDelete?: boolean; canFixPayments?: boolean; onDeleted?: () => void; onPayment: () => void; onFixPayment: (payment: Payment) => void; onCopy: () => void; onEdit: () => void }) {
-  const [fixOpen, setFixOpen] = useState(false);
+export function ChatEntryBubble({ job, number, ownerId = null, canDelete = false, onDeleted, onPayment, onCopy, onEdit }: { job: Job; number: number; ownerId?: string | null; canDelete?: boolean; onDeleted?: () => void; onPayment: () => void; onCopy: () => void; onEdit: () => void }) {
   const pending = job.total - job.paid;
-  const sortedPayments = [...payments].sort((a, b) => (Date.parse(b.date || "") || 0) - (Date.parse(a.date || "") || 0) || (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0) || b.id.localeCompare(a.id));
   return <article className="hisaab-chat-entry" data-entry-id={job.id}>
     <div className="hisaab-bubble"><small>Entry {number}</small><strong>{job.work}</strong><dl className="hisaab-bubble-money"><div><dt>Total</dt><dd>{money(job.total)}</dd></div><div><dt>Paid</dt><dd>{money(job.paid)}</dd></div><div><dt>Pending</dt><dd className={pending > 0 ? "is-pending" : "is-settled"}>{money(pending)}</dd></div></dl></div>
     <HisaabEntryPhoto ownerId={ownerId} entryId={job.id} canUpload={false} canDelete={canDelete} onDeleted={onDeleted} thumb/>
-    <div className="hisaab-bubble-actions"><div className="hisaab-bubble-actions-main">{job.paid < job.total ? <button className="hisaab-payment-chip" aria-label="Add payment" title="Add payment" onClick={onPayment}><Icon name="plus" size={14}/> Add payment</button> : <span className="hisaab-paid-tag">Paid</span>}<button className="hisaab-icon-action" aria-label="Copy entry" title="Copy entry" onClick={onCopy}><Icon name="copy" size={16}/></button><button className="hisaab-icon-action" aria-label="Edit entry" title="Edit entry" onClick={onEdit}><Icon name="edit" size={16}/></button></div>{canFixPayments && payments.length > 0 && <button className="hisaab-fix-chip" aria-label="Fix payment amount" onClick={() => { if (payments.length === 1) onFixPayment(payments[0]); else setFixOpen(true); }}>Fix amount</button>}</div>
-    <ChatSheet open={fixOpen} label="Fix amount" onClose={() => setFixOpen(false)}><h2>Fix amount</h2><div className="hisaab-fix-payment-list">{sortedPayments.map(payment => <button type="button" key={payment.id} onClick={() => { setFixOpen(false); onFixPayment(payment); }}>{payment.date || "Date not set"} · {payment.note || "Payment"} · {money(payment.amount)}</button>)}</div></ChatSheet>
+    <div className="hisaab-bubble-actions"><div className="hisaab-bubble-actions-main">{job.paid < job.total ? <button className="hisaab-payment-chip" aria-label="Add payment" title="Add payment" onClick={onPayment}><Icon name="plus" size={14}/> Add payment</button> : <span className="hisaab-paid-tag">Paid</span>}<button className="hisaab-icon-action" aria-label="Copy entry" title="Copy entry" onClick={onCopy}><Icon name="copy" size={16}/></button><button className="hisaab-icon-action" aria-label="Edit entry" title="Edit entry" onClick={onEdit}><Icon name="edit" size={16}/></button></div></div>
   </article>;
 }
 export function ChatHistory({ children }: { children: ReactNode }) {
@@ -92,5 +93,5 @@ export function ChatHistory({ children }: { children: ReactNode }) {
     return <div className="hisaab-entry-page">{index < 0 ? seenDetails.current.has(ctx.detail) ? null : <p>This entry is no longer available.</p> : cards[index]}</div>;
   }
   const ordered = [...ctx.jobs].sort((a, b) => (Date.parse(a.createdAt || "") || Infinity) - (Date.parse(b.createdAt || "") || Infinity) || a.id.localeCompare(b.id));
-  return <div className="hisaab-chat-log" aria-label="Customer entries">{ordered.length === 0 && <p className="hisaab-chat-empty">Your entries will appear here. Add your first entry below.</p>}{ordered.map((job, index) => <ChatEntryBubble key={job.id} job={job} number={index + 1} ownerId={ctx.ownerId} canDelete={ctx.canUpload} onDeleted={() => ctx.onToast("Photo deleted")} payments={ctx.payments.filter(p => p.jobId === job.id && p.customer === job.customer)} canFixPayments={ctx.canFixPayments} onFixPayment={ctx.onFixPayment} onPayment={() => ctx.onPayment(job)} onEdit={() => ctx.onEdit(job)} onCopy={async () => { try { await navigator.clipboard.writeText(`Entry ${index + 1}\n${job.customer}\n${job.work}\nTotal ${money(job.total)}\nPaid ${money(job.paid)}\nPending ${money(job.total - job.paid)}`); ctx.onToast("Entry copied"); } catch { ctx.onToast("Could not copy. Please allow clipboard access."); } }}/>) }<div ref={end}/></div>;
+  return <div className="hisaab-chat-log" aria-label="Customer entries">{ordered.length === 0 && <p className="hisaab-chat-empty">Your entries will appear here. Add your first entry below.</p>}{ordered.map((job, index) => <ChatEntryBubble key={job.id} job={job} number={index + 1} ownerId={ctx.ownerId} canDelete={ctx.canUpload} onDeleted={() => ctx.onToast("Photo deleted")} onPayment={() => ctx.onPayment(job)} onEdit={() => ctx.onEdit(job)} onCopy={async () => { try { await navigator.clipboard.writeText(`Entry ${index + 1}\n${job.customer}\n${job.work}\nTotal ${money(job.total)}\nPaid ${money(job.paid)}\nPending ${money(job.total - job.paid)}`); ctx.onToast("Entry copied"); } catch { ctx.onToast("Could not copy. Please allow clipboard access."); } }}/>) }<div ref={end}/></div>;
 }
