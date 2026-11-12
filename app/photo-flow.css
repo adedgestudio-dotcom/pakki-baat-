@@ -10,8 +10,10 @@
 .hisaab-photo-thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .hisaab-photo-image-button { display: block; width: fit-content; max-width: 100%; padding: 0; border: 0; background: transparent; }
 .hisaab-entry-page .hisaab-entry-photo-image { max-height: 50dvh; border-radius: 12px; }
-.hisaab-photo-viewer { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: grid; place-items: center; background: #101713; color: white; }
+.hisaab-photo-viewer { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; box-sizing: border-box; margin: 0; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); border: 0; display: grid; place-items: center; overflow: hidden; background: #101713; color: white; }
+.hisaab-photo-viewer.has-delete { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 .hisaab-photo-viewer::backdrop { background: #101713; }
 .hisaab-photo-viewer > button { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 16px; z-index: 1; width: 44px; height: 44px; border: 0; border-radius: 50%; background: #ffffff30; color: white; font-size: 24px; }
-.hisaab-photo-viewer > img { max-width: calc(100% - 24px); max-height: calc(100% - 88px - env(safe-area-inset-bottom)); width: auto; height: auto; object-fit: contain; }
+.hisaab-photo-viewer > img { max-width: min(1100px, calc(100vw - 24px)); max-height: calc(100dvh - 120px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); width: auto; height: auto; object-fit: contain; }
+.hisaab-photo-viewer.has-delete > img { max-height: calc(100dvh - 120px - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
 .hisaab-chat-entry .hisaab-bubble > small:first-child, .hisaab-chat-entry .hisaab-bubble > strong { max-width: calc(100% - 70px); }

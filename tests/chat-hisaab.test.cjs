@@ -73,7 +73,23 @@ test('photo shrink, bubble thumb and viewer share the private fetch without a bu
 test('viewer offers Delete photo only when deletion is available', () => {
   const props = { open: true, src: 'blob:private-photo', onClose: noop };
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(Viewer, props)), /Delete photo/);
-  assert.match(renderToStaticMarkup(React.createElement(Viewer, { ...props, onDelete: async () => {} })), /Delete photo/);
+  const editable = renderToStaticMarkup(React.createElement(Viewer, { ...props, onDelete: async () => {} }));
+  assert.match(editable, /Delete photo/);
+  assert.match(editable, /class="hisaab-photo-viewer has-delete"/);
+  assert.doesNotMatch(editable, /max-height:/);
+});
+test('viewer image fits viewport with space for close and delete controls', () => {
+  const css = fs.readFileSync('app/photo-flow.css', 'utf8');
+  const viewer = css.match(/\.hisaab-photo-viewer \{[^}]+\}/)?.[0] || '';
+  const image = css.match(/\.hisaab-photo-viewer > img \{[^}]+\}/)?.[0] || '';
+  const withDelete = css.match(/\.hisaab-photo-viewer\.has-delete > img \{[^}]+\}/)?.[0] || '';
+  assert.match(viewer, /width: 100vw; height: 100dvh;[\s\S]*overflow: hidden/);
+  assert.match(image, /max-width: min\(1100px, calc\(100vw - 24px\)\)/);
+  assert.match(image, /max-height: calc\(100dvh - 120px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)/);
+  assert.match(withDelete, /max-height: calc\(100dvh - 120px - 150px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\)/);
+  assert.doesNotMatch(image + withDelete, /max-height:[^;]*%/);
+  assert.match(css, /\.hisaab-photo-preview > img \{[^}]*max-width: 100%; max-height: 50dvh/);
+  assert.match(css, /\.hisaab-photo-thumb img \{[^}]*object-fit: cover/);
 });
 test('Edit modal submits through save and shows every failure inline', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
