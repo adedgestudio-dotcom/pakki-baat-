@@ -5,11 +5,17 @@ function load(file,deps={},env=process.env){const m={exports:{}};vm.runInNewCont
 const validation=load('lib/entry-photo.ts'),{createEntryPhotoHandlers}=load('lib/entry-photo-server.ts',{'./entry-photo':validation});
 const owner='740411d2-a2c9-4dd6-84ba-8679514d28fb',png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
 function uploadRequest(extra){const f=new FormData();f.set('entryId','entry-a');f.append('photo',new File([png],'photo.png',{type:'image/png'}));if(extra)f.append('photo',new File([png],'extra.png',{type:'image/png'}));return new Request('http://local/api/hisaab-photo',{method:'POST',headers:{Authorization:'Bearer test-owner'},body:f});}
+function deleteRequest(auth=true){return new Request('http://local/api/hisaab-photo?entryId=entry-a',{method:'DELETE',headers:auth?{Authorization:'Bearer test-owner'}:{}});}
 function harness(options={}){
- const state={row:options.row||null,objects:new Map(),deleted:[],paths:[],metadataCalls:0};
+ const state={row:options.row||null,objects:new Map(),deleted:[],paths:[],events:[],metadataCalls:0};
  const api=createEntryPhotoHandlers(()=>({base:'https://staging.example',key:'public-key'}),async(url,init)=>{
   const p=new URL(url).pathname;state.paths.push(p);
   if(p==='/auth/v1/user')return Response.json({id:owner});
+  if(p==='/rest/v1/hisaab_entry_photos'&&init.method==='DELETE'){
+   state.events.push('delete-row');state.deleteUrl=url;state.deletePrefer=init.headers?.Prefer;
+   if(options.emptyDelete)return Response.json([]);
+   const removed=state.row;state.row=null;return Response.json(removed?[removed]:[]);
+  }
   if(p==='/rest/v1/hisaab_entry_photos'&&init.method==='POST'){
    const row=JSON.parse(init.body);state.metadataCalls++;
    if(options.rejectMetadata)return Response.json({}, {status:403});
@@ -23,7 +29,7 @@ function harness(options={}){
    return Response.json(state.row?[state.row]:[]);
   }
   if(p.startsWith('/storage/v1/object/authenticated/'))return new Response(png);
-  if(init.method==='DELETE'){const f=JSON.parse(init.body).prefixes;state.deleted.push(...f);f.forEach(k=>state.objects.delete(k));return Response.json({});}
+  if(init.method==='DELETE'){state.events.push('delete-storage');if(options.storageDeleteFails)throw Error('storage unavailable');const f=JSON.parse(init.body).prefixes;state.deleted.push(...f);f.forEach(k=>state.objects.delete(k));return Response.json({});}
   if(p.startsWith('/storage/v1/object/')){const key=p.split('/').slice(5).join('/');state.objects.set(key,init.body);return Response.json({}, {status:201});}
   throw Error(p);
  });return {api,state};
@@ -51,7 +57,7 @@ test('entry and body boundaries reject missing IDs and oversized declared upload
  await assert.rejects(()=>validation.readPhotoForm(r),/too large/);
 });
 test('unauthenticated requests fail before storage or database access',async()=>{
- const h=harness();assert.equal((await h.api.GET(new Request('http://local/?entryId=entry-a'))).status,401);assert.equal(h.state.paths.length,0);
+ const h=harness();assert.equal((await h.api.GET(new Request('http://local/?entryId=entry-a'))).status,401);assert.equal((await h.api.DELETE(deleteRequest(false))).status,401);assert.equal(h.state.paths.length,0);
 });
 test('private download requires owner authentication and disables caching',async()=>{
  const h=harness({row:{object_path:owner+'/11111111-1111-4111-8111-111111111111.png',content_type:'image/png',byte_size:png.length}});
@@ -59,6 +65,28 @@ test('private download requires owner authentication and disables caching',async
 });
 test('missing photo returns 404 without creating an attachment',async()=>{
  const h=harness();assert.equal((await h.api.GET(new Request('http://local/?entryId=entry-a',{headers:{Authorization:'Bearer test-owner'}}))).status,404);assert.equal(h.state.metadataCalls,0);
+});
+test('delete returns 404 when no photo exists',async()=>{
+ const h=harness();assert.equal((await h.api.DELETE(deleteRequest())).status,404);assert.deepEqual(h.state.events,[]);
+});
+test('delete removes the metadata row before best-effort storage cleanup',async()=>{
+ const path=owner+'/11111111-1111-4111-8111-111111111111.png',h=harness({row:{object_path:path,content_type:'image/png',byte_size:png.length}});
+ const result=await h.api.DELETE(deleteRequest());assert.equal(result.status,200);assert.deepEqual(await result.json(),{ok:true});assert.equal(result.headers.get('cache-control'),'private, no-store');assert.deepEqual(h.state.events,['delete-row','delete-storage']);assert.equal(h.state.row,null);assert.deepEqual(h.state.deleted,[path]);assert.equal(h.state.deletePrefer,'return=representation');assert.match(h.state.deleteUrl,/owner_id=eq\./);assert.match(h.state.deleteUrl,/entry_id=eq\.entry-a/);
+});
+test('empty delete representation is a 403 and preserves the object',async()=>{
+ const row={object_path:owner+'/11111111-1111-4111-8111-111111111111.png',content_type:'image/png',byte_size:png.length},h=harness({row,emptyDelete:true});
+ const result=await h.api.DELETE(deleteRequest());assert.equal(result.status,403);assert.match((await result.json()).error,/Check your plan/);assert.deepEqual(h.state.events,['delete-row']);assert.equal(h.state.row,row);
+});
+test('storage cleanup failure does not undo a successful metadata delete',async()=>{
+ const h=harness({row:{object_path:owner+'/11111111-1111-4111-8111-111111111111.png',content_type:'image/png',byte_size:png.length},storageDeleteFails:true});
+ assert.equal((await h.api.DELETE(deleteRequest())).status,200);assert.deepEqual(h.state.events,['delete-row','delete-storage']);assert.equal(h.state.row,null);
+});
+test('delete rejects metadata paths outside the authenticated owner',async()=>{
+ const h=harness({row:{object_path:'00000000-0000-4000-8000-000000000000/x.png',content_type:'image/png',byte_size:png.length}});assert.equal((await h.api.DELETE(deleteRequest())).status,503);assert.deepEqual(h.state.events,[]);
+});
+test('photo route exports DELETE and migration grants only eligible owner deletes',()=>{
+ const route=fs.readFileSync(path.join(__dirname,'../app/api/hisaab-photo/route.ts'),'utf8');assert.match(route,/export const DELETE = handlers\.DELETE/);
+ const migration=fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261112000000_hisaab_entry_photo_delete.sql'),'utf8');for(const part of ['grant delete on public.hisaab_entry_photos to authenticated','drop policy if exists hisaab_entry_photo_delete_own','for delete to authenticated','owner_id = (select auth.uid())',"s.status = 'active'",'s.period_end > now()'])assert.ok(migration.includes(part),part);
 });
 test('upload links one immutable owner-scoped object without any financial endpoint',async()=>{
  const h=harness();assert.equal((await h.api.POST(uploadRequest())).status,201);assert.equal(h.state.row.owner_id,owner);assert.equal(h.state.row.entry_id,'entry-a');assert.ok(h.state.row.object_path.startsWith(owner+'/'));assert.equal(h.state.objects.size,1);assert.ok(h.state.paths.every(p=>!p.includes('workspaces')&&!p.includes('ledger')));

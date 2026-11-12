@@ -16,7 +16,8 @@ test("saved-entry detail is information only, with actions in the header plus sh
   for (const text of ['hisaab-entry-number', 'saved-entry-created-date', 'Total', 'Received', 'Baki', 'Work:', 'Payment:', 'Due:']) assert.ok(card.includes(text), text);
   assert.ok(detail.includes("More details"));
   assert.ok(detail.includes("Payments ({entryPayments.length})"));
-  for (const action of ["<HisaabEntryPhoto", "viewOnly", "<HisaabPayments", "onCorrect={openEditPayment}", 'updateJobStatus(j, "Waiting")', 'updateJobStatus(j, "Confirmed")', 'updateJobStatus(j, "Completed")']) assert.ok(detail.includes(action), action);
+  assert.ok(!detail.includes("<HisaabEntryPhoto"));
+  for (const action of ["<HisaabPayments", "onCorrect={openEditPayment}", 'updateJobStatus(j, "Waiting")', 'updateJobStatus(j, "Confirmed")', 'updateJobStatus(j, "Completed")']) assert.ok(detail.includes(action), action);
   assert.ok(read("chat-hisaab.tsx").includes('aria-label="More entry actions"'));
 });
 

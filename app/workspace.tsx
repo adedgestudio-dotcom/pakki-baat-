@@ -6070,13 +6070,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                     Due: {j.date || "Not set"}
                                     {j.time ? " · " + j.time : ""}
                                   </p>
-                                  <HisaabEntryPhoto
-                                    key={`${accountId}:${j.id}`}
-                                    ownerId={accountId}
-                                    entryId={j.id}
-                                    viewOnly
-                                    canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
-                                  />
                                   <HisaabPayments
                                     payments={entryPayments}
                                     readOnly={!ledgerModeForAccount(accountId || "") || cloudWriteConflictForAccount(accountId || "")}

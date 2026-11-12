@@ -45,6 +45,23 @@ export function createEntryPhotoHandlers(config: () => { base: string; key: stri
         return new Response(await image.arrayBuffer(), { headers: { ...privateHeaders, "Content-Type": row.content_type } });
       } catch (error) { return failure(error); }
     },
+    async DELETE(request: Request) {
+      try {
+        const ctx = await context(request), entryId = photoEntryId(new URL(request.url).searchParams.get("entryId"));
+        const row = await ctx.photo(entryId);
+        if (!row) throw new EntryPhotoError("No photo is attached to this entry.", 404);
+        const safePath = new RegExp("^" + ctx.ownerId + "/[0-9a-f-]{36}\\.(jpg|png|webp)$", "i");
+        if (!safePath.test(row.object_path)) throw new EntryPhotoError("Could not delete this photo.", 503);
+        const query = new URLSearchParams({ owner_id: "eq." + ctx.ownerId, entry_id: "eq." + entryId });
+        const deleted = await ctx.call("/rest/v1/hisaab_entry_photos?" + query, { method: "DELETE", headers: { Prefer: "return=representation" } });
+        const message = "Could not delete this photo. Check your plan and retry online.";
+        if (!deleted.ok) throw new EntryPhotoError(message, deleted.status === 403 ? 403 : 503);
+        const rows = await deleted.json();
+        if (!Array.isArray(rows) || rows.length === 0) throw new EntryPhotoError(message, 403);
+        try { await ctx.removeUnlinked(row.object_path); } catch { /* Metadata is already removed; storage cleanup is best effort. */ }
+        return Response.json({ ok: true }, { headers: privateHeaders });
+      } catch (error) { return failure(error); }
+    },
     async POST(request: Request) {
       try {
         const ctx = await context(request), { entryId, file, bytes } = await readPhotoForm(request);

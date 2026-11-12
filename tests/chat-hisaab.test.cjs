@@ -5,10 +5,10 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
-function load(file, mocks = {}) {
+function load(file, mocks = {}, globals = {}) {
   const module = { exports: {} };
   const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
-  vm.runInNewContext(source, { module, exports: module.exports, require: name => name in mocks ? mocks[name] : require(name) });
+  vm.runInNewContext(source, { module, exports: module.exports, require: name => name in mocks ? mocks[name] : require(name), ...globals });
   return module.exports;
 }
 const money = load('lib/money.ts');
@@ -17,6 +17,7 @@ const ui = load('app/chat-hisaab.tsx', {
   '@/lib/money': money, './simple-voice-button': () => null,
   './hisaab-entry-photo': () => null, './chat-sheet': () => null, './chat-hisaab.css': {}, './chat-hisaab-menus.css': {}, './chat-hisaab-menus': menus,
 });
+const Viewer = load('app/photo-viewer.tsx', { 'react-dom': { createPortal: element => element }, './photo-flow.css': {} }, { document: {} }).default;
 const job = { id: 'entry-1', customer: 'Sara', work: 'Chocolate cake', total: 200, paid: 0, date: '', time: '', status: 'Waiting' };
 const noop = () => {};
 const bubble = (entry = job, payments = []) => renderToStaticMarkup(React.createElement(ui.ChatEntryBubble, { job: entry, number: 1, payments, onOpen: noop, onCopy: noop, onPayment: noop, onEdit: noop }));
@@ -51,13 +52,24 @@ test('photo shrink, bubble thumb and viewer share the private fetch without a bu
   assert.match(shrink, /createImageBitmap\(file, \{ imageOrientation: "from-image" \}\)/);
   assert.match(shrink, /"image\/jpeg"/);
   assert.match(photo, /if \(thumb\) return/);
-  assert.match(chat, /canUpload=\{false\} thumb\//);
+  assert.match(chat, /canUpload=\{false\} canDelete=\{canDelete\} onDeleted=\{onDeleted\} thumb\//);
+  assert.match(chat, /canDelete=\{ctx\.canUpload\} onDeleted=\{\(\) => ctx\.onToast\("Photo deleted"\)\}/);
   assert.doesNotMatch(chat, /countOnly|0 photos/);
   assert.equal((photo.match(/scopedFetch\(\)/g) || []).length, 1);
   assert.doesNotMatch(chat, /onCamera|openPhoto|hasPhoto|aria-label="Add photo"/);
   assert.match(viewer, /showModal/);
+  assert.match(viewer, /\{onDelete && <div/);
+  assert.match(viewer, /Delete this photo\? This can&apos;t be undone\./);
+  assert.match(viewer, /Deleting…/);
+  assert.match(photo, /scopedFetch\(\{ method: "DELETE" \}\)/);
+  assert.match(photo, /Delete it first \(open the photo in the chat\), or choose another entry/);
   assert.doesNotMatch(viewer, /history\.|popstate/);
   assert.doesNotMatch(fs.readFileSync('app/chat-sheet.tsx', 'utf8'), /history\.|popstate/);
+});
+test('viewer offers Delete photo only when deletion is available', () => {
+  const props = { open: true, src: 'blob:private-photo', onClose: noop };
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(Viewer, props)), /Delete photo/);
+  assert.match(renderToStaticMarkup(React.createElement(Viewer, { ...props, onDelete: async () => {} })), /Delete photo/);
 });
 test('Edit modal submits through save and shows every failure inline', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
@@ -161,16 +173,12 @@ test('WhatsApp banner and clean detail card keep their intended layouts', () => 
   const cardStart = workspace.indexOf('return <article\n                                className="saved-detail-card customer-saved-card hisaab-history-card"');
   const card = workspace.slice(cardStart, workspace.indexOf('</article>;', cardStart));
   assert.doesNotMatch(card, /hisaab-quick-actions|hisaab-more-actions/);
-  assert.match(card, /<HisaabEntryPhoto[^>]*viewOnly/s);
+  assert.doesNotMatch(card, /<HisaabEntryPhoto|viewOnly/);
   assert.doesNotMatch(chatCss, /\.hisaab-entry-page \.hisaab-(?:quick-actions|more-actions)/);
   assert.match(chatCss, /\.hisaab-chat-head button\[aria-label="More entry actions"\] \{[^}]*width: 44px; height: 44px;[^}]*color: #296445/);
   assert.match(chatCss, /\.hisaab-entry-page \.hisaab-history-summary dl \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(chatCss, /\.hisaab-entry-page \.hisaab-card-statuses \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  const photo = fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8');
-  const viewOnly = photo.slice(photo.indexOf('if (viewOnly) return'), photo.indexOf('if (!ownerId)'));
-  assert.match(viewOnly, /aria-label="View photo"/);
-  assert.match(viewOnly, /<PhotoViewer open=\{viewer\}/);
-  assert.doesNotMatch(viewOnly, /Add photo|No photos yet|JPG, PNG|Photos\{/);
+  assert.doesNotMatch(fs.readFileSync('app/hisaab-entry-photo.tsx', 'utf8'), /viewOnly/);
 });
 
 test('ledger-mode entry and customer deletion do not offer impossible Undo', () => {

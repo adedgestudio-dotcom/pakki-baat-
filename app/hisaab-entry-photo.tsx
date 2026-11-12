@@ -7,7 +7,7 @@ import { shrinkPhoto } from "./shrink-photo";
 import PhotoPreview from "./photo-preview";
 import PhotoViewer from "./photo-viewer";
 
-export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture, countOnly = false, thumb = false, viewOnly = false, initialFile, entryNumber, onAttached, onPreviewCancel }: { ownerId: string | null; entryId: string; canUpload: boolean; capture?: "environment"; countOnly?: boolean; thumb?: boolean; viewOnly?: boolean; initialFile?: File | null; entryNumber?: number; onAttached?: () => void; onPreviewCancel?: () => void }) {
+export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, canDelete = false, capture, countOnly = false, thumb = false, initialFile, entryNumber, onAttached, onDeleted, onPreviewCancel }: { ownerId: string | null; entryId: string; canUpload: boolean; canDelete?: boolean; capture?: "environment"; countOnly?: boolean; thumb?: boolean; initialFile?: File | null; entryNumber?: number; onAttached?: () => void; onDeleted?: () => void; onPreviewCancel?: () => void }) {
   const root = useRef<HTMLElement>(null), generation = useRef(0), objectUrl = useRef("");
   const requests = useRef(new Set<AbortController>()), uploading = useRef(false);
   const [url, setUrl] = useState(""), [checked, setChecked] = useState(false), [online, setOnline] = useState(true);
@@ -98,17 +98,24 @@ export default function HisaabEntryPhoto({ ownerId, entryId, canUpload, capture,
       if (token === generation.current) setError(cause instanceof Error ? cause.message : "Upload failed. Retry online.");
     } finally { if (token === generation.current) { uploading.current = false; setBusy(false); } }
   }
-  if (thumb) return <>{online && checked && url && <button type="button" className="hisaab-photo-thumb" aria-label="View photo" onClick={event => { event.stopPropagation(); setViewer(true); }}><img src={url} alt="" /></button>}<PhotoViewer open={viewer} src={url} onClose={() => setViewer(false)}/></>;
+  async function remove() {
+    if (!ownerId || !online || !navigator.onLine || !canDelete || !url) throw new Error("Needs internet to delete this photo.");
+    const response = await scopedFetch({ method: "DELETE" });
+    if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || "Could not delete this photo. Retry online."); }
+    generation.current++; clearImage(); setViewer(false);
+    window.dispatchEvent(new CustomEvent("hisaab-photo-changed", { detail: `${ownerId}:${entryId}` }));
+    onDeleted?.();
+  }
+  if (thumb) return <>{online && checked && url && <button type="button" className="hisaab-photo-thumb" aria-label="View photo" onClick={event => { event.stopPropagation(); setViewer(true); }}><img src={url} alt="" /></button>}<PhotoViewer open={viewer} src={url} onClose={() => setViewer(false)} onDelete={canDelete && online && ownerId ? remove : undefined}/></>;
   if (countOnly) return url && online && checked ? <small className="hisaab-photo-count">1 photo</small> : null;
-  if (viewOnly) return <>{online && checked && url && <button type="button" className="hisaab-photo-image-button" aria-label="View photo" onClick={() => setViewer(true)}><img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" /></button>}<PhotoViewer open={viewer} src={url} onClose={() => setViewer(false)}/></>;
   if (!ownerId) return null;
   return (
     <section ref={root} className="hisaab-entry-photo" aria-label="Entry photo">
       <strong>Photos{url ? " (1)" : ""}</strong>
       <small>JPG, PNG or WebP, up to 4 MB. Needs internet.</small>
-      {entryNumber && url && !previewFile && !status && <p role="alert">Entry {entryNumber} already has a photo. Choose another entry.</p>}
+      {entryNumber && url && !previewFile && !status && <p role="alert">Entry {entryNumber} already has a photo. Delete it first (open the photo in the chat), or choose another entry.</p>}
       {!online ? <p>Reconnect to view or add this entry&apos;s photo.</p> : previewFile && previewUrl ? (
-        <PhotoPreview src={previewUrl} busy={busy} error={error} existing={!!url} ready={(checked || !!error) && online && canUpload} entryNumber={entryNumber} onCancel={() => { setPreviewFile(null); setPreviewUrl(""); setError(""); onPreviewCancel?.(); }} onAttach={() => { if (!checked) void load(); else void upload(previewFile); }}/>
+        url ? <div className="hisaab-photo-preview"><img src={previewUrl} alt="Photo waiting to be attached" /><p>This photo will be attached to this entry</p><p role="alert">Entry {entryNumber || ""} already has a photo. Delete it first (open the photo in the chat), or choose another entry.</p><div className="hisaab-photo-preview-actions"><button type="button" className="outline" onClick={() => { setPreviewFile(null); setPreviewUrl(""); setError(""); onPreviewCancel?.(); }}>Cancel</button><button type="button" className="primary" disabled>Attach photo</button></div></div> : <PhotoPreview src={previewUrl} busy={busy} error={error} existing={false} ready={(checked || !!error) && online && canUpload} entryNumber={entryNumber} onCancel={() => { setPreviewFile(null); setPreviewUrl(""); setError(""); onPreviewCancel?.(); }} onAttach={() => { if (!checked) void load(); else void upload(previewFile); }}/>
       ) : url ? (
         // Private authenticated bytes are displayed through a short-lived object URL, never a public asset URL.
         <button type="button" className="hisaab-photo-image-button" aria-label="View photo" onClick={() => setViewer(true)}><img src={url} alt="Photo attached to this Hisaab entry" className="hisaab-entry-photo-image" /></button>
