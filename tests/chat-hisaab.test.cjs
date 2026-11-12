@@ -20,15 +20,19 @@ const ui = load('app/chat-hisaab.tsx', {
 const Viewer = load('app/photo-viewer.tsx', { 'react-dom': { createPortal: element => element }, './photo-flow.css': {} }, { document: {} }).default;
 const job = { id: 'entry-1', customer: 'Sara', work: 'Chocolate cake', total: 200, paid: 0, date: '', time: '', status: 'Waiting' };
 const noop = () => {};
-const bubble = (entry = job, payments = []) => renderToStaticMarkup(React.createElement(ui.ChatEntryBubble, { job: entry, number: 1, payments, onOpen: noop, onCopy: noop, onPayment: noop, onEdit: noop }));
-test('entries render as accessible chat bubbles with summary and three muted actions', () => {
+const bubble = (entry = job, payments = [], options = {}) => renderToStaticMarkup(React.createElement(ui.ChatEntryBubble, { job: entry, number: 1, payments, onCopy: noop, onPayment: noop, onFixPayment: noop, onEdit: noop, ...options }));
+test('entry cards are not buttons and show Total, Paid and Pending with three actions', () => {
   const html = bubble();
-  for (const text of ['Entry 1', 'Chocolate cake', 'Total', 'Pending', '0 payments', 'Add payment', 'Copy entry', 'Edit entry']) assert.ok(html.includes(text), text);
-  assert.equal((html.match(/<button/g) || []).length, 4);
+  for (const text of ['Entry 1', 'Chocolate cake', 'Total', 'Paid', 'Pending', 'Add payment', 'Copy entry', 'Edit entry']) assert.ok(html.includes(text), text);
+  assert.match(html, /<div class="hisaab-bubble">/);
+  assert.match(html, /<dl class="hisaab-bubble-money">/);
+  assert.doesNotMatch(html, /<button class="hisaab-bubble"|Baki|0 payments/);
+  assert.equal((html.match(/<button/g) || []).length, 3);
 });
-test('bubble pencil opens the edit form while the bubble body opens detail', () => {
+test('bubble pencil opens the edit form while the card body stays non-interactive', () => {
   const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
-  assert.match(chat, /className="hisaab-bubble" onClick=\{onOpen\}/);
+  assert.match(chat, /<div className="hisaab-bubble">/);
+  assert.doesNotMatch(chat, /onOpen/);
   assert.match(chat, /aria-label="Edit entry"[^>]*onClick=\{onEdit\}/);
   assert.match(chat, /onEdit=\{\(\) => ctx\.onEdit\(job\)\}/);
   assert.match(fs.readFileSync('app/chat-hisaab.css', 'utf8'), /body:has\(\.chat-hisaab\) \.modal-backdrop \{ z-index: 110/);
@@ -99,6 +103,24 @@ test('Add payment chip is replaced with Paid after full payment', () => {
   assert.match(unpaid, /class="hisaab-payment-chip"[^>]*>.*Add payment/);
   assert.doesNotMatch(paid, /hisaab-payment-chip/);
   assert.match(paid, /class="hisaab-paid-tag">Paid/);
+});
+test('Fix amount requires payments and edit access, including on a fully paid entry', () => {
+  const payment = { id: 'payment-1', jobId: job.id, customer: job.customer, amount: 200, date: '2026-11-10', createdAt: '2026-11-10T12:00:00Z' };
+  assert.doesNotMatch(bubble(job, [payment]), /Fix payment amount/);
+  assert.doesNotMatch(bubble(job, [], { canFixPayments: true }), /Fix payment amount/);
+  const html = bubble({ ...job, paid: job.total }, [payment], { canFixPayments: true });
+  assert.match(html, /aria-label="Fix payment amount"[^>]*>Fix amount/);
+  assert.match(html, /class="hisaab-paid-tag">Paid/);
+});
+test('one payment opens correction directly; multiple payments open a newest-first chooser', () => {
+  const chat = fs.readFileSync('app/chat-hisaab.tsx', 'utf8');
+  assert.match(chat, /if \(payments.length === 1\) onFixPayment\(payments\[0\]\); else setFixOpen\(true\)/);
+  assert.match(chat, /<ChatSheet open=\{fixOpen\} label="Fix amount"/);
+  assert.match(chat, /sortedPayments\.map\(payment => <button[^>]*onClick=\{\(\) => \{ setFixOpen\(false\); onFixPayment\(payment\); \}\}/);
+  assert.match(chat, /Date\.parse\(b\.date \|\| ""\)[^\n]*Date\.parse\(a\.date \|\| ""\)/);
+  const css = fs.readFileSync('app/chat-hisaab.css', 'utf8');
+  assert.match(css, /\.hisaab-bubble-money \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.hisaab-bubble-money \.is-pending \{ color: #9b4a2f/);
 });
 test('bottom bar has exactly actions, add entry, and attach with no message or mic', () => {
   const html = renderToStaticMarkup(React.createElement(ui.ChatBottomBar, { onActions: noop, onAdd: noop, onAttach: noop }));
@@ -198,7 +220,7 @@ test('deleted detail auto-leaves only after its entry was seen in this chat moun
   assert.match(chat, /seenDetails = useRef\(new Set<string>\(\)\)/);
   assert.match(chat, /ctx\.jobs\.some\(job => job\.id === ctx\.detail\)\) seenDetails\.current\.add\(ctx\.detail\); else if \(seenDetails\.current\.delete\(ctx\.detail\)\) ctx\.leaveDetail\(\)/);
   assert.match(chat, /seenDetails\.current\.has\(ctx\.detail\) \? null : <p>This entry is no longer available\.<\/p>/);
-  assert.match(chat, /savedScrollTop\.current = end\.current\?\.parentElement\?\.scrollTop/);
+  assert.doesNotMatch(chat, /onOpen=\{\(\) => ctx\.navigate/);
   assert.match(chat, /log\.scrollTo\(\{ top: savedScrollTop\.current \?\? log\.scrollHeight \}\); savedScrollTop\.current = null/);
 });
 test('saved drafts cannot reopen an entry at launch, on Hisaab, or on app focus', () => {
@@ -209,12 +231,12 @@ test('saved drafts cannot reopen an entry at launch, on Hisaab, or on app focus'
   assert.doesNotMatch(workspace, /addEventListener\("(?:focus|pageshow)"/);
   assert.match(workspace, /<ChatSheet open=\{customerChatOpen\}[^\n]*onClose=\{\(\) => \{[^\n]*clearEntryDraft\(\)/);
 });
-test('saving payment through existing financial planner updates pending and count on rerender', () => {
+test('saving payment through existing financial planner updates Paid and Pending on rerender', () => {
   const safety = load('lib/payment-safety.ts');
   const payment = { id: 'payment-1', jobId: job.id, customer: job.customer, amount: 50, date: '2026-11-10', note: 'Cash' };
   const next = safety.planQuickPayment({ jobs: [job], payments: [] }, job, '50', payment);
   const html = bubble(next.jobs[0], next.payments);
-  assert.ok(html.includes('1 payments'));
+  assert.ok(html.includes(money.formatMoneyRupees(50)));
   assert.ok(html.includes('150'));
   assert.equal(next.jobs[0].paid, 50);
 });

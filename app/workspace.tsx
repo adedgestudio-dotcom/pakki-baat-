@@ -5578,7 +5578,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       </>
                     ) : (
                       <ChatCustomer key={`${accountId}:${selectedCustomer}`} customer={selectedCustomer!} pending={selectedBaki} jobs={customerJobs} payments={payments}
-                        ownerId={accountId} canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")}
+                        ownerId={accountId} canUpload={ready && hasActiveSubscription && !cloudWriteConflictForAccount(accountId || "")} canFixPayments={ledgerModeForAccount(accountId || "") && !cloudWriteConflictForAccount(accountId || "")} onFixPayment={openEditPayment}
                         onBack={() => { window.history.replaceState({ ...window.history.state, pakkiBaat: true, tab: "Hisaab", customer: null, customerChatOpen: false, hisaabEntry: "" }, ""); setSelectedCustomer(null); setCustomerChatOpen(false); }} onAdd={() => startEntry("form")} onQuick={() => startEntry("quick")} onPayment={openPayment} onToast={setToast}
                         whatsappNumber={customerPhones[selectedCustomer!] || ""} onEditPhone={() => openPhoneEditor(selectedCustomer!)}
                         onReceipt={openReceipt} onWhatsApp={openWhatsApp} onReminder={openReminder} onDelete={deleteEntry} onEdit={(job) => { savedDraftRef.current = null; setEditError(""); setDraft(job); }} onHistory={() => setTab("Reports")} hasHistory={ledgerModeForAccount(accountId || "")}
