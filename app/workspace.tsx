@@ -3,7 +3,9 @@ import { useEffect, useRef, useState, type SetStateAction } from "react";
 import { paymentPaise, paymentRupees, validateEntryMoney, planQuickPayment, planPaymentCorrection, type FinancialState } from "@/lib/payment-safety";
 import { version as appVersion } from "@/package.json";
 import "./workspace.css";
+import "./new-customer-picker.css";
 import "./connections.css";
+import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import AudioPlayer from "./audio-player";
@@ -8589,7 +8591,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </section>
           </div>
         )}
-        {newCustomerOpen && (
+        {newCustomerOpen && (() => {
+          const duplicateCustomer = findExistingCustomer(newCustomerName, customerNames);
+          const matchedCustomers = rankCustomerMatches(newCustomerName, [...recentCustomers, ...customerNames.filter(name => !recentCustomers.includes(name))]);
+          const openExistingCustomer = (name: string) => {
+            setSelectedCustomer(name);
+            setMessage("");
+            setCustomerChatOpen(false);
+            setNewCustomerOpen(false);
+          };
+          return (
           <div
             className="modal-backdrop"
             onClick={() => setNewCustomerOpen(false)}
@@ -8617,32 +8628,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 Add the customer name. You can tell Pakki Baat the rest
                 naturally.
               </p>
-              {recentCustomers.length > 0 && (
-                <div className="recent-customers">
-                  <small>Recent customers</small>
-                  <div>
-                    {recentCustomers.map((name) => (
-                      <button
-                        type="button"
-                        key={name}
-                        onClick={() => {
-                          setSelectedCustomer(name);
-                          setMessage("");
-                          setCustomerChatOpen(false);
-                          setNewCustomerOpen(false);
-                        }}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   const customer = newCustomerName.trim();
                   if (!customer) return;
+                  if (findExistingCustomer(customer, customerNames)) return;
                   if (!requireActiveSubscriptionForSaving()) return;
                   if (!canAddCustomer(customer)) return;
                   setNotes((items) =>
@@ -8675,17 +8666,29 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     onChange={(e) => setNewCustomerName(e.target.value)}
                   />
                 </label>
+                {duplicateCustomer && (
+                  <div className="new-customer-warning">
+                    <p role="alert">{duplicateCustomer} already exists. Add a surname, or a dot or dash to tell them apart, e.g. {duplicateCustomer} K. or {duplicateCustomer}-2.</p>
+                    <button type="button" onClick={() => openExistingCustomer(duplicateCustomer)}>Open {duplicateCustomer}</button>
+                  </div>
+                )}
+                {matchedCustomers.length > 0 && (
+                  <div className="existing-customer-list">
+                    <small>Existing customers ({matchedCustomers.length})</small>
+                    <div>{matchedCustomers.map(name => <button type="button" key={name} onClick={() => openExistingCustomer(name)}>{name}</button>)}</div>
+                  </div>
+                )}
                 <button
                   className="primary"
                   type="submit"
-                  disabled={!newCustomerName.trim()}
+                  disabled={!newCustomerName.trim() || Boolean(duplicateCustomer)}
                 >
                   Continue <Icon name="arrow" size={17} />
                 </button>
               </form>
             </section>
           </div>
-        )}
+        ); })()}
         {draft && (
           <div className="modal-backdrop" onClick={() => setDraft(null)}>
             <section
