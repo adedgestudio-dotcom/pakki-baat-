@@ -45,7 +45,7 @@ export async function hashCustomerSlice(slice: CustomerSlice): Promise<string> {
 export async function prepareCustomerBackups(snapshot: Snapshot, selected: string[]): Promise<{ items: CustomerBackupItem[]; skipped: string[] }> {
   const names = new Map(customerNames(snapshot).map(name => [keyOf(name), name]));
   const items: CustomerBackupItem[] = [], skipped: string[] = [];
-  for (const key of [...new Set(selected.map(keyOf))]) {
+  for (const key of [...new Set(selected.map(keyOf))].sort()) {
     const name = names.get(key);
     if (!name) { skipped.push(key); continue; }
     const payload = sliceCustomer(snapshot, name);
@@ -91,6 +91,8 @@ function localSlotUtc(year: number, month: number, day: number, hour: number, mi
   const desired = Date.UTC(year, month - 1, day, hour, minute);
   let value = desired;
   for (let i = 0; i < 4; i++) { const p = zonedParts(new Date(value), tz); const actual = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute); value += desired - actual; }
+  // A spring-forward wall time may not exist. Run at the next matching minute.
+  for (let i = 0; i < 3; i++) { const p = zonedParts(new Date(value), tz); if (Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) >= desired) break; value += 60_000 * 60; }
   return new Date(value);
 }
 export function scheduledSlot(settings: BackupSettings, now = new Date(), next = false): Date | null {

@@ -51,6 +51,9 @@ test('daily, weekly and monthly slots catch up in the chosen timezone', () => {
   assert.equal(backup.scheduledSlot({ ...base, frequency: 'weekly', anchor_day: 5 }, now).toISOString(), '2026-11-13T04:00:00.000Z');
   assert.equal(backup.scheduledSlot({ ...base, frequency: 'monthly', anchor_day: 12 }, now).toISOString(), '2026-11-12T04:00:00.000Z');
   assert.equal(backup.scheduledSlot({ ...base, frequency: 'daily', tz: 'America/New_York' }, new Date('2026-11-13T16:00:00Z')).toISOString(), '2026-11-13T14:30:00.000Z');
+  const spring = { ...base, time_of_day: '02:30:00', tz: 'America/New_York' };
+  assert.equal(backup.scheduledSlot(spring, new Date('2026-03-08T07:00:00Z')).toISOString(), '2026-03-07T07:30:00.000Z');
+  assert.equal(backup.scheduledSlot(spring, new Date('2026-03-08T08:00:00Z')).toISOString(), '2026-03-08T07:30:00.000Z');
   assert.equal(backup.anchorDayForSave('weekly', 'Asia/Kolkata', now), 5);
   assert.equal(backup.anchorDayForSave('monthly', 'Asia/Kolkata', new Date('2026-11-30T10:00:00Z')), 28);
   assert.equal(backup.backupDue({ ...base, frequency: 'off' }, now), null);

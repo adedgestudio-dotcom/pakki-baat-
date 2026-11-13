@@ -19,19 +19,11 @@ export class WorkspaceDailyBackupLifecycle {
   invalidate() { this.generation += 1; this.coordinator.cancel(); }
 }
 
-const customerRuns = new Map<string, Promise<string>>();
-export function runSelectedCustomerBackup(snapshot: Snapshot, settings: BackupSettings, ownerId: string): Promise<string> {
-  const active = customerRuns.get(ownerId);
-  if (active) return active;
-  const run = (async () => {
-    const { items, skipped } = await prepareCustomerBackups(snapshot, settings.customers);
-    const result = items.length ? await saveCustomerBackups(items, ownerId) : { backed_up: 0, unchanged: 0 };
-    await setBackupSettings(settings, ownerId, new Date().toISOString());
-    return `Backed up ${result.backed_up}, unchanged ${result.unchanged}, skipped ${skipped.length}${skipped.length ? ". " + skipped.map(name => `${name} skipped: data problem`).join(". ") : ""}`;
-  })();
-  customerRuns.set(ownerId, run);
-  void run.finally(() => { if (customerRuns.get(ownerId) === run) customerRuns.delete(ownerId); }).catch(() => {});
-  return run;
+export async function runSelectedCustomerBackup(snapshot: Snapshot, settings: BackupSettings, ownerId: string): Promise<string> {
+  const { items, skipped } = await prepareCustomerBackups(snapshot, settings.customers);
+  const result = items.length ? await saveCustomerBackups(items, ownerId) : { backed_up: 0, unchanged: 0 };
+  await setBackupSettings(settings, ownerId, new Date().toISOString());
+  return `Backed up ${result.backed_up}, unchanged ${result.unchanged}, skipped ${skipped.length}${skipped.length ? ". " + skipped.map(name => `${name} skipped: data problem`).join(". ") : ""}`;
 }
 
 
