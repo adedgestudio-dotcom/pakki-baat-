@@ -23,6 +23,7 @@ alter table public.admin_push_settings enable row level security;
 alter table public.admin_push_subscriptions enable row level security;
 alter table public.admin_push_events enable row level security;
 revoke all on public.admin_push_settings, public.admin_push_subscriptions, public.admin_push_events from public, anon, authenticated;
+grant select, insert, update, delete on public.admin_push_settings, public.admin_push_subscriptions, public.admin_push_events to service_role;
 
 create or replace function public.claim_admin_push_event(p_key text) returns boolean
 language plpgsql security definer set search_path = public as $$
