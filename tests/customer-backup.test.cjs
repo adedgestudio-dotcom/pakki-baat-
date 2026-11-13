@@ -112,45 +112,64 @@ test('hardening RPC persists only selection, rejects unselected keys, and caps p
   for (const policy of ['workspace_backup_settings_select_own', 'customer_backups_select_own']) assert.match(sql, new RegExp(`drop policy if exists ${policy}[\\s\\S]*create policy ${policy}[\\s\\S]*owner_id = \\(select auth\\.uid\\(\\)\\)`));
 });
 
-test('selection writes happen on tick, select all, and before Back up without saving schedule edits', () => {
+test('backup page removes selection and saves the all-customer keys with the schedule', () => {
   const page = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
-  const cloud = fs.readFileSync('lib/cloud.ts', 'utf8');
-  assert.match(cloud, /rpc\/set_backup_customers", \{ customers \}/);
-  assert.match(page, /async function backUpNow\(\)[\s\S]*await setBackupCustomers\(draft\.customers, ownerId\); setStatus\(await runSelectedCustomerBackup/);
-  assert.match(page, /async function selectAll\(\)[\s\S]*await setBackupCustomers\(customers, ownerId\); setDraft/);
-  assert.match(page, /async function toggleCustomer\(key: string\)[\s\S]*else if \(ownerId && canBackup\)[\s\S]*await setBackupCustomers\(customers, ownerId\); setDraft/);
+  assert.doesNotMatch(page, /Customers to back up|Choose customers|Select all|Clear all|toggleCustomer|deleteCustomerBackups/);
+  assert.match(page, /const customerKeys = customerNames\(snapshot\)\.map\(normalizeCustomerName\)/);
+  assert.match(page, /await setBackupCustomers\(customerKeys, ownerId\);[\s\S]*await setBackupSettings\(next, ownerId\)/);
+  assert.match(page, /setStatus\(await runAllCustomerBackups\(snapshot, draft, ownerId\)\)/);
   assert.match(page, /added === 0 \? `No entries added after this backup will be removed from \$\{backup\.customer_name\}\.`/);
   assert.match(page, /\$\{added\} \$\{added === 1 \? "entry" : "entries"\} added after this backup will be removed/);
   assert.match(page, /Restore \$\{backup\.customer_name\} from \$\{dateLabel\(backup\.created_at\)\}\? \$\{removal\} A safety copy is saved first\./);
 });
 
-test('missing selected customer keeps prior backup and reports it separately from invalid data', async () => {
+test('backup run syncs every current customer before save and skips damaged data', async () => {
+  const calls = [];
   const runner = load('lib/workspace-daily-backup-lifecycle.ts', {
     './customer-backup': backup,
-    './cloud': { saveCustomerBackups: async () => { throw Error('No save expected'); }, setBackupSettings: async () => {}, loadCustomerBackups: async () => [{ customer_key: 'former customer', customer_name: 'Former Customer' }] },
+    './customer-name': names,
+    './cloud': {
+      setBackupCustomers: async keys => { calls.push(['sync', [...keys]]); },
+      saveCustomerBackups: async items => { calls.push(['save', Array.from(items, item => item.customer_key)]); return { backed_up: items.length, unchanged: 0, rejected: 0 }; },
+      setBackupSettings: async () => { calls.push(['mark']); },
+    },
     './workspace-daily-backup-coordinator': { WorkspaceDailyBackupCoordinator: class {} },
   });
   const settings = { frequency: 'manual', time_of_day: null, tz: 'UTC', anchor_day: null, customers: ['former customer'], last_run_at: null };
-  assert.equal(await runner.runSelectedCustomerBackup(snapshot, settings, 'owner-1'), 'Backed up 0, unchanged 0, skipped 0. Former Customer not found, old backup kept');
-  const rejected = load('lib/workspace-daily-backup-lifecycle.ts', {
-    './customer-backup': backup,
-    './cloud': { saveCustomerBackups: async () => ({ backed_up: 0, unchanged: 0, rejected: 1 }), setBackupSettings: async () => {}, loadCustomerBackups: async () => [] },
-    './workspace-daily-backup-coordinator': { WorkspaceDailyBackupCoordinator: class {} },
-  });
-  assert.equal(await rejected.runSelectedCustomerBackup(snapshot, { ...settings, customers: ['sara'] }, 'owner-1'), 'Backed up 0, unchanged 0, skipped 0, rejected 1');
+  const damaged = { ...snapshot, payments: [{ ...snapshot.payments[0], amount: Infinity }, snapshot.payments[1]] };
+  assert.equal(await runner.runAllCustomerBackups(damaged, settings, 'owner-1'), 'Backed up 1, unchanged 0, skipped 1. Sara skipped: data problem');
+  assert.deepEqual(calls, [['sync', ['mina', 'sara']], ['save', ['mina']], ['mark']]);
+  calls.length = 0;
+  assert.equal(await runner.runAllCustomerBackups({ owner: '', business: '', jobs: [] }, settings, 'owner-1'), 'Add a customer first.');
+  assert.deepEqual(calls, []);
 });
 
-test('backup screen and scheduler use selected customers without legacy daily writes', () => {
+test('zero customers disable Back up and Save; schedule layout and scheduler stay scoped', () => {
   const page = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  const css = fs.readFileSync('app/workspace.css', 'utf8');
   const sql = fs.readFileSync('supabase/migrations/20261113000000_customer_backups.sql', 'utf8');
   assert.match(page, /Keep the app open at backup time\. If closed, it runs when you next open it\./);
-  assert.match(page, /draft\.customers\.length === 0 \|\| scheduleNeedsTime && !draft\.time_of_day/);
+  assert.match(page, /const hasCustomers = customerKeys\.length > 0/);
+  assert.match(page, /const saveDisabled = busy \|\| !canBackup \|\| !hasCustomers/);
+  assert.match(page, /className="primary backup-run-button" disabled=\{busy \|\| !canBackup \|\| !hasCustomers\}/);
+  assert.match(page, /Add a customer first\./);
+  assert.match(page, /sizeLabel\(latestCopies\.map\(row => row\.payload\)\)/);
+  assert.match(page, /className="backup-auto-field">Repeat<select/);
+  assert.match(page, /className="backup-auto-field">Backup time<input/);
+  assert.match(page, /scheduledSlot\(savedSettings, new Date\(now\), true\)/);
+  assert.match(css, /\.backup-auto-form \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(css, /\.backup-auto-save \{ margin-top: 12px; \}/);
+  assert.match(css, /\.backup-auto-field select,[\s\S]*min-height: 44px/);
+  assert.match(css, /@media \(max-width: 600px\) \{\s*\.backup-main-panel \{\s*padding: 16px/);
   assert.match(page, /saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)/);
+  assert.match(page, /const restoreNames = \[\.\.\.new Map\(backups\.map/);
   assert.match(workspace, /visibilitychange/);
   assert.match(workspace, /60_000/);
   assert.match(workspace, /!backupDue\(settings\)/);
   assert.match(workspace, /currentSnapshotForBackupRef\.current\(\)/);
+  assert.match(workspace, /!backupCustomerNames\(snapshot\)\.length/);
+  assert.match(workspace, /runAllCustomerBackups\(snapshot, settings, accountId\)/);
   assert.match(workspace, /\}, \[ready, loggedIn, hasActiveSubscription, isOnline, accountId\]\);/);
   assert.doesNotMatch(workspace, /scheduleDailyBackupAfterCloudSave|saveWorkspaceBackup\(snapshot, "daily"/);
   assert.doesNotMatch(page, /Preferred backup history|Download Backup|Restore from File/);

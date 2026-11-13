@@ -12701,6 +12701,67 @@ footer .footer-separator {
   color: var(--muted);
   font-size: 10px;
 }
+.backup-run-card,
+.backup-auto-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+}
+.backup-run-button,
+.backup-auto-save {
+  width: 100%;
+  min-height: 44px;
+}
+.backup-empty-notice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.backup-auto-heading,
+.backup-next-slot,
+.backup-auto-field,
+.backup-restore-days {
+  display: grid;
+  gap: 6px;
+}
+.backup-auto-heading small,
+.backup-next-help {
+  display: block;
+  color: var(--muted);
+}
+.backup-auto-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+.backup-auto-field {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+.backup-auto-field + .backup-auto-field,
+.backup-auto-save { margin-top: 12px; }
+.backup-auto-field select,
+.backup-auto-field input,
+.backup-restore-section input[type="search"],
+.backup-restore-section input[type="date"],
+.backup-restore-days select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.backup-restore-customers,
+.backup-restore-dates { display: grid; gap: 8px; }
+.backup-restore-option { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.backup-restore-option input { width: 18px; height: 18px; }
 .backup-retention-options {
   display: flex;
   gap: 8px;
@@ -12816,7 +12877,7 @@ footer .footer-separator {
 }
 @media (max-width: 600px) {
   .backup-main-panel {
-    padding: 15px;
+    padding: 16px;
   }
   .backup-page-intro,
   .backup-simple-card {
