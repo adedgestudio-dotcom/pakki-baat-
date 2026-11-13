@@ -6,6 +6,7 @@ import "./workspace.css";
 import "./new-customer-picker.css";
 import "./connections.css";
 import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
+import { backupDue } from "@/lib/customer-backup";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import AudioPlayer from "./audio-player";
@@ -24,12 +25,7 @@ import {
   loadTrialSubscription,
   type TrialSubscriptionState,
 } from "@/lib/trial-offer";
-import {
-  WorkspaceDailyBackupCoordinator,
-  type DailyBackupStatus,
-} from "@/lib/workspace-daily-backup-coordinator";
-import { WorkspaceDailyBackupLifecycle } from "@/lib/workspace-daily-backup-lifecycle";
-import { scheduleDailyBackupAfterCloudSave } from "@/lib/workspace-daily-backup-post-save";
+import { runSelectedCustomerBackup } from "@/lib/workspace-daily-backup-lifecycle";
 import {
   clearStaleOfflineCloudSaveStatus,
   type WorkspaceCloudSaveStatus,
@@ -55,7 +51,7 @@ import {
   readLedgerDirty,
   isRetryableCloudError,
   loadCloud,
-  loadWorkspaceBackups,
+  loadBackupSettings,
   saveCloud,
   saveWorkspaceBackup,
   signInWithGoogle,
@@ -330,9 +326,6 @@ export default function Workspace() {
     [cloudSaveStatus, setCloudSaveStatus] = useState<WorkspaceCloudSaveStatus>({
       state: "idle",
     }),
-    [dailyBackupStatus, setDailyBackupStatus] = useState<DailyBackupStatus>({
-      state: "idle",
-    }),
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
     [payments, publishPayments] = useState<Payment[]>([]),
     [notes, setNotes] = useState<CustomerNote[]>([]),
@@ -443,48 +436,10 @@ export default function Workspace() {
   const chatTurnsRef = useRef<ChatTurn[]>([]);
   const selectedCustomerRef = useRef<string | null>(null);
   const customerChatOpenRef = useRef(false);
-  const dailyBackupCoordinatorRef =
-    useRef<WorkspaceDailyBackupCoordinator | null>(null);
-  const dailyBackupLifecycleRef = useRef<WorkspaceDailyBackupLifecycle | null>(
-    null
-  );
   const dailyBackupGenerationRef = useRef(0);
-  const dailyBackupUiMountedRef = useRef(true);
   const clearBackupStatusUi = () => {
-    if (!dailyBackupUiMountedRef.current) return;
     setCloudSaveStatus({ state: "idle" });
-    setDailyBackupStatus({ state: "idle" });
   };
-  if (!dailyBackupCoordinatorRef.current) {
-    dailyBackupCoordinatorRef.current = new WorkspaceDailyBackupCoordinator({
-      saveDailyBackup: (snapshot, ownerId) =>
-        saveWorkspaceBackup(snapshot, "daily", ownerId),
-      onStatus: (status) => {
-        if (!dailyBackupUiMountedRef.current) return;
-        if (
-          (status.state === "saving" ||
-            status.state === "retrying" ||
-            status.state === "confirmed" ||
-            status.state === "failed") &&
-          (status.ownerId !== activeUserIdRef.current ||
-            status.generation !== dailyBackupGenerationRef.current)
-        )
-          return;
-        setDailyBackupStatus(status);
-      },
-    });
-    dailyBackupLifecycleRef.current = new WorkspaceDailyBackupLifecycle(
-      dailyBackupCoordinatorRef.current
-    );
-  }
-  const cancelDailyBackup = () => dailyBackupLifecycleRef.current?.invalidate();
-  useEffect(() => {
-    dailyBackupUiMountedRef.current = true;
-    return () => {
-      dailyBackupUiMountedRef.current = false;
-      cancelDailyBackup();
-    };
-  }, []);
 
   useEffect(() => {
     pendingJobRef.current = pendingJob;
@@ -1162,18 +1117,6 @@ export default function Workspace() {
               dailyBackupGenerationRef.current !== effectGeneration
             )
               return;
-            await scheduleDailyBackupAfterCloudSave({
-              lifecycle: dailyBackupLifecycleRef.current!,
-              snapshot,
-              ownerId: storageUserId,
-              snapshotGeneration: effectGeneration,
-              isDisposed: () => disposed,
-              activeOwnerId: () => activeUserIdRef.current,
-              isAutosavePaused: () => autosavePausedRef.current,
-              isRecoveryBlocked: () => !cloudHydratedRef.current,
-              currentSnapshotGeneration: () => dailyBackupGenerationRef.current,
-              currentSession,
-            });
             if (!disposed) setSyncPending(false);
           })
           .catch((error) => {
@@ -1202,8 +1145,6 @@ export default function Workspace() {
       void saveCloud(snapshot, storageUserId)
         .then(async () => {
           reportCloudSave("saved");
-          // Keep a separate dated recovery point. A bad current sync therefore
-          // cannot erase all earlier healthy versions.
           if (
             disposed ||
             activeUserIdRef.current !== storageUserId ||
@@ -1212,19 +1153,6 @@ export default function Workspace() {
             dailyBackupGenerationRef.current !== effectGeneration
           )
             return;
-          if (isSnapshot(snapshot))
-            await scheduleDailyBackupAfterCloudSave({
-              lifecycle: dailyBackupLifecycleRef.current!,
-              snapshot,
-              ownerId: storageUserId,
-              snapshotGeneration: effectGeneration,
-              isDisposed: () => disposed,
-              activeOwnerId: () => activeUserIdRef.current,
-              isAutosavePaused: () => autosavePausedRef.current,
-              isRecoveryBlocked: () => !cloudHydratedRef.current,
-              currentSnapshotGeneration: () => dailyBackupGenerationRef.current,
-              currentSession,
-            });
           if (activeUserIdRef.current !== storageUserId) return;
           if (syncPending) {
             setSyncPending(false);
@@ -1763,51 +1691,26 @@ export default function Workspace() {
     }
     return subscription;
   }
-  async function warnIfBackupNeedsAttention() {
-    if (
-      !loggedIn ||
-      !reminderAlertsEnabled ||
-      !isOnline ||
-      !activeUserIdRef.current
-    )
-      return;
-    try {
-      const backups = await loadWorkspaceBackups();
-      const latest = backups.find((item) => isSnapshot(item.payload));
-      if (!latest) return;
-      const ageMs = Date.now() - new Date(latest.created_at).getTime();
-      if (!Number.isFinite(ageMs) || ageMs < 3 * 24 * 60 * 60 * 1000) return;
-
-      const userId = activeUserIdRef.current;
-      const warningKey = "pakki-baat-backup-warning:" + userId;
-      const lastWarned = Number(localStorage.getItem(warningKey) || "0");
-      if (Date.now() - lastWarned < 3 * 24 * 60 * 60 * 1000) return;
-
-      const subscription = await ensurePushSubscription();
-      const token = await cloudToken();
-      const response = await fetch("/api/push/backup-warning", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({ subscription: subscription.toJSON() }),
-      });
-      if (!response.ok) return;
-      localStorage.setItem(warningKey, String(Date.now()));
-    } catch {
-      // Backup warnings are intentionally quiet; normal app use must never be blocked.
-    }
-  }
-
   useEffect(() => {
-    if (!ready || !loggedIn || !reminderAlertsEnabled || !isOnline) return;
-    const timer = window.setTimeout(
-      () => void warnIfBackupNeedsAttention(),
-      2500
-    );
-    return () => window.clearTimeout(timer);
-  }, [ready, loggedIn, reminderAlertsEnabled, isOnline]);
+    if (!ready || !loggedIn || !hasActiveSubscription || !isOnline || !accountId) return;
+    let disposed = false;
+    const check = async () => {
+      if (document.visibilityState === "hidden" || autosavePausedRef.current || !cloudHydratedRef.current ||
+          activeUserIdRef.current !== accountId || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId)) return;
+      try {
+        const settings = await loadBackupSettings(accountId);
+        if (disposed || activeUserIdRef.current !== accountId || autosavePausedRef.current || !cloudHydratedRef.current || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) || !backupDue(settings)) return;
+        await runSelectedCustomerBackup(currentSnapshot(), settings, accountId);
+      } catch (error) {
+        if (!disposed) setToast(`Automatic backup failed: ${error instanceof Error ? error.message : "Please try again."}`);
+      }
+    };
+    void check();
+    const interval = window.setInterval(() => void check(), 60_000);
+    const visible = () => { if (document.visibilityState === "visible") void check(); };
+    document.addEventListener("visibilitychange", visible);
+    return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", visible); };
+  }, [ready, loggedIn, hasActiveSubscription, isOnline, accountId, jobs, payments, notes, reminders, customerPhones]);
 
   function scheduledPushKey(reminder: Reminder, endpoint: string) {
     return `${reminder.id}:${reminder.date}:${
@@ -3410,7 +3313,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     const ownerId = activeUserIdRef.current;
     if (ownerId && ledgerModeForAccount(ownerId)) {
       autosavePausedRef.current = true;
-      cancelDailyBackup();
       clearBackupStatusUi();
       try {
         await saveCloud(normalizedSnapshot(s), ownerId);
@@ -3796,7 +3698,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         const ownerId = activeUserIdRef.current;
         if (ownerId && ledgerModeForAccount(ownerId)) {
           autosavePausedRef.current = true;
-          cancelDailyBackup();
           clearBackupStatusUi();
           try {
             await saveWorkspaceBackup(
@@ -6780,8 +6681,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <div className="eyebrow">BACKUP</div>
                     <h1>Protect your business data</h1>
                     <p>
-                      Simple dated backups you can verify, restore or keep on
-                      your device.
+                      Choose customers to back up and restore when needed.
                     </p>
                   </div>
                 </div>
@@ -6803,7 +6703,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     onPauseAutosave={(paused) => {
                       autosavePausedRef.current = paused;
                       if (paused) {
-                        cancelDailyBackup();
                         clearBackupStatusUi();
                       }
                       if (!paused) restoreTargetRef.current = null;
@@ -6811,11 +6710,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     ownerId={
                       ready && loadedAccountId === accountId ? accountId : null
                     }
-                    cloudSaveStatus={cloudSaveStatus}
-                    dailyBackupStatus={dailyBackupStatus}
-                    dailyBackupGeneration={dailyBackupGenerationRef.current}
-                    dark={dark}
-                    onToggleTheme={toggleTheme}
+                    canBackup={ready && hasActiveSubscription && ledgerModeForAccount(accountId || "") && !cloudWriteConflictForAccount(accountId || "") && !autosavePausedRef.current}
                   />
                 </section>
                 <footer className="settings-brand-footer product-footer">
@@ -7069,7 +6964,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       <span>
                         <strong>Backup</strong>
                         <small>
-                          Automatic recovery, restore and downloads.
+                          Customer backups and restore.
                         </small>
                       </span>
                     </div>
@@ -7081,7 +6976,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       <span>
                         <strong>Open Backup</strong>
                         <small>
-                          View verified backups and choose 15 or 30 days.
+                          Choose customers and a backup schedule.
                         </small>
                       </span>
                       <Icon name="arrow" size={17} />
