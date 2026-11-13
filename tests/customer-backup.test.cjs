@@ -119,7 +119,9 @@ test('selection writes happen on tick, select all, and before Back up without sa
   assert.match(page, /async function backUpNow\(\)[\s\S]*await setBackupCustomers\(draft\.customers, ownerId\); setStatus\(await runSelectedCustomerBackup/);
   assert.match(page, /async function selectAll\(\)[\s\S]*await setBackupCustomers\(customers, ownerId\); setDraft/);
   assert.match(page, /async function toggleCustomer\(key: string\)[\s\S]*else if \(ownerId && canBackup\)[\s\S]*await setBackupCustomers\(customers, ownerId\); setDraft/);
-  assert.match(page, /Restore \$\{backup\.customer_name\} from \$\{dateLabel\(backup\.created_at\)\}\? \$\{added\} entries added after this backup will be removed from \$\{backup\.customer_name\}\. A safety copy is saved first\./);
+  assert.match(page, /added === 0 \? `No entries added after this backup will be removed from \$\{backup\.customer_name\}\.`/);
+  assert.match(page, /\$\{added\} \$\{added === 1 \? "entry" : "entries"\} added after this backup will be removed/);
+  assert.match(page, /Restore \$\{backup\.customer_name\} from \$\{dateLabel\(backup\.created_at\)\}\? \$\{removal\} A safety copy is saved first\./);
 });
 
 test('missing selected customer keeps prior backup and reports it separately from invalid data', async () => {

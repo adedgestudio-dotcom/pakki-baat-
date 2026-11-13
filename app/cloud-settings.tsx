@@ -98,7 +98,8 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ow
     if (!ownerId || !canBackup || !backups.some(row => row.id === backup.id)) return;
     if (!validateCustomerSlice(backup.payload) || backup.customer_key !== backup.payload.customer_key || await hashCustomerSlice(backup.payload) !== backup.content_hash) { setStatus("This customer backup is damaged or invalid."); return; }
     const added = entriesAddedAfterBackup(snapshot, backup.payload);
-    if (!confirm(`Restore ${backup.customer_name} from ${dateLabel(backup.created_at)}? ${added} entries added after this backup will be removed from ${backup.customer_name}. A safety copy is saved first.`)) return;
+    const removal = added === 0 ? `No entries added after this backup will be removed from ${backup.customer_name}.` : `${added} ${added === 1 ? "entry" : "entries"} added after this backup will be removed from ${backup.customer_name}.`;
+    if (!confirm(`Restore ${backup.customer_name} from ${dateLabel(backup.created_at)}? ${removal} A safety copy is saved first.`)) return;
     await run(async () => {
       if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: sign in to the original account.");
       if (!isSnapshot(snapshot)) throw new Error("Current workspace could not be verified for a safety copy.");
