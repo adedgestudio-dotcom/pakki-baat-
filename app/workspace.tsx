@@ -8,6 +8,8 @@ import "./connections.css";
 import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
 import { backupDue, customerNames as backupCustomerNames } from "@/lib/customer-backup";
 import CloudSettings from "./cloud-settings";
+import BackupNudge from "./backup-nudge";
+import { backupNudgeDue, recordBackupNudge, rememberFirstUse } from "@/lib/backup-nudge";
 import ChatComposer from "./chat-composer";
 import AudioPlayer from "./audio-player";
 import Reports from "./reports";
@@ -52,6 +54,7 @@ import {
   isRetryableCloudError,
   loadCloud,
   loadBackupSettings,
+  loadCustomerBackups,
   saveCloud,
   saveWorkspaceBackup,
   signInWithGoogle,
@@ -390,7 +393,8 @@ export default function Workspace() {
     ),
     [appInstalled, setAppInstalled] = useState(false),
     [installHelpOpen, setInstallHelpOpen] = useState(false),
-    [installWelcomeOpen, setInstallWelcomeOpen] = useState(false);
+    [installWelcomeOpen, setInstallWelcomeOpen] = useState(false),
+    [backupNudgeOpen, setBackupNudgeOpen] = useState(false);
   // Synchronous financial state prevents queued React updates from validating against stale closures.
   const financialStateRef = useRef<FinancialState>({ jobs: [], payments: [] });
   function setJobs(value: SetStateAction<Job[]>) {
@@ -420,6 +424,7 @@ export default function Workspace() {
   const voiceFilesRef = useRef<Record<string, File>>({});
   const loadingVoiceIds = useRef(new Set<string>());
   const activeUserIdRef = useRef<string | null>(null);
+  const backupNudgeShownRef = useRef(false);
   const cloudHydratedRef = useRef(false);
   const workspaceUserIdRef = useRef<string | null>(null);
   const autosavePausedRef = useRef(false);
@@ -1336,6 +1341,59 @@ export default function Workspace() {
       trustedNowMs !== null &&
       !subscriptionExpired
   );
+  useEffect(() => {
+    setBackupNudgeOpen(false);
+    if (accountId) {
+      try { rememberFirstUse(localStorage, accountId); } catch {}
+    }
+  }, [accountId]);
+  useEffect(() => {
+    if (backupNudgeOpen && (!isOnline || (tab !== "Today" && tab !== "Hisaab") ||
+        selectedCustomer || customerChatOpen || pendingJob || draft || message.trim() ||
+        trialOfferOpen || trialActivatedOpen || trialExpiryPromptOpen || guideOpen ||
+        receiptJob || paymentJob || editingPayment || reminderJob || directReminderOpen ||
+        installHelpOpen || installWelcomeOpen || ringingReminder || newCustomerOpen ||
+        customerContactsOpen)) setBackupNudgeOpen(false);
+  }, [backupNudgeOpen, isOnline, tab, selectedCustomer, customerChatOpen, pendingJob,
+      draft, message, trialOfferOpen, trialActivatedOpen, trialExpiryPromptOpen,
+      guideOpen, receiptJob, paymentJob, editingPayment, reminderJob, directReminderOpen,
+      installHelpOpen, installWelcomeOpen, ringingReminder, newCustomerOpen,
+      customerContactsOpen]);
+  useEffect(() => {
+    if (backupNudgeShownRef.current || !accountId || !ready || !navigationReady ||
+        !loggedIn || !hasActiveSubscription || loadedAccountId !== accountId || !isOnline ||
+        !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) ||
+        !((tab === "Today" || tab === "Hisaab") && !selectedCustomer && !customerChatOpen) ||
+        pendingJob || draft || message.trim() ||
+        document.querySelector('[aria-modal="true"], dialog[open]')) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [settings, backups] = await Promise.all([
+          loadBackupSettings(accountId), loadCustomerBackups(accountId),
+        ]);
+        if (cancelled || activeUserIdRef.current !== accountId || !navigator.onLine ||
+            document.querySelector('[aria-modal="true"], dialog[open]')) return;
+        let state = null;
+        try { state = rememberFirstUse(localStorage, accountId); } catch {}
+        if (backupNudgeDue({
+          ready, signedIn: loggedIn, activeSubscription: hasActiveSubscription,
+          ledgerMode: ledgerModeForAccount(accountId), cloudConflict: cloudWriteConflictForAccount(accountId),
+          online: isOnline, listScreen: tab === "Today" || tab === "Hisaab", blockedByUi: false,
+          frequency: settings.frequency, lastRunAt: settings.last_run_at, hasBackups: backups.length > 0,
+          entryCount: jobs.length, state, now: Date.now(),
+        })) {
+          backupNudgeShownRef.current = true;
+          setBackupNudgeOpen(true);
+        }
+      } catch { /* A failed cloud check should not interrupt the workspace. */ }
+    })();
+    return () => { cancelled = true; };
+  }, [accountId, ready, navigationReady, loggedIn, hasActiveSubscription, loadedAccountId,
+      isOnline, tab, selectedCustomer, customerChatOpen, pendingJob, draft, message, jobs.length,
+      trialOfferOpen, trialActivatedOpen, trialExpiryPromptOpen, guideOpen, receiptJob,
+      paymentJob, editingPayment, reminderJob, directReminderOpen, installHelpOpen,
+      installWelcomeOpen, ringingReminder, newCustomerOpen, customerContactsOpen]);
   const trialDaysLeft =
     subscriptionPlan === "trial" &&
     subscriptionPeriodEnd &&
@@ -7084,6 +7142,23 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </span>
           ))}
         </nav>
+        {backupNudgeOpen && isOnline && !customerChatOpen && !pendingJob && !draft &&
+          !trialOfferOpen && !trialActivatedOpen && !trialExpiryPromptOpen && !guideOpen &&
+          !receiptJob && !paymentJob && !editingPayment && !reminderJob &&
+          !directReminderOpen && !installHelpOpen && !installWelcomeOpen &&
+          !ringingReminder && !newCustomerOpen && !customerContactsOpen && (
+          <BackupNudge
+            onSetup={() => {
+              try { if (accountId) recordBackupNudge(localStorage, accountId, "setup"); } catch {}
+              setBackupNudgeOpen(false);
+              go("Backup");
+            }}
+            onLater={() => {
+              try { if (accountId) recordBackupNudge(localStorage, accountId, "snooze"); } catch {}
+              setBackupNudgeOpen(false);
+            }}
+          />
+        )}
         {ringingReminder && (
           <div
             className="modal-backdrop reminder-alarm-backdrop"

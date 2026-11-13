@@ -1220,6 +1220,22 @@ label {
   justify-content: center;
   padding: 20px;
 }
+.modal-backdrop.backup-nudge-backdrop {
+  z-index: 12000;
+}
+.backup-nudge-card {
+  max-width: 440px;
+}
+.backup-nudge-card > p {
+  margin: 12px 0 22px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.backup-nudge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .modal {
   background: #fffefb;
   border-radius: 22px;
