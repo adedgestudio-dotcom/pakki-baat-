@@ -300,3 +300,10 @@
  .admin-shell .admin-wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
  .admin-feedback{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
+.admin-alerts{display:grid;gap:18px}
+.admin-alerts-device,.admin-alerts-list label{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--line)}
+.admin-alerts-device button{padding:9px 16px;border:1px solid #67c7af;border-radius:9px;background:#397f6d;color:#fff;font-weight:700}
+.admin-alerts-list{display:grid}
+.admin-alerts-list label{cursor:pointer}
+.admin-alerts-list input{width:22px;height:22px;accent-color:#67c7af}
+@media(max-width:639px){.admin-tabs button{font-size:11px}}
