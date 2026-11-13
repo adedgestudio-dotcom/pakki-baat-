@@ -68,7 +68,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ow
   }
   async function backUpNow() {
     if (!ownerId || !canBackup || !hasCustomers) return;
-    await run(async () => { setStatus(await runAllCustomerBackups(snapshot, draft, ownerId)); await refresh(true); });
+    await run(async () => { setStatus(await runAllCustomerBackups(snapshot, savedSettings, ownerId)); await refresh(true); });
   }
   async function restoreVersion(backup: CustomerBackup) {
     if (!ownerId || !canBackup || !backups.some(row => row.id === backup.id)) return;

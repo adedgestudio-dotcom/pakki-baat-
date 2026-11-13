@@ -6,7 +6,7 @@ const ts = require('typescript');
 const { webcrypto } = require('node:crypto');
 function load(file, mocks = {}) {
   const module = { exports: {} };
-  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   vm.runInNewContext(source, { module, exports: module.exports, require: name => mocks[name] || require(name), crypto: webcrypto, TextEncoder, Intl, Date, Set, Map });
   return module.exports;
 }
@@ -117,10 +117,45 @@ test('backup page removes selection and saves the all-customer keys with the sch
   assert.doesNotMatch(page, /Customers to back up|Choose customers|Select all|Clear all|toggleCustomer|deleteCustomerBackups/);
   assert.match(page, /const customerKeys = customerNames\(snapshot\)\.map\(normalizeCustomerName\)/);
   assert.match(page, /await setBackupCustomers\(customerKeys, ownerId\);[\s\S]*await setBackupSettings\(next, ownerId\)/);
-  assert.match(page, /setStatus\(await runAllCustomerBackups\(snapshot, draft, ownerId\)\)/);
+  assert.match(page, /setStatus\(await runAllCustomerBackups\(snapshot, savedSettings, ownerId\)\)/);
   assert.match(page, /added === 0 \? `No entries added after this backup will be removed from \$\{backup\.customer_name\}\.`/);
   assert.match(page, /\$\{added\} \$\{added === 1 \? "entry" : "entries"\} added after this backup will be removed/);
   assert.match(page, /Restore \$\{backup\.customer_name\} from \$\{dateLabel\(backup\.created_at\)\}\? \$\{removal\} A safety copy is saved first\./);
+});
+
+test('Back up uses saved settings when an unsaved weekly draft has no time', async () => {
+  const saved = { frequency: 'manual', time_of_day: null, tz: 'UTC', anchor_day: null, customers: [], last_run_at: null };
+  const draft = { ...saved, frequency: 'weekly' };
+  const state = [true, false, false, '', '', [], draft, saved, [], '', '', '', Date.now()];
+  let index = 0, received;
+  const react = {
+    useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = typeof initial === 'function' ? initial() : initial; return [state[slot], value => { state[slot] = typeof value === 'function' ? value(state[slot]) : value; }]; },
+    useRef(initial) { return { current: initial }; },
+    useEffect() {},
+    useCallback(callback) { return callback; },
+  };
+  const ui = load('app/cloud-settings.tsx', {
+    react,
+    '@/lib/cloud': { cloudConfigured: true, loadBackupSettings: async () => saved, loadCustomerBackups: async () => [] },
+    '@/lib/customer-backup': backup,
+    '@/lib/customer-name': names,
+    '@/lib/data': {},
+    '@/lib/workspace-daily-backup-lifecycle': { runAllCustomerBackups: async (_snapshot, settings) => { received = settings; if (settings.frequency === 'weekly' && !settings.time_of_day) throw Error('Choose a backup time'); return 'Backed up 2, unchanged 0, skipped 0'; } },
+  });
+  const tree = ui.default({ snapshot, onRestore() {}, onPauseAutosave() {}, ownerId: 'owner-1', canBackup: true });
+  function findButton(node) {
+    if (Array.isArray(node)) return node.map(findButton).find(Boolean);
+    if (!node || typeof node !== 'object') return null;
+    if (node.type === 'button' && node.props?.children === 'Back up') return node;
+    return findButton(node.props?.children);
+  }
+  const button = findButton(tree);
+  assert.ok(button);
+  assert.equal(button.props.disabled, false);
+  button.props.onClick();
+  await new Promise(setImmediate);
+  assert.equal(received, saved);
+  assert.equal(state[3], 'Backed up 2, unchanged 0, skipped 0');
 });
 
 test('backup run syncs every current customer before save and skips damaged data', async () => {
