@@ -6,7 +6,7 @@ import "./workspace.css";
 import "./new-customer-picker.css";
 import "./connections.css";
 import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
-import { backupDue } from "@/lib/customer-backup";
+import { backupDue, customerNames as backupCustomerNames } from "@/lib/customer-backup";
 import CloudSettings from "./cloud-settings";
 import ChatComposer from "./chat-composer";
 import AudioPlayer from "./audio-player";
@@ -25,7 +25,7 @@ import {
   loadTrialSubscription,
   type TrialSubscriptionState,
 } from "@/lib/trial-offer";
-import { runSelectedCustomerBackup } from "@/lib/workspace-daily-backup-lifecycle";
+import { runAllCustomerBackups } from "@/lib/workspace-daily-backup-lifecycle";
 import {
   clearStaleOfflineCloudSaveStatus,
   type WorkspaceCloudSaveStatus,
@@ -1702,7 +1702,9 @@ export default function Workspace() {
       try {
         const settings = await loadBackupSettings(accountId);
         if (disposed || activeUserIdRef.current !== accountId || autosavePausedRef.current || !cloudHydratedRef.current || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) || !backupDue(settings)) return;
-        await runSelectedCustomerBackup(currentSnapshotForBackupRef.current(), settings, accountId);
+        const snapshot = currentSnapshotForBackupRef.current();
+        if (!backupCustomerNames(snapshot).length) return;
+        await runAllCustomerBackups(snapshot, settings, accountId);
       } catch (error) {
         if (!disposed) setToast(`Automatic backup failed: ${error instanceof Error ? error.message : "Please try again."}`);
       }
@@ -6683,7 +6685,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <div className="eyebrow">BACKUP</div>
                     <h1>Protect your business data</h1>
                     <p>
-                      Choose customers to back up and restore when needed.
+                      Back up all customers and restore individual customers when needed.
                     </p>
                   </div>
                 </div>
@@ -6978,7 +6980,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       <span>
                         <strong>Open Backup</strong>
                         <small>
-                          Choose customers and a backup schedule.
+                          Back up everyone and choose a schedule.
                         </small>
                       </span>
                       <Icon name="arrow" size={17} />
