@@ -437,6 +437,8 @@ export default function Workspace() {
   const selectedCustomerRef = useRef<string | null>(null);
   const customerChatOpenRef = useRef(false);
   const dailyBackupGenerationRef = useRef(0);
+  const currentSnapshotForBackupRef = useRef(currentSnapshot);
+  useEffect(() => { currentSnapshotForBackupRef.current = currentSnapshot; });
   const clearBackupStatusUi = () => {
     setCloudSaveStatus({ state: "idle" });
   };
@@ -1700,7 +1702,7 @@ export default function Workspace() {
       try {
         const settings = await loadBackupSettings(accountId);
         if (disposed || activeUserIdRef.current !== accountId || autosavePausedRef.current || !cloudHydratedRef.current || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) || !backupDue(settings)) return;
-        await runSelectedCustomerBackup(currentSnapshot(), settings, accountId);
+        await runSelectedCustomerBackup(currentSnapshotForBackupRef.current(), settings, accountId);
       } catch (error) {
         if (!disposed) setToast(`Automatic backup failed: ${error instanceof Error ? error.message : "Please try again."}`);
       }
@@ -1710,7 +1712,7 @@ export default function Workspace() {
     const visible = () => { if (document.visibilityState === "visible") void check(); };
     document.addEventListener("visibilitychange", visible);
     return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", visible); };
-  }, [ready, loggedIn, hasActiveSubscription, isOnline, accountId, jobs, payments, notes, reminders, customerPhones]);
+  }, [ready, loggedIn, hasActiveSubscription, isOnline, accountId]);
 
   function scheduledPushKey(reminder: Reminder, endpoint: string) {
     return `${reminder.id}:${reminder.date}:${

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cloudConfigured, cloudSnapshotsEqual, currentSession, deleteCustomerBackups, loadCustomerBackups, loadBackupSettings, loadReportLedger, readLedgerDirty, saveCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, type CustomerBackup } from "@/lib/cloud";
-import { anchorDayForSave, customerNames, hashCustomerSlice, restoreCustomer, scheduledSlot, sliceCustomer, validateCustomerSlice, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
+import { cloudConfigured, cloudSnapshotsEqual, currentSession, deleteCustomerBackups, loadCustomerBackups, loadBackupSettings, loadReportLedger, readLedgerDirty, saveCloud, saveWorkspaceBackup, setBackupCustomers, setBackupSettings, signInWithGoogle, watchSession, type CustomerBackup } from "@/lib/cloud";
+import { anchorDayForSave, customerNames, entriesAddedAfterBackup, hashCustomerSlice, restoreCustomer, scheduledSlot, sliceCustomer, validateCustomerSlice, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { normalizeCustomerName } from "@/lib/customer-name";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 import { runSelectedCustomerBackup } from "@/lib/workspace-daily-backup-lifecycle";
@@ -77,19 +77,28 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ow
   }
   async function backUpNow() {
     if (!ownerId || !canBackup || !draft.customers.length) return;
-    await run(async () => { setStatus(await runSelectedCustomerBackup(snapshot, draft, ownerId)); await refresh(true); });
+    await run(async () => { await setBackupCustomers(draft.customers, ownerId); setStatus(await runSelectedCustomerBackup(snapshot, draft, ownerId)); await refresh(true); });
+  }
+  async function selectAll() {
+    if (!ownerId || !canBackup) return;
+    const customers = names.map(normalizeCustomerName);
+    await run(async () => { await setBackupCustomers(customers, ownerId); setDraft(previous => ({ ...previous, customers })); });
   }
   async function toggleCustomer(key: string) {
     if (draft.customers.includes(key)) {
       if (!confirm(`Stop backing up ${nameByKey.get(key) || key}? Existing backup copies for this customer will be deleted.`)) return;
       if (!ownerId) return;
       await run(async () => { await deleteCustomerBackups([key], ownerId); setBackups(rows => rows.filter(row => row.customer_key !== key)); setDraft(previous => { const customers = previous.customers.filter(item => item !== key); return customers.length ? { ...previous, customers } : { ...previous, customers, frequency: "off", time_of_day: null, anchor_day: null }; }); setStatus("Customer backup copies deleted."); });
-    } else setDraft(previous => ({ ...previous, customers: [...previous.customers, key] }));
+    } else if (ownerId && canBackup) {
+      const customers = [...draft.customers, key];
+      await run(async () => { await setBackupCustomers(customers, ownerId); setDraft(previous => ({ ...previous, customers })); });
+    }
   }
   async function restoreVersion(backup: CustomerBackup) {
     if (!ownerId || !canBackup || !backups.some(row => row.id === backup.id)) return;
     if (!validateCustomerSlice(backup.payload) || backup.customer_key !== backup.payload.customer_key || await hashCustomerSlice(backup.payload) !== backup.content_hash) { setStatus("This customer backup is damaged or invalid."); return; }
-    if (!confirm(`Restore ${backup.customer_name} from ${dateLabel(backup.created_at)}? Your current workspace will first be saved as a safety copy.`)) return;
+    const added = entriesAddedAfterBackup(snapshot, backup.payload);
+    if (!confirm(`Restore ${backup.customer_name} from ${dateLabel(backup.created_at)}? ${added} entries added after this backup will be removed from ${backup.customer_name}. A safety copy is saved first.`)) return;
     await run(async () => {
       if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: sign in to the original account.");
       if (!isSnapshot(snapshot)) throw new Error("Current workspace could not be verified for a safety copy.");
@@ -114,7 +123,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, ow
     <div className="backup-page-intro"><div><h3>Backup</h3><p>Choose the customers you want to protect.</p></div></div>
     {!cloudConfigured ? <div className="notice">Cloud backup is not connected yet.</div> : checking ? <div className="notice">Checking your backup…</div> : !logged ? <><div className="notice">Sign in to use customer backups.</div><button className="google-sign-in" disabled={busy} onClick={() => void run(signInWithGoogle)}>Continue with Google</button></> : <>
       <section className="backup-simple-card"><span><strong>{last ? `Last backup: ${dateLabel(last.created_at)} · ${sizeLabel(selectedCopies.map(row => row.payload))}` : "Last backup: None yet"}</strong><small>Photos are not part of backups.</small></span><button type="button" className="primary" disabled={busy || !canBackup || !draft.customers.length} onClick={() => void backUpNow()}>Back up</button></section>
-      <section className="backup-history"><div><strong>Customers to back up</strong><small>Choose at least one customer.</small></div><input type="search" aria-label="Search customers to back up" placeholder="Search customers" value={query} onChange={event => setQuery(event.target.value)}/><button type="button" className="outline" disabled={busy || !canBackup || !names.length} onClick={() => setDraft(previous => ({ ...previous, customers: names.map(normalizeCustomerName) }))}>Select all</button>
+      <section className="backup-history"><div><strong>Customers to back up</strong><small>Choose at least one customer.</small></div><input type="search" aria-label="Search customers to back up" placeholder="Search customers" value={query} onChange={event => setQuery(event.target.value)}/><button type="button" className="outline" disabled={busy || !canBackup || !names.length} onClick={() => void selectAll()}>Select all</button>
         {visibleNames.map(name => { const key = normalizeCustomerName(name), latest = latestByKey.get(key); const state = !latest ? "Not backed up" : hashes[key] === latest.content_hash ? "Backed up" : "Changed since backup"; return <label className="backup-history-row" key={key}><span><strong>{name}</strong><small>{state}</small></span><input type="checkbox" checked={draft.customers.includes(key)} disabled={busy || !canBackup} onChange={() => void toggleCustomer(key)}/></label>; })}
       </section>
       <section className="backup-simple-card"><span><strong>Automatic backups</strong><small>Choose when Pakki Baat makes customer copies.</small></span><div><select aria-label="Automatic backups" value={draft.frequency} disabled={busy || !canBackup} onChange={event => setDraft(previous => ({ ...previous, frequency: event.target.value as BackupFrequency, time_of_day: null }))}><option value="off">Off</option><option value="manual">Only when I tap Back up</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>{scheduleNeedsTime && <label>Backup time <input type="time" value={draft.time_of_day || ""} onChange={event => setDraft(previous => ({ ...previous, time_of_day: event.target.value || null }))}/></label>}<button type="button" className="primary" disabled={saveDisabled} onClick={() => void saveSettings()}>Save</button></div>{nextSlot && <div><strong>Next backup: {dateLabel(nextSlot)}</strong><small style={{ display: "block", color: "#728075" }}>Keep the app open at backup time. If closed, it runs when you next open it.</small></div>}</section>

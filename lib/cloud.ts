@@ -319,13 +319,18 @@ export async function setBackupSettings(settings: BackupSettings, ownerId: strin
   await request("/rest/v1/rpc/set_backup_settings", { frequency: settings.frequency, time_of_day: settings.time_of_day, tz: settings.tz, anchor_day: settings.anchor_day, customers: settings.customers, run_at: runAt || null }, session.access_token);
   await accountSession(ownerId);
 }
+export async function setBackupCustomers(customers: string[], ownerId: string): Promise<void> {
+  const session = await accountSession(ownerId);
+  await request("/rest/v1/rpc/set_backup_customers", { customers }, session.access_token);
+  await accountSession(ownerId);
+}
 export async function loadCustomerBackups(ownerId: string): Promise<CustomerBackup[]> {
   const session = await accountSession(ownerId);
   const rows = await request("/rest/v1/customer_backups?select=id,customer_key,customer_name,payload,content_hash,created_at&order=created_at.desc&limit=1500", undefined, session.access_token);
   await accountSession(ownerId);
   return rows;
 }
-export async function saveCustomerBackups(items: CustomerBackupItem[], ownerId: string): Promise<{ backed_up: number; unchanged: number }> {
+export async function saveCustomerBackups(items: CustomerBackupItem[], ownerId: string): Promise<{ backed_up: number; unchanged: number; rejected: number }> {
   const session = await accountSession(ownerId);
   const result = await request("/rest/v1/rpc/save_customer_backups", { items }, session.access_token);
   await accountSession(ownerId);

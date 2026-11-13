@@ -31,7 +31,7 @@ export function validateCustomerSlice(slice: CustomerSlice): boolean {
   const unique = (id: unknown) => { if (typeof id !== "string" || !id.trim() || ids.has(id)) return false; ids.add(id); return true; };
   if (!slice.jobs.every(j => j && unique(j.id) && keyOf(j.customer) === slice.customer_key && Number.isFinite(j.total) && j.total >= 0 && Number.isFinite(j.paid) && j.paid >= 0 && j.paid <= j.total && validDate(j.date, true) && validTimestamp(j.createdAt, true))) return false;
   const jobIds = new Set(slice.jobs.map(j => j.id));
-  if (!slice.payments.every(p => p && unique(p.id) && keyOf(p.customer) === slice.customer_key && Number.isFinite(p.amount) && p.amount >= 0 && validDate(p.date) && validTimestamp(p.createdAt) && !!p.jobId && jobIds.has(p.jobId))) return false;
+  if (!slice.payments.every(p => p && unique(p.id) && keyOf(p.customer) === slice.customer_key && Number.isFinite(p.amount) && p.amount >= 0 && validDate(p.date) && validTimestamp(p.createdAt) && (p.jobId === undefined || jobIds.has(p.jobId)))) return false;
   if (!slice.notes.every(n => n && unique(n.id) && keyOf(n.customer) === slice.customer_key && validTimestamp(n.createdAt))) return false;
   if (!slice.reminders.every(r => r && unique(r.id) && keyOf(r.customer || "") === slice.customer_key && validDate(r.date) && validTimestamp(r.createdAt) && (!r.jobId || jobIds.has(r.jobId)))) return false;
   return slice.phone === null || typeof slice.phone === "string" && slice.phone.length <= 20;
@@ -42,17 +42,22 @@ export async function hashCustomerSlice(slice: CustomerSlice): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
-export async function prepareCustomerBackups(snapshot: Snapshot, selected: string[]): Promise<{ items: CustomerBackupItem[]; skipped: string[] }> {
+export async function prepareCustomerBackups(snapshot: Snapshot, selected: string[]): Promise<{ items: CustomerBackupItem[]; skipped: string[]; notFound: string[] }> {
   const names = new Map(customerNames(snapshot).map(name => [keyOf(name), name]));
-  const items: CustomerBackupItem[] = [], skipped: string[] = [];
+  const items: CustomerBackupItem[] = [], skipped: string[] = [], notFound: string[] = [];
   for (const key of [...new Set(selected.map(keyOf))].sort()) {
     const name = names.get(key);
-    if (!name) { skipped.push(key); continue; }
+    if (!name) { notFound.push(key); continue; }
     const payload = sliceCustomer(snapshot, name);
     if (!validateCustomerSlice(payload)) { skipped.push(name); continue; }
     items.push({ customer_key: key, customer_name: name, payload, content_hash: await hashCustomerSlice(payload) });
   }
-  return { items, skipped };
+  return { items, skipped, notFound };
+}
+
+export function entriesAddedAfterBackup(snapshot: Snapshot, slice: CustomerSlice): number {
+  const backedUpIds = new Set(slice.jobs.map(job => job.id));
+  return snapshot.jobs.filter(job => keyOf(job.customer) === slice.customer_key && !backedUpIds.has(job.id)).length;
 }
 
 export function restoreCustomer(snapshot: Snapshot, slice: CustomerSlice, historicalJobIds = new Set<string>(), historicalPaymentIds = new Set<string>(), makeId = () => crypto.randomUUID()): { snapshot: Snapshot; copiedJobs: number } {
@@ -69,7 +74,7 @@ export function restoreCustomer(snapshot: Snapshot, slice: CustomerSlice, histor
   const remapped = new Map<string, string>();
   let copiedJobs = 0;
   const jobs = slice.jobs.map(j => { const copy = !currentJobIds.has(j.id) && historicalJobIds.has(j.id); const id = copy || used.has(j.id) ? fresh() : j.id; used.add(id); if (id !== j.id) { remapped.set(j.id, id); copiedJobs++; } return { ...j, id }; });
-  const payments = slice.payments.map(p => { const id = !currentPaymentIds.has(p.id) && historicalPaymentIds.has(p.id) || used.has(p.id) ? fresh() : p.id; used.add(id); return { ...p, id, jobId: remapped.get(p.jobId!) || p.jobId }; });
+  const payments = slice.payments.map(p => { const id = !currentPaymentIds.has(p.id) && historicalPaymentIds.has(p.id) || used.has(p.id) ? fresh() : p.id; used.add(id); return p.jobId ? { ...p, id, jobId: remapped.get(p.jobId) || p.jobId } : { ...p, id }; });
   const notes = slice.notes.map(n => { const id = used.has(n.id) ? fresh() : n.id; used.add(id); return { ...n, id }; });
   const reminders = slice.reminders.map(r => { const id = used.has(r.id) ? fresh() : r.id; used.add(id); return { ...r, id, jobId: r.jobId ? remapped.get(r.jobId) || r.jobId : undefined }; });
   const customerPhones = Object.fromEntries(Object.entries(snapshot.customerPhones || {}).filter(([name]) => keyOf(name) !== key));
