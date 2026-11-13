@@ -1,5 +1,7 @@
 import type { Snapshot } from "./data";
 import { WorkspaceDailyBackupCoordinator } from "./workspace-daily-backup-coordinator";
+import { prepareCustomerBackups, type BackupSettings } from "./customer-backup";
+import { saveCustomerBackups, setBackupSettings } from "./cloud";
 
 export type DailyBackupLifecycleSchedule = { ownerId: string; snapshot: Snapshot; snapshotGeneration: number; canAttempt: () => boolean | Promise<boolean> };
 
@@ -15,6 +17,21 @@ export class WorkspaceDailyBackupLifecycle {
     });
   }
   invalidate() { this.generation += 1; this.coordinator.cancel(); }
+}
+
+const customerRuns = new Map<string, Promise<string>>();
+export function runSelectedCustomerBackup(snapshot: Snapshot, settings: BackupSettings, ownerId: string): Promise<string> {
+  const active = customerRuns.get(ownerId);
+  if (active) return active;
+  const run = (async () => {
+    const { items, skipped } = await prepareCustomerBackups(snapshot, settings.customers);
+    const result = items.length ? await saveCustomerBackups(items, ownerId) : { backed_up: 0, unchanged: 0 };
+    await setBackupSettings(settings, ownerId, new Date().toISOString());
+    return `Backed up ${result.backed_up}, unchanged ${result.unchanged}, skipped ${skipped.length}${skipped.length ? ". " + skipped.map(name => `${name} skipped: data problem`).join(". ") : ""}`;
+  })();
+  customerRuns.set(ownerId, run);
+  void run.finally(() => { if (customerRuns.get(ownerId) === run) customerRuns.delete(ownerId); }).catch(() => {});
+  return run;
 }
 
 

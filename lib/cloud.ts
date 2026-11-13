@@ -306,6 +306,37 @@ export async function setWorkspaceBackupRetention(days: 15 | 30) {
   await request("/rest/v1/rpc/set_workspace_backup_retention", { days }, await cloudToken());
 }
 
+import type { BackupSettings, CustomerBackupItem, CustomerSlice } from "./customer-backup";
+export type CustomerBackup = { id: string; customer_key: string; customer_name: string; payload: CustomerSlice; content_hash: string; created_at: string };
+export async function loadBackupSettings(ownerId: string): Promise<BackupSettings> {
+  const session = await accountSession(ownerId);
+  const rows = await request("/rest/v1/workspace_backup_settings?select=frequency,time_of_day,tz,anchor_day,customers,last_run_at", undefined, session.access_token);
+  await accountSession(ownerId);
+  return rows[0] || { frequency: "off", time_of_day: null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", anchor_day: null, customers: [], last_run_at: null };
+}
+export async function setBackupSettings(settings: BackupSettings, ownerId: string, runAt?: string): Promise<void> {
+  const session = await accountSession(ownerId);
+  await request("/rest/v1/rpc/set_backup_settings", { frequency: settings.frequency, time_of_day: settings.time_of_day, tz: settings.tz, anchor_day: settings.anchor_day, customers: settings.customers, run_at: runAt || null }, session.access_token);
+  await accountSession(ownerId);
+}
+export async function loadCustomerBackups(ownerId: string): Promise<CustomerBackup[]> {
+  const session = await accountSession(ownerId);
+  const rows = await request("/rest/v1/customer_backups?select=id,customer_key,customer_name,payload,content_hash,created_at&order=created_at.desc&limit=1500", undefined, session.access_token);
+  await accountSession(ownerId);
+  return rows;
+}
+export async function saveCustomerBackups(items: CustomerBackupItem[], ownerId: string): Promise<{ backed_up: number; unchanged: number }> {
+  const session = await accountSession(ownerId);
+  const result = await request("/rest/v1/rpc/save_customer_backups", { items }, session.access_token);
+  await accountSession(ownerId);
+  return result;
+}
+export async function deleteCustomerBackups(keys: string[], ownerId: string): Promise<void> {
+  const session = await accountSession(ownerId);
+  await request("/rest/v1/rpc/delete_customer_backups", { keys }, session.access_token);
+  await accountSession(ownerId);
+}
+
 export type SubscriptionInfo = {
   plan: string;
   status: string;
