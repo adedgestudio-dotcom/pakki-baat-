@@ -272,42 +272,42 @@ export async function loadCloud(expectedOwnerId?: string) {
 export type WorkspaceBackup = {
   id: string;
   payload: unknown;
-  backup_kind: "daily" | "pre_restore";
+  backup_kind: "daily" | "manual" | "scheduled" | "pre_restore";
   backup_day: string;
   created_at: string;
 };
 
-export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "pre_restore" = "daily", expectedOwnerId?: string) {
+export type WorkspaceBackupSaveResult = { created: boolean; created_at: string; id: string };
+export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "manual" | "scheduled" | "pre_restore" = "daily", expectedOwnerId?: string): Promise<WorkspaceBackupSaveResult> {
   const session = await accountSession(expectedOwnerId);
-  await request("/rest/v1/rpc/save_workspace_backup", { payload: snapshot, kind }, session.access_token);
+  const result = await request("/rest/v1/rpc/save_workspace_backup", { payload: snapshot, kind }, session.access_token);
+  await accountSession(session.user.id);
+  return result as WorkspaceBackupSaveResult;
 }
 
 export async function loadWorkspaceBackups(expectedOwnerId?: string): Promise<WorkspaceBackup[]> {
   const session = await accountSession(expectedOwnerId);
-  const rows = await request(
-    "/rest/v1/workspace_backups?select=id,payload,backup_kind,backup_day,created_at&order=created_at.desc&limit=120",
-    undefined,
-    session.access_token
-  );
+  const rows: WorkspaceBackup[] = [];
+  for (let offset = 0; ; offset += 200) {
+    const page: WorkspaceBackup[] = await request(
+      `/rest/v1/workspace_backups?select=id,payload,backup_kind,backup_day,created_at&order=created_at.desc,id.desc&limit=200&offset=${offset}`,
+      undefined, session.access_token
+    );
+    rows.push(...page);
+    if (page.length < 200) break;
+  }
   await accountSession(session.user.id);
   return rows;
 }
 
-export async function loadWorkspaceBackupRetention(): Promise<15 | 30 | null> {
-  const rows = await request(
-    "/rest/v1/workspace_backup_preferences?select=retention_days",
-    undefined,
-    await cloudToken()
-  );
-  return rows[0]?.retention_days === 30 ? 30 : rows[0]?.retention_days === 15 ? 15 : null;
+export async function loadLatestWorkspaceBackup(expectedOwnerId: string): Promise<WorkspaceBackup | null> {
+  const session = await accountSession(expectedOwnerId);
+  const rows = await request("/rest/v1/workspace_backups?select=id,payload,backup_kind,backup_day,created_at&order=created_at.desc,id.desc&limit=1", undefined, session.access_token);
+  await accountSession(session.user.id);
+  return rows[0] || null;
 }
 
-export async function setWorkspaceBackupRetention(days: 15 | 30) {
-  await request("/rest/v1/rpc/set_workspace_backup_retention", { days }, await cloudToken());
-}
-
-import type { BackupSettings, CustomerBackupItem, CustomerSlice } from "./customer-backup";
-export type CustomerBackup = { id: string; customer_key: string; customer_name: string; payload: CustomerSlice; content_hash: string; created_at: string };
+import type { BackupSettings } from "./customer-backup";
 export async function loadBackupSettings(ownerId: string): Promise<BackupSettings> {
   const session = await accountSession(ownerId);
   const rows = await request("/rest/v1/workspace_backup_settings?select=frequency,time_of_day,tz,anchor_day,customers,last_run_at", undefined, session.access_token);
@@ -317,28 +317,6 @@ export async function loadBackupSettings(ownerId: string): Promise<BackupSetting
 export async function setBackupSettings(settings: BackupSettings, ownerId: string, runAt?: string): Promise<void> {
   const session = await accountSession(ownerId);
   await request("/rest/v1/rpc/set_backup_settings", { frequency: settings.frequency, time_of_day: settings.time_of_day, tz: settings.tz, anchor_day: settings.anchor_day, customers: settings.customers, run_at: runAt || null }, session.access_token);
-  await accountSession(ownerId);
-}
-export async function setBackupCustomers(customers: string[], ownerId: string): Promise<void> {
-  const session = await accountSession(ownerId);
-  await request("/rest/v1/rpc/set_backup_customers", { customers }, session.access_token);
-  await accountSession(ownerId);
-}
-export async function loadCustomerBackups(ownerId: string): Promise<CustomerBackup[]> {
-  const session = await accountSession(ownerId);
-  const rows = await request("/rest/v1/customer_backups?select=id,customer_key,customer_name,payload,content_hash,created_at&order=created_at.desc&limit=1500", undefined, session.access_token);
-  await accountSession(ownerId);
-  return rows;
-}
-export async function saveCustomerBackups(items: CustomerBackupItem[], ownerId: string): Promise<{ backed_up: number; unchanged: number; rejected: number }> {
-  const session = await accountSession(ownerId);
-  const result = await request("/rest/v1/rpc/save_customer_backups", { items }, session.access_token);
-  await accountSession(ownerId);
-  return result;
-}
-export async function deleteCustomerBackups(keys: string[], ownerId: string): Promise<void> {
-  const session = await accountSession(ownerId);
-  await request("/rest/v1/rpc/delete_customer_backups", { keys }, session.access_token);
   await accountSession(ownerId);
 }
 

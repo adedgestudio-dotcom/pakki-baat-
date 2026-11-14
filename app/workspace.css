@@ -12586,29 +12586,13 @@ footer .footer-separator {
   background: var(--surface);
   box-sizing: border-box;
 }
-.backup-history-row > span {
-  display: grid;
-  gap: 4px;
+.backup-history-row > strong {
   min-width: 0;
   flex: 1;
-}
-.backup-history-row > span > strong {
   font-size: 12px;
   line-height: 1.35;
   color: var(--text);
   overflow-wrap: anywhere;
-}
-.backup-history-row > span > small {
-  display: inline-flex;
-  width: max-content;
-  max-width: 100%;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.25;
 }
 .backup-history-row > .outline {
   flex: 0 0 auto;
@@ -12629,7 +12613,7 @@ footer .footer-separator {
     padding: 11px 12px;
     gap: 10px;
   }
-  .backup-history-row > span > strong {
+  .backup-history-row > strong {
     font-size: 11px;
   }
   .backup-history-row > .outline {
@@ -12731,15 +12715,11 @@ footer .footer-separator {
   align-items: stretch;
   gap: 12px;
 }
+.backup-run-card > .backup-auto-card { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 4px; }
 .backup-run-button,
 .backup-auto-save {
   width: 100%;
   min-height: 44px;
-}
-.backup-empty-notice {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
 }
 .backup-auto-heading,
 .backup-next-slot,
@@ -12792,49 +12772,12 @@ footer .footer-separator {
 .backup-clock-actions { justify-content: flex-end; }
 .backup-progress { height: 8px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
 .backup-progress span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .2s ease; }
+.backup-restore-confirm-backdrop { z-index: 10010; }
+.backup-restore-confirm { box-sizing: border-box; width: min(440px, calc(100vw - 28px)); padding: 24px; border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 20px 60px #0004; }
+.backup-restore-confirm p { margin: 0 0 20px; line-height: 1.5; }
+.backup-restore-confirm > div { display: flex; justify-content: flex-end; gap: 10px; }
+.backup-restore-confirm button { min-width: 72px; min-height: 44px; border-radius: 10px; }
 @media (max-width: 600px) { .backup-clock-popover { position: fixed; top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); } }
-.backup-retention-options {
-  display: flex;
-  gap: 8px;
-}
-.backup-retention-options button {
-  display: grid;
-  gap: 1px;
-  min-width: 86px;
-  min-height: 44px;
-  padding: 7px 12px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-.backup-retention-options button strong {
-  font-size: 11px;
-  line-height: 1.2;
-}
-.backup-retention-options button small {
-  font-size: 9px;
-  color: var(--muted);
-  font-weight: 700;
-}
-.backup-retention-options button.active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
-  background: color-mix(in srgb, var(--accent) 11%, var(--surface));
-  color: var(--accent);
-}
-.backup-retention-options button.active small {
-  color: var(--accent);
-}
-.backup-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex: 0 0 auto;
-}
 .backup-row-actions .outline {
   min-height: 36px;
   padding: 7px 10px;
@@ -12915,19 +12858,9 @@ footer .footer-separator {
     align-items: stretch;
     flex-direction: column;
   }
-  .backup-retention-options {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
   .backup-history-row {
     align-items: flex-start;
     flex-direction: column;
-  }
-  .backup-row-actions {
-    width: 100%;
-  }
-  .backup-row-actions .outline {
-    flex: 1;
   }
   .backup-export-actions {
     display: grid;
@@ -12996,10 +12929,6 @@ footer .footer-separator {
   .backup-status-row {
     min-height: 0;
     padding: 11px 12px;
-  }
-  .backup-retention-options button {
-    min-width: 0;
-    width: 100%;
   }
 }
 
