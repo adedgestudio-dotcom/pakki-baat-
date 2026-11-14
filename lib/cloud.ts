@@ -321,11 +321,12 @@ export async function loadBackupSettings(ownerId: string): Promise<BackupSetting
   const session = await accountSession(ownerId);
   const rows = await request("/rest/v1/workspace_backup_settings?select=frequency,time_of_day,tz,anchor_day,customers,last_run_at", undefined, session.access_token);
   await accountSession(ownerId);
-  return rows[0] || { frequency: "off", time_of_day: null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", anchor_day: null, customers: [], last_run_at: null };
+  const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return { ...(rows[0] || { frequency: "off", time_of_day: null, anchor_day: null, customers: [], last_run_at: null }), tz: deviceTz };
 }
 export async function setBackupSettings(settings: BackupSettings, ownerId: string, runAt?: string): Promise<void> {
   const session = await accountSession(ownerId);
-  await request("/rest/v1/rpc/set_backup_settings", { frequency: settings.frequency, time_of_day: settings.time_of_day, tz: settings.tz, anchor_day: settings.anchor_day, customers: settings.customers, run_at: runAt || null }, session.access_token);
+  await request("/rest/v1/rpc/set_backup_settings", { frequency: settings.frequency, time_of_day: settings.time_of_day, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, anchor_day: settings.anchor_day, customers: settings.customers, run_at: runAt || null }, session.access_token);
   await accountSession(ownerId);
 }
 

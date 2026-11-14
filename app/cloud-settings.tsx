@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadWorkspaceBackups, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, type WorkspaceBackup } from "@/lib/cloud";
+import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadWorkspaceBackups, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, LEGACY_WORKSPACE_READ_ONLY_MESSAGE, type WorkspaceBackup } from "@/lib/cloud";
 import { anchorDayForSave, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 import { runWorkspaceBackup } from "@/lib/workspace-daily-backup-lifecycle";
 
-const emptySettings = (): BackupSettings => ({ frequency: "off", time_of_day: null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", anchor_day: null, customers: [], last_run_at: null });
+const emptySettings = (): BackupSettings => ({ frequency: "off", time_of_day: null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, anchor_day: null, customers: [], last_run_at: null });
 const dateLabel = (value: string | Date) => new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 function backupLabel(createdAt: string, tz: string, now: number) {
   const day = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
@@ -55,7 +55,7 @@ function ClockPicker({ value, disabled, onChange }: { value: string | null; disa
   </div>;
 }
 
-export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, onToast = () => {}, scheduledProgress = null, scheduledError = "", onClearScheduledError = () => {}, ownerId, canBackup }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; onPauseAutosave: (paused: boolean) => void; onToast?: (message: string) => void; scheduledProgress?: number | null; scheduledError?: string; onClearScheduledError?: () => void; ownerId: string | null; canBackup: boolean }) {
+export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, onUseCloudData, onToast = () => {}, scheduledProgress = null, scheduledError = "", onClearScheduledError = () => {}, ownerId, backupLockReason }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; onPauseAutosave: (paused: boolean) => void; onUseCloudData: () => Promise<void>; onToast?: (message: string) => void; scheduledProgress?: number | null; scheduledError?: string; onClearScheduledError?: () => void; ownerId: string | null; backupLockReason: "loading" | "no-plan" | "conflict" | "legacy" | null }) {
   const [logged, setLogged] = useState(false), [checking, setChecking] = useState(cloudConfigured), [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [backups, setBackups] = useState<WorkspaceBackup[]>([]);
@@ -63,6 +63,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const [selectedBackupId, setSelectedBackupId] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [restoreHint, setRestoreHint] = useState(false);
+  const [confirmCloudData, setConfirmCloudData] = useState(false);
   const [draft, setDraft] = useState<BackupSettings>(emptySettings);
   const [savedSettings, setSavedSettings] = useState<BackupSettings>(emptySettings);
   const [now, setNow] = useState(() => Date.now());
@@ -94,6 +95,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const scheduleNeedsTime = ["daily", "weekly", "monthly"].includes(draft.frequency);
   const controlsBusy = busy || scheduledProgress !== null;
   const displayedProgress = progress ?? scheduledProgress;
+  const canBackup = backupLockReason === null;
   const saveDisabled = controlsBusy || !canBackup || scheduleNeedsTime && !draft.time_of_day;
 
   async function run(action: () => Promise<void>) {
@@ -104,7 +106,8 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   async function saveSettings() {
     if (!ownerId || saveDisabled) return;
     await run(async () => {
-      const next = { ...draft, customers: [], anchor_day: anchorDayForSave(draft.frequency, draft.tz) };
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const next = { ...draft, tz, customers: [], anchor_day: anchorDayForSave(draft.frequency, tz) };
       await setBackupSettings(next, ownerId);
       setDraft(next); setSavedSettings(next); setScheduleOpen(false); setStatus("Backup settings saved.");
     });
@@ -145,6 +148,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   return <div className="cloud-settings backup-page">
     <div className="backup-page-intro"><div><h3>Backup</h3><p>Back up your whole workspace.</p></div></div>
     {!cloudConfigured ? <div className="notice">Cloud backup is not connected yet.</div> : checking ? <div className="notice">Checking your backup…</div> : !logged ? <><div className="notice">Sign in to use backups.</div><button className="google-sign-in" disabled={busy} onClick={() => void run(signInWithGoogle)}>Continue with Google</button></> : <>
+      {backupLockReason && <div className="notice" role="status">{backupLockReason === "loading" ? "Loading your data…" : backupLockReason === "no-plan" ? "Backups need an active plan." : backupLockReason === "legacy" ? LEGACY_WORKSPACE_READ_ONLY_MESSAGE : <>This phone&apos;s data is different from your cloud data. <button type="button" className="outline" disabled={busy} onClick={() => setConfirmCloudData(true)}>Use cloud data</button></>}</div>}
       <section className="backup-simple-card backup-run-card">
         <strong>{last ? `✓ Last backup: ${backupLabel(last.created_at, savedSettings.tz, now)}` : "No backup yet"}</strong>
         {displayedProgress !== null && <div className="backup-progress" role="progressbar" aria-valuenow={displayedProgress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${displayedProgress}%` }} /></div>}
@@ -166,6 +170,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
       </section>
     </>}
     {restoreTarget && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-label="Confirm restore"><p>Restore backup {workspaceBackupFileName(restoreTarget.created_at, savedSettings.tz, restoreTarget.backup_kind === "pre_restore")}? Your app will show exactly the entries from that backup: Now {snapshot.jobs.length} entries → Backup {isSnapshot(restoreTarget.payload) ? restoreTarget.payload.jobs.length : "?"} entries. A safety copy of your current data is saved first.</p><div><button type="button" onClick={() => setRestoreTarget(null)}>No</button><button type="button" className="primary" onClick={() => void restoreBackup(restoreTarget)}>Yes</button></div></section></div>}
+    {confirmCloudData && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-label="Use cloud data"><p>Changes made only on this phone will be lost.</p><div><button type="button" disabled={busy} onClick={() => setConfirmCloudData(false)}>No</button><button type="button" className="primary" disabled={busy} onClick={() => void run(async () => { await onUseCloudData(); setConfirmCloudData(false); setStatus("Cloud data loaded on this phone."); })}>Yes</button></div></section></div>}
     {status && <p role="status">{status}</p>}
   </div>;
 }

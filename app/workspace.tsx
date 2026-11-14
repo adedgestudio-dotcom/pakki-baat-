@@ -215,6 +215,14 @@ function writeLocalWorkspace(userId: string, snapshot: Snapshot) {
     // Browser storage can be full or disabled. Cloud save still gets a chance.
   }
 }
+async function loadServerTimeWithRetry(): Promise<number | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { return await loadServerTime(); } catch {
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  return null;
+}
 function Icon({ name, size = 22 }: { name: string; size?: number }) {
   const p: Record<string, string> = {
     home: "m3 10 9-7 9 7v10H3Z M9 20v-7h6v7",
@@ -432,6 +440,11 @@ export default function Workspace() {
   const cloudHydratedRef = useRef(false);
   const workspaceUserIdRef = useRef<string | null>(null);
   const autosavePausedRef = useRef(false);
+  const [autosavePaused, setAutosavePaused] = useState(false);
+  function pauseAutosave(paused: boolean) {
+    autosavePausedRef.current = paused;
+    setAutosavePaused(paused);
+  }
   const restoreTargetRef = useRef<Snapshot | null>(null);
   const savedPendingRef = useRef<Job | null>(null);
   const savedDraftRef = useRef<Job | null>(null);
@@ -796,7 +809,7 @@ export default function Workspace() {
       setTrialOfferOpen(false);
       cloudHydratedRef.current = false;
       workspaceUserIdRef.current = null;
-      autosavePausedRef.current = false;
+      pauseAutosave(false);
       restoreTargetRef.current = null;
       setReady(false);
       setLoggedIn(Boolean(session));
@@ -892,7 +905,7 @@ export default function Workspace() {
         try {
           const [result, serverTime, voiceUsage] = await Promise.all([
             loadTrialSubscription(session.user.id, loadSubscription),
-            loadServerTime().catch(() => null),
+            loadServerTimeWithRetry(),
             loadVoiceUsage().catch(() => null),
           ]);
           if (
@@ -1105,7 +1118,7 @@ export default function Workspace() {
         !cloudSnapshotsEqual(snapshot, restoreTargetRef.current)
       )
         return;
-      autosavePausedRef.current = false;
+      pauseAutosave(false);
       restoreTargetRef.current = null;
     }
 
@@ -1368,6 +1381,19 @@ export default function Workspace() {
       trustedNowMs !== null &&
       !subscriptionExpired
   );
+  const backupLockReason: "loading" | "no-plan" | "conflict" | "legacy" | null =
+    !ready || loadedAccountId !== accountId || autosavePaused
+      ? "loading"
+      : cloudWriteConflictForAccount(accountId || "")
+        ? "conflict"
+        : (subscriptionStatus === "active" && trustedNowMs === null) ||
+          trialSubscription.status === "loading"
+          ? "loading"
+          : !hasActiveSubscription
+            ? "no-plan"
+            : !ledgerModeForAccount(accountId || "")
+              ? "legacy"
+              : null;
   useEffect(() => {
     setBackupNudgeOpen(false);
     if (accountId) {
@@ -1449,6 +1475,15 @@ export default function Workspace() {
       30000
     );
     return () => window.clearInterval(timer);
+  }, [loggedIn, serverNowMs]);
+
+  useEffect(() => {
+    if (!loggedIn || serverNowMs !== null) return;
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void loadServerTime().then(value => { if (!cancelled) applyTrustedServerTime(value); }).catch(() => {});
+    }, 30000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [loggedIn, serverNowMs]);
 
   useEffect(() => {
@@ -3411,7 +3446,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     const s = lastUndo.snapshot;
     const ownerId = activeUserIdRef.current;
     if (ownerId && ledgerModeForAccount(ownerId)) {
-      autosavePausedRef.current = true;
+      pauseAutosave(true);
       clearBackupStatusUi();
       try {
         await saveCloud(normalizedSnapshot(s), ownerId);
@@ -3421,7 +3456,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           );
         restoreTargetRef.current = normalizedSnapshot(s);
       } catch (error) {
-        autosavePausedRef.current = false;
+        pauseAutosave(false);
         setToast(
           `Undo was not applied: ${
             error instanceof Error ? error.message : "cloud save failed"
@@ -3769,7 +3804,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     ]);
     setToast("Sample commitments added. Edit or delete them freely.");
   }
-  function restore(s: Snapshot) {
+  function restore(s: Snapshot, notify = false) {
     setJobs(s.jobs);
     setReminders(s.reminders || []);
     setPayments(s.payments || []);
@@ -3785,7 +3820,29 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       setChatStep("customer");
     }
     setReady(true);
-    setToast("Workspace restored on this device.");
+    if (notify) setToast("Workspace restored on this device.");
+  }
+  async function useCloudData() {
+    const ownerId = accountId;
+    if (!ownerId || !cloudWriteConflictForAccount(ownerId)) return;
+    pauseAutosave(true);
+    try {
+      const cloud = await loadCloudState();
+      if (cloud.ownerId !== ownerId || (await currentSession())?.user.id !== ownerId)
+        throw new Error("ACCOUNT_CHANGED: sign in to the original account.");
+      if (!isSnapshot(cloud.snapshot)) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
+      clearLedgerDirty(ownerId);
+      localStorage.removeItem(localWorkspaceKey(ownerId));
+      restoreTargetRef.current = normalizedSnapshot(cloud.snapshot);
+      cloudHydratedRef.current = true;
+      restore(cloud.snapshot);
+      setSyncPending(false);
+    } catch (error) {
+      blockCloudSaves(ownerId);
+      cloudHydratedRef.current = false;
+      pauseAutosave(false);
+      throw error;
+    }
   }
   async function importBackup(file: File) {
     try {
@@ -3796,7 +3853,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       if (confirm("Replace this device’s workspace with this backup?")) {
         const ownerId = activeUserIdRef.current;
         if (ownerId && ledgerModeForAccount(ownerId)) {
-          autosavePausedRef.current = true;
+          pauseAutosave(true);
           clearBackupStatusUi();
           try {
             await saveWorkspaceBackup(
@@ -3811,11 +3868,11 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               );
             restoreTargetRef.current = normalizedSnapshot(data);
           } catch (error) {
-            autosavePausedRef.current = false;
+            pauseAutosave(false);
             throw error;
           }
         }
-        restore(data);
+        restore(data, true);
       }
     } catch (e) {
       setToast(e instanceof Error ? e.message : "Could not read this backup.");
@@ -6808,19 +6865,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     }}
                     onRestore={(saved) => {
                       restoreTargetRef.current = normalizedSnapshot(saved);
-                      restore(saved);
+                      restore(saved, true);
                     }}
                     onPauseAutosave={(paused) => {
-                      autosavePausedRef.current = paused;
+                      pauseAutosave(paused);
                       if (paused) {
                         clearBackupStatusUi();
                       }
                       if (!paused) restoreTargetRef.current = null;
                     }}
-                    ownerId={
-                      ready && loadedAccountId === accountId ? accountId : null
-                    }
-                    canBackup={ready && hasActiveSubscription && ledgerModeForAccount(accountId || "") && !cloudWriteConflictForAccount(accountId || "") && !autosavePausedRef.current}
+                    onUseCloudData={useCloudData}
+                    ownerId={accountId}
+                    backupLockReason={backupLockReason}
                   />
                 </section>
                 <footer className="settings-brand-footer product-footer">
