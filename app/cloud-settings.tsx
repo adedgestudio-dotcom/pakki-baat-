@@ -1,13 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadWorkspaceBackups, loadBackupSettings, loadReportLedger, readLedgerDirty, saveCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, type WorkspaceBackup } from "@/lib/cloud";
+import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadWorkspaceBackups, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, type WorkspaceBackup } from "@/lib/cloud";
 import { anchorDayForSave, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 import { runWorkspaceBackup } from "@/lib/workspace-daily-backup-lifecycle";
 
 const emptySettings = (): BackupSettings => ({ frequency: "off", time_of_day: null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", anchor_day: null, customers: [], last_run_at: null });
 const dateLabel = (value: string | Date) => new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+function backupLabel(createdAt: string, tz: string, now: number) {
+  const day = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+  const date = new Date(createdAt);
+  const today = day(new Date(now));
+  const yesterday = day(new Date(now - 86_400_000));
+  const datePart = day(date) === today ? "Today" : day(date) === yesterday ? "Yesterday" : new Intl.DateTimeFormat("en-GB", { timeZone: tz, day: "numeric", month: "short", year: "numeric" }).format(date);
+  const time = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(date).toLowerCase();
+  return `${datePart}, ${time}`;
+}
+function friendlyRestoreError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Please try again.";
+  if (message.includes("CUSTOMER_LIMIT_REACHED")) return "This backup has more customers than your plan allows. Nothing was changed.";
+  if (/JOB_CHARGE_RECONCILIATION_FAILED|JOB_PAYMENT_RECONCILIATION_FAILED|INVALID_/.test(message)) return "This backup can't be restored safely. Nothing was changed.";
+  if (message.includes("WORKSPACE_REVISION_CONFLICT")) return "Your data changed on another device. Reload and try again.";
+  return message;
+}
 const timeLabel = (value: string | null) => {
   if (!value) return "Pick a time";
   const [hour, minute] = value.split(":").map(Number);
@@ -44,11 +60,13 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const [status, setStatus] = useState("");
   const [backups, setBackups] = useState<WorkspaceBackup[]>([]);
   const [restoreTarget, setRestoreTarget] = useState<WorkspaceBackup | null>(null);
+  const [selectedBackupId, setSelectedBackupId] = useState("");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [restoreHint, setRestoreHint] = useState(false);
   const [draft, setDraft] = useState<BackupSettings>(emptySettings);
   const [savedSettings, setSavedSettings] = useState<BackupSettings>(emptySettings);
   const [now, setNow] = useState(() => Date.now());
   const [progress, setProgress] = useState<number | null>(null);
-  const [backupFailed, setBackupFailed] = useState(false);
   const requestRef = useRef(0), ownerRef = useRef(ownerId), restoreStartedRef = useRef(false);
   useEffect(() => { ownerRef.current = ownerId; const timer = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(timer); }, [ownerId]);
 
@@ -64,7 +82,14 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
     void currentSession().then(session => { setLogged(session?.user.id === ownerId); if (session?.user.id === ownerId) void refresh(); }).catch(() => setStatus("Could not check your sign-in.")).finally(() => setChecking(false));
     return watchSession(session => { const same = session?.user.id === ownerId; setLogged(same); setChecking(false); if (same) void refresh(); else { ++requestRef.current; setBackups([]); setDraft(emptySettings()); setSavedSettings(emptySettings()); } });
   }, [ownerId, refresh]);
-  const last = backups[0];
+  const sortedBackups = [...backups].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const last = sortedBackups[0];
+  const selectedBackup = sortedBackups.find(backup => backup.id === selectedBackupId);
+  const selectedSnapshot = selectedBackup && isSnapshot(selectedBackup.payload) ? selectedBackup.payload : null;
+  const currentIds = new Set(snapshot.jobs.map(job => job.id));
+  const selectedIds = new Set(selectedSnapshot?.jobs.map(job => job.id) || []);
+  const entriesRemoved = snapshot.jobs.filter(job => !selectedIds.has(job.id)).length;
+  const entriesReturned = selectedSnapshot?.jobs.filter(job => !currentIds.has(job.id)).length || 0;
   const nextSlot = scheduledSlot(savedSettings, new Date(now), true);
   const scheduleNeedsTime = ["daily", "weekly", "monthly"].includes(draft.frequency);
   const controlsBusy = busy || scheduledProgress !== null;
@@ -73,7 +98,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
 
   async function run(action: () => Promise<void>) {
     setBusy(true); setStatus("");
-    try { await action(); } catch (error) { if (restoreStartedRef.current) { onPauseAutosave(false); restoreStartedRef.current = false; } setStatus(error instanceof Error ? error.message : "Please try again."); }
+    try { await action(); } catch (error) { if (restoreStartedRef.current) { onPauseAutosave(false); restoreStartedRef.current = false; } setStatus(friendlyRestoreError(error)); }
     finally { setBusy(false); }
   }
   async function saveSettings() {
@@ -81,17 +106,17 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
     await run(async () => {
       const next = { ...draft, customers: [], anchor_day: anchorDayForSave(draft.frequency, draft.tz) };
       await setBackupSettings(next, ownerId);
-      setDraft(next); setSavedSettings(next); setStatus("Backup settings saved.");
+      setDraft(next); setSavedSettings(next); setScheduleOpen(false); setStatus("Backup settings saved.");
     });
   }
   async function backUpNow() {
     if (!ownerId || !canBackup || controlsBusy) return;
-    setBackupFailed(false); onClearScheduledError(); setProgress(0);
+    onClearScheduledError(); setProgress(0);
     await run(async () => {
       try {
         const result = await runWorkspaceBackup(snapshot, savedSettings, ownerId, "manual", (done, total) => setProgress(Math.round(done / total * 100)));
         setStatus(result); onToast(result); await refresh(true);
-      } catch (error) { setBackupFailed(true); throw error; }
+      } catch (error) { throw error; }
       finally { setProgress(null); }
     });
   }
@@ -104,17 +129,15 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
       if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: sign in to the original account.");
       const dirty = readLedgerDirty(ownerId);
       if (dirty && !cloudSnapshotsEqual(dirty.snapshot, snapshot)) throw new Error("Workspace changed during restore. Retry with the latest data.");
-      const ledger = await loadReportLedger(ownerId);
-      const historicalJobs = new Set(ledger.map(row => row.job_id).filter((id): id is string => typeof id === "string"));
-      const historicalPayments = new Set(ledger.flatMap(row => [row.metadata?.payment_id, row.metadata?.legacy_payment_id]).filter((id): id is string => typeof id === "string"));
-      restoreWorkspaceSnapshot(restored, snapshot, historicalJobs, historicalPayments);
+      restoreWorkspaceSnapshot(restored, snapshot);
       onPauseAutosave(true); restoreStartedRef.current = true;
       await saveWorkspaceBackup(snapshot, "pre_restore", ownerId);
-      await saveCloud(restored, ownerId);
+      await restoreCloud(restored, ownerId);
       if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: restore was saved to the original account. Sign in again.");
       onRestore(restored);
       restoreStartedRef.current = false;
-      setStatus(`Restored ${workspaceBackupFileName(backup.created_at, savedSettings.tz, backup.backup_kind === "pre_restore")}.`);
+      setSelectedBackupId(""); setRestoreHint(true);
+      onToast(`Restored ✓ ${workspaceBackupFileName(backup.created_at, savedSettings.tz, backup.backup_kind === "pre_restore")}`);
       await refresh(true).catch(() => {});
     });
   }
@@ -122,11 +145,24 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   return <div className="cloud-settings backup-page">
     <div className="backup-page-intro"><div><h3>Backup</h3><p>Back up your whole workspace.</p></div></div>
     {!cloudConfigured ? <div className="notice">Cloud backup is not connected yet.</div> : checking ? <div className="notice">Checking your backup…</div> : !logged ? <><div className="notice">Sign in to use backups.</div><button className="google-sign-in" disabled={busy} onClick={() => void run(signInWithGoogle)}>Continue with Google</button></> : <>
-      <section className="backup-simple-card backup-run-card"><span><strong>{last ? `Last backup: ${workspaceBackupFileName(last.created_at, savedSettings.tz, last.backup_kind === "pre_restore")}` : "Last backup: None yet"}</strong><small>Photos are not part of backups.</small><small>Backups are kept for 30 days (up to 60).</small></span>{displayedProgress !== null && <div className="backup-progress" role="progressbar" aria-valuenow={displayedProgress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${displayedProgress}%` }} /></div>}{displayedProgress !== null && <small>Backing up… {displayedProgress}%</small>}{scheduledError && <small role="alert">{scheduledError}</small>}<button type="button" className="primary backup-run-button" disabled={controlsBusy || !canBackup} onClick={() => void backUpNow()}>{backupFailed || scheduledError ? "Retry" : "Back up"}</button>
-      <div className="backup-auto-card"><div className="backup-auto-heading"><strong>Automatic backups</strong><small>Choose when Pakki Baat makes workspace copies.</small></div><div className="backup-auto-form"><label className="backup-auto-field">Repeat<select aria-label="Repeat" value={draft.frequency} disabled={controlsBusy || !canBackup} onChange={event => setDraft(previous => ({ ...previous, frequency: event.target.value as BackupFrequency, time_of_day: null }))}><option value="off">Off</option><option value="manual">Only when I tap Back up</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>{scheduleNeedsTime && <div className="backup-auto-field"><span>Backup time</span><ClockPicker value={draft.time_of_day} disabled={controlsBusy || !canBackup} onChange={value => setDraft(previous => ({ ...previous, time_of_day: value }))}/></div>}<button type="button" className="primary backup-auto-save" disabled={saveDisabled} onClick={() => void saveSettings()}>Save</button></div>{nextSlot && <div className="backup-next-slot"><strong>Next backup: {dateLabel(nextSlot)}</strong><small className="backup-next-help">Keep the app open at backup time. If closed, it runs when you next open it.</small></div>}</div></section>
-      <section className="backup-history"><div><strong>Restore from a backup</strong></div>
-        {[...backups].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).map(backup => <div className="backup-history-row" key={backup.id}><strong>{workspaceBackupFileName(backup.created_at, savedSettings.tz, backup.backup_kind === "pre_restore")}</strong><button type="button" className="outline" disabled={controlsBusy || !canBackup} onClick={() => setRestoreTarget(backup)}>Restore</button></div>)}
-        {!backups.length && <div className="notice">No saved backups yet.</div>}
+      <section className="backup-simple-card backup-run-card">
+        <strong>{last ? `✓ Last backup: ${backupLabel(last.created_at, savedSettings.tz, now)}` : "No backup yet"}</strong>
+        {displayedProgress !== null && <div className="backup-progress" role="progressbar" aria-valuenow={displayedProgress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${displayedProgress}%` }} /></div>}
+        {displayedProgress !== null && <small>Backing up… {displayedProgress}%</small>}
+        {scheduledError && <small role="alert">{scheduledError}</small>}
+        <button type="button" className="primary backup-run-button" disabled={controlsBusy || !canBackup} onClick={() => void backUpNow()}>Back up now</button>
+        <div className="backup-auto-card">
+          <div className="backup-auto-summary"><strong>Auto backup: {["daily", "weekly", "monthly"].includes(savedSettings.frequency) ? `${savedSettings.frequency[0].toUpperCase()}${savedSettings.frequency.slice(1)} at ${timeLabel(savedSettings.time_of_day)}` : "Off"}</strong><button type="button" className="outline" aria-expanded={scheduleOpen} onClick={() => setScheduleOpen(value => !value)}>Change</button></div>
+          {scheduleOpen && <div className="backup-auto-form"><label className="backup-auto-field">Repeat<select aria-label="Repeat" value={draft.frequency} disabled={controlsBusy || !canBackup} onChange={event => setDraft(previous => ({ ...previous, frequency: event.target.value as BackupFrequency, time_of_day: null }))}><option value="off">Off</option><option value="manual">Only when I tap Back up</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>{scheduleNeedsTime && <div className="backup-auto-field"><span>Backup time</span><ClockPicker value={draft.time_of_day} disabled={controlsBusy || !canBackup} onChange={value => setDraft(previous => ({ ...previous, time_of_day: value }))}/></div>}<button type="button" className="primary backup-auto-save" disabled={saveDisabled} onClick={() => void saveSettings()}>Save</button></div>}
+          {nextSlot && <div className="backup-next-slot"><strong>Next backup: {dateLabel(nextSlot)}</strong><small className="backup-next-help">Keep the app open at backup time. If closed, it runs when you next open it.</small></div>}
+        </div>
+        <small>Kept for 30 days (up to 60). Photos are not included.</small>
+      </section>
+      <section className="backup-simple-card backup-restore-card"><strong>Restore from a backup</strong>
+        {backups.length ? <><select aria-label="Choose a backup" value={selectedBackupId} disabled={controlsBusy || !canBackup} onChange={event => { setSelectedBackupId(event.target.value); setRestoreHint(false); }}><option value="">Select a backup…</option><optgroup label="Backups">{sortedBackups.filter(backup => backup.backup_kind !== "pre_restore").map(backup => <option key={backup.id} value={backup.id}>{backupLabel(backup.created_at, savedSettings.tz, now)} · {isSnapshot(backup.payload) ? backup.payload.jobs.length : "?"} entries</option>)}</optgroup><optgroup label="Safety copies (before restore)">{sortedBackups.filter(backup => backup.backup_kind === "pre_restore").map(backup => <option key={backup.id} value={backup.id}>{backupLabel(backup.created_at, savedSettings.tz, now)} · {isSnapshot(backup.payload) ? backup.payload.jobs.length : "?"} entries</option>)}</optgroup></select>
+          {selectedBackup && <div className="backup-restore-summary">This backup: {selectedSnapshot?.jobs.length ?? "?"} entries · {selectedSnapshot ? new Set(selectedSnapshot.jobs.map(job => job.customer)).size : "?"} customers. Now: {snapshot.jobs.length} entries.{entriesRemoved > 0 && <p>{entriesRemoved} entries added after this backup will be removed.</p>}{entriesReturned > 0 && <p>{entriesReturned} entries missing now will come back.</p>}</div>}
+          <button type="button" className="primary backup-run-button" disabled={!selectedBackup || controlsBusy || !canBackup} onClick={() => selectedBackup && setRestoreTarget(selectedBackup)}>Restore</button></> : <div className="notice">No backups yet. Tap Back up now.</div>}
+        {restoreHint && <small>To undo, restore the newest safety copy.</small>}
       </section>
     </>}
     {restoreTarget && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-label="Confirm restore"><p>Restore backup {workspaceBackupFileName(restoreTarget.created_at, savedSettings.tz, restoreTarget.backup_kind === "pre_restore")}? Your app will show exactly the entries from that backup: Now {snapshot.jobs.length} entries → Backup {isSnapshot(restoreTarget.payload) ? restoreTarget.payload.jobs.length : "?"} entries. A safety copy of your current data is saved first.</p><div><button type="button" onClick={() => setRestoreTarget(null)}>No</button><button type="button" className="primary" onClick={() => void restoreBackup(restoreTarget)}>Yes</button></div></section></div>}

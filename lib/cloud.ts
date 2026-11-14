@@ -107,7 +107,8 @@ async function request(path: string, body?: unknown, token?: string) {
 }
 
 export type CloudWorkspaceState = { ownerId: string; snapshot: unknown; revision: number | null; ledgerEnabled: boolean };
-type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<void>; uncertain: { payload: unknown; revision: number } | null; conflict: boolean };
+type WorkspaceRpc = "save_workspace_with_ledger" | "restore_workspace_with_ledger";
+type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<void>; uncertain: { payload: unknown; revision: number; rpc: WorkspaceRpc } | null; conflict: boolean };
 const saveStates = new Map<string, SaveState>();
 
 function equalJson(left: unknown, right: unknown): boolean {
@@ -219,6 +220,14 @@ export function blockCloudSaves(ownerId: string) {
 }
 
 export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {
+  return writeCloud(snapshot, expectedOwnerId, "save_workspace_with_ledger");
+}
+
+export async function restoreCloud(snapshot: unknown, expectedOwnerId?: string) {
+  return writeCloud(snapshot, expectedOwnerId, "restore_workspace_with_ledger");
+}
+
+async function writeCloud(snapshot: unknown, expectedOwnerId: string | undefined, rpc: WorkspaceRpc) {
   const session = await accountSession(expectedOwnerId);
   const ownerId = session.user.id;
   if (!saveStates.has(ownerId)) await loadCloudState();
@@ -234,14 +243,14 @@ export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {
       throw new Error("LEGACY_WORKSPACE_READ_ONLY: " + LEGACY_WORKSPACE_READ_ONLY_MESSAGE);
     }
     if (!isSnapshot(snapshot) || !state.revision) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
-    async function atomicSave(payload: unknown, revision: number) {
+    async function atomicSave(payload: unknown, revision: number, operationRpc: WorkspaceRpc) {
       let reply: unknown;
       try {
-        reply = await request("/rest/v1/rpc/save_workspace_with_ledger", { payload, expected_revision: revision }, (await accountSession(ownerId)).access_token);
+        reply = await request(`/rest/v1/rpc/${operationRpc}`, { payload, expected_revision: revision }, (await accountSession(ownerId)).access_token);
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         if (message.includes("WORKSPACE_REVISION_CONFLICT")) state.conflict = true;
-        else if (isRetryableCloudError(error)) state.uncertain = { payload, revision };
+        else if (isRetryableCloudError(error)) state.uncertain = { payload, revision, rpc: operationRpc };
         throw error;
       }
       const next = (reply as { revision?: unknown })?.revision;
@@ -251,10 +260,10 @@ export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {
     }
     if (state.uncertain) {
       const pending = state.uncertain;
-      await atomicSave(pending.payload, pending.revision);
+      await atomicSave(pending.payload, pending.revision, pending.rpc);
     }
-    await atomicSave(snapshot, state.revision);
-    clearLedgerDirty(ownerId, snapshot);
+    await atomicSave(snapshot, state.revision, rpc);
+    clearLedgerDirty(ownerId, rpc === "restore_workspace_with_ledger" ? undefined : snapshot);
   });
   state.tail = operation;
   return operation;

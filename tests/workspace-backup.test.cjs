@@ -21,19 +21,22 @@ const saved = { owner: 'Owner', business: 'Shop', jobs: [job('j1'), job('j2'), j
 const current = { ...saved, jobs: [...saved.jobs, job('j4')] };
 
 test('whole-snapshot restore removes later entries and preserves the saved workspace exactly', () => {
-  const restored = backup.restoreWorkspaceSnapshot(saved, current, new Set(), new Set());
+  const restored = backup.restoreWorkspaceSnapshot(saved, current);
   assert.equal(restored, saved);
   assert.deepEqual(Array.from(restored.jobs, row => row.id), ['j1', 'j2', 'j3']);
   assert.deepEqual(restored.customerPhones, { Asha: '123' });
   assert.deepEqual(Array.from(current.jobs, row => row.id), ['j1', 'j2', 'j3', 'j4']);
 });
 
-test('a later-deleted ledger ID refuses restore and changes nothing', () => {
+test('restore returns the backup unchanged when its IDs are missing now', () => {
   const now = { ...current, jobs: current.jobs.filter(row => row.id !== 'j2') };
   const before = JSON.stringify(now);
-  assert.throws(() => backup.restoreWorkspaceSnapshot(saved, now, new Set(['j2']), new Set()),
-    /This backup contains entries that were deleted later and can't be restored exactly\. Nothing was changed\./);
+  assert.equal(backup.restoreWorkspaceSnapshot(saved, now), saved);
   assert.equal(JSON.stringify(now), before);
+});
+
+test('damaged backup still throws', () => {
+  assert.throws(() => backup.restoreWorkspaceSnapshot({ ...saved, payments: [{ id: 'p1', jobId: 'missing' }] }, current), /damaged or invalid|invalid payment links/);
 });
 
 test('identical workspace hash avoids a duplicate backup', async () => {

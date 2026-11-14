@@ -14,19 +14,9 @@ export function validateWorkspaceBackup(value: unknown): Snapshot {
   return value;
 }
 
-export function assertNoDeletedHistoricalEntries(backup: Snapshot, current: Snapshot, historicalJobIds: Set<string>, historicalPaymentIds: Set<string>): void {
-  const currentJobs = new Set(current.jobs.map(job => job.id));
-  const currentPayments = new Set((current.payments || []).map(payment => payment.id));
-  if (backup.jobs.some(job => historicalJobIds.has(job.id) && !currentJobs.has(job.id)) ||
-      (backup.payments || []).some(payment => historicalPaymentIds.has(payment.id) && !currentPayments.has(payment.id))) {
-    throw new Error("This backup contains entries that were deleted later and can't be restored exactly. Nothing was changed.");
-  }
-}
-
-export function restoreWorkspaceSnapshot(backup: unknown, current: unknown, historicalJobIds: Set<string>, historicalPaymentIds: Set<string>): Snapshot {
+export function restoreWorkspaceSnapshot(backup: unknown, current: unknown): Snapshot {
   const restored = validateWorkspaceBackup(backup);
-  const existing = validateWorkspaceBackup(current);
-  assertNoDeletedHistoricalEntries(restored, existing, historicalJobIds, historicalPaymentIds);
+  validateWorkspaceBackup(current);
   return restored;
 }
 

@@ -57,7 +57,7 @@ function harness({ mode = true, initial = snapshot(), revision = 1, storage = ne
       state.payload = body.payload;
       return ok(null);
     }
-    if (endpoint.endsWith("/rpc/save_workspace_with_ledger")) {
+    if (endpoint.endsWith("/rpc/save_workspace_with_ledger") || endpoint.endsWith("/rpc/restore_workspace_with_ledger")) {
       if (state.rpc) return state.rpc(body);
       if (body.expected_revision !== state.revision && JSON.stringify(body.payload) !== JSON.stringify(state.payload))
         return fail(400, "WORKSPACE_REVISION_CONFLICT", "P0001");
@@ -127,6 +127,43 @@ test("ambiguous network result retries the exact payload before a newer save", a
   const calls = h.requests.filter((item) => item.endpoint.endsWith("save_workspace_with_ledger"));
   assert.deepEqual(calls.map((item) => item.body.expected_revision), [1, 1, 2]);
   assert.deepEqual(calls.map((item) => item.body.payload), [first, first, second]);
+});
+
+test("an uncertain restore retries through the restore RPC before the next save", async () => {
+  const h = harness();
+  await h.api.loadCloudState();
+  const restored = snapshot([{ id: "old", customer: "Fictional Customer", total: 30, paid: 0 }]);
+  const newer = snapshot([{ id: "new", customer: "Fictional Customer", total: 40, paid: 0 }]);
+  let failed = false;
+  h.state.rpc = async (body) => {
+    if (!failed) {
+      failed = true;
+      h.state.payload = body.payload;
+      h.state.revision = 2;
+      throw new TypeError("network response lost");
+    }
+    if (JSON.stringify(body.payload) !== JSON.stringify(h.state.payload)) {
+      assert.equal(body.expected_revision, h.state.revision);
+      h.state.payload = body.payload;
+      h.state.revision++;
+    }
+    return h.ok({ revision: h.state.revision });
+  };
+  await assert.rejects(h.api.restoreCloud(restored, "fictional-a"), /network response lost/);
+  await h.api.saveCloud(newer, "fictional-a");
+  const calls = h.requests.filter(item => item.endpoint.endsWith("workspace_with_ledger"));
+  assert.deepEqual(calls.map(item => item.endpoint.split("/").at(-1)), ["restore_workspace_with_ledger", "restore_workspace_with_ledger", "save_workspace_with_ledger"]);
+  assert.deepEqual(calls.map(item => item.body.expected_revision), [1, 1, 2]);
+});
+
+test("successful restore clears the old dirty snapshot", async () => {
+  const h = harness();
+  await h.api.loadCloudState();
+  const old = snapshot([{ id: "old", customer: "Fictional Customer", total: 30, paid: 0 }]);
+  h.api.markLedgerDirty("fictional-a", old);
+  await h.api.restoreCloud(snapshot(), "fictional-a");
+  assert.equal(h.api.readLedgerDirty("fictional-a"), null);
+  assert.equal(h.requests.filter(item => item.endpoint.endsWith("restore_workspace_with_ledger")).length, 1);
 });
 
 test("revision conflict blocks later saves and preserves the dirty local snapshot", async () => {
