@@ -812,6 +812,14 @@ main {
   gap: 13px;
   border-top: 1px solid #f1f3ed;
 }
+.job .avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
 .job-main {
   flex: 1;
   min-width: 0;
@@ -1640,9 +1648,9 @@ details p {
     display: none;
   }
   .job .avatar {
-    width: 33px;
-    height: 33px;
-    border-radius: 10px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
   }
   .job-main > span {
     max-width: 155px;
@@ -3152,11 +3160,12 @@ select:focus-visible {
 /* Customer book — primary mobile workflow */
 .customer-list-mobile {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin-top: 14px;
 }
 .customer-row-card {
   width: 100%;
+  min-height: 64px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
@@ -3164,9 +3173,22 @@ select:focus-visible {
   text-align: left;
   background: var(--card, #fff);
   border: 1px solid var(--line, #e7e1d6);
-  border-radius: 18px;
-  padding: 14px;
+  border-radius: 14px;
+  padding: 12px 16px;
   color: inherit;
+}
+.customer-row-card .avatar.large {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+[data-theme="dark"] .customer-row-card .avatar.large {
+  background: #f5f1e8;
+  color: #1f4d3a;
 }
 .customer-row-main,
 .customer-row-money {
@@ -3175,14 +3197,21 @@ select:focus-visible {
   min-width: 0;
 }
 .customer-row-main strong {
-  font-size: 15px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 600;
 }
 .customer-row-main small {
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #78837b;
-  margin-top: 3px;
+  color: #58665e;
+  font-size: 14px;
+  margin-top: 2px;
 }
 .customer-row-money {
   text-align: right;
@@ -3338,12 +3367,12 @@ select:focus-visible {
   }
   .customer-row-card {
     border-radius: 14px;
-    padding: 12px 10px;
-    gap: 9px;
+    padding: 12px 16px;
+    gap: 12px;
   }
   .customer-row-card .avatar.large {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
   }
   .customer-row-money strong {
     font-size: 13px;
@@ -9214,6 +9243,7 @@ footer .footer-separator {
 .customer-row-open {
   flex: 1;
   min-width: 0;
+  min-height: 64px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -9223,7 +9253,7 @@ footer .footer-separator {
   align-items: center;
   gap: 12px;
   text-align: left;
-  padding: 14px;
+  padding: 12px 16px;
 }
 .customer-row-with-delete .customer-delete-button {
   width: 46px;
