@@ -49,6 +49,8 @@ import {
   clearLedgerDirty,
   ledgerModeForAccount,
   markLedgerDirty,
+  readLastSynced,
+  recordLastSynced,
   reconcileLedgerHydration,
   readLedgerDirty,
   isRetryableCloudError,
@@ -986,7 +988,8 @@ export default function Workspace() {
               cloudSnapshot as Snapshot,
               cloud.revision as number,
               localSnapshot,
-              readLedgerDirty(session.user.id)
+              readLedgerDirty(session.user.id),
+              readLastSynced(session.user.id)
             )
           : null;
         conflict = decision?.conflict ?? false;
@@ -997,7 +1000,11 @@ export default function Workspace() {
             : localSnapshot);
         if (decision?.markUnknown && localSnapshot)
           markLedgerDirty(session.user.id, localSnapshot, 0);
+        if (decision?.markDirtyRevision !== undefined && localSnapshot)
+          markLedgerDirty(session.user.id, localSnapshot, decision.markDirtyRevision);
         if (decision?.clearDirty) clearLedgerDirty(session.user.id);
+        if (cloud.ledgerEnabled && cloud.revision !== null && snapshot === cloudSnapshot)
+          recordLastSynced(session.user.id, cloudSnapshot as Snapshot, cloud.revision);
         if (conflict) {
           blockCloudSaves(session.user.id);
           cloudHydratedRef.current = false;
@@ -3833,6 +3840,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       if (!isSnapshot(cloud.snapshot)) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
       clearLedgerDirty(ownerId);
       localStorage.removeItem(localWorkspaceKey(ownerId));
+      if (cloud.revision !== null) recordLastSynced(ownerId, cloud.snapshot, cloud.revision);
       restoreTargetRef.current = normalizedSnapshot(cloud.snapshot);
       cloudHydratedRef.current = true;
       restore(cloud.snapshot);

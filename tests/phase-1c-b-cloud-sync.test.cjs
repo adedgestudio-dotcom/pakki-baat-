@@ -268,6 +268,59 @@ test("refresh preserves unknown pre-activation local data instead of pairing it 
   assert.equal(h.requests.some((item) => item.endpoint.endsWith("save_workspace_with_ledger")), false);
 });
 
+test("stale second device with no local edits silently takes the newer server snapshot", () => {
+  const h = harness();
+  const local = snapshot([{ id: "old", customer: "Fictional Customer", total: 20, paid: 0 }]);
+  const server = snapshot([{ id: "new", customer: "Fictional Customer", total: 30, paid: 0 }]);
+  h.api.recordLastSynced("fictional-a", local, 4);
+  const decision = h.api.reconcileLedgerHydration(server, 5, local, null, h.api.readLastSynced("fictional-a"));
+  assert.equal(decision.snapshot, server);
+  assert.equal(decision.conflict, false);
+  assert.equal(decision.markUnknown, false);
+});
+
+test("local-only edits with unchanged cloud are marked dirty at the synced revision", async () => {
+  const server = snapshot();
+  const local = snapshot([{ id: "offline", customer: "Fictional Customer", total: 20, paid: 0 }]);
+  const h = harness({ initial: server, revision: 4 });
+  h.api.recordLastSynced("fictional-a", server, 4);
+  const decision = h.api.reconcileLedgerHydration(server, 4, local, null, h.api.readLastSynced("fictional-a"));
+  assert.equal(decision.snapshot, local);
+  assert.equal(decision.conflict, false);
+  assert.equal(decision.markDirtyRevision, 4);
+  await h.api.loadCloudState();
+  h.api.markLedgerDirty("fictional-a", local, decision.markDirtyRevision);
+  assert.equal(h.api.readLedgerDirty("fictional-a").revision, 4);
+  await h.api.saveCloud(local, "fictional-a");
+  assert.equal(h.api.readLedgerDirty("fictional-a"), null);
+  assert.equal(h.api.readLastSynced("fictional-a").revision, 5);
+});
+
+test("local and cloud changes since the synced marker remain a real conflict", () => {
+  const h = harness();
+  const base = snapshot();
+  const local = snapshot([{ id: "local", customer: "Fictional Customer", total: 20, paid: 0 }]);
+  const server = snapshot([{ id: "server", customer: "Fictional Customer", total: 30, paid: 0 }]);
+  h.api.recordLastSynced("fictional-a", base, 4);
+  const decision = h.api.reconcileLedgerHydration(server, 5, local, null, h.api.readLastSynced("fictional-a"));
+  assert.equal(decision.snapshot, local);
+  assert.equal(decision.conflict, true);
+  assert.equal(decision.markUnknown, true);
+});
+
+test("old installs without a marker keep the conservative conflict rule", () => {
+  const h = harness();
+  const server = snapshot();
+  const local = snapshot([{ id: "local", customer: "Fictional Customer", total: 20, paid: 0 }]);
+  assert.equal(h.api.readLastSynced("fictional-a"), null);
+  assert.equal(h.api.reconcileLedgerHydration(server, 4, local, null, null).conflict, true);
+  const matching = h.api.reconcileLedgerHydration(server, 4, structuredClone(server), null, null);
+  assert.equal(matching.snapshot, server);
+  assert.equal(matching.conflict, false);
+  h.api.recordLastSynced("fictional-a", matching.snapshot, 4);
+  assert.equal(h.api.readLastSynced("fictional-a").revision, 4);
+});
+
 test("refresh resumes a known unsynced edit only when the server revision still matches", () => {
   const h = harness();
   const server = snapshot();

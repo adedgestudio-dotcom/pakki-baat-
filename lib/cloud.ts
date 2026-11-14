@@ -122,6 +122,38 @@ function equalJson(left: unknown, right: unknown): boolean {
 }
 
 const dirtyKey = (ownerId: string) => `pakki-baat-ledger-dirty:${ownerId}`;
+const lastSyncedKey = (ownerId: string) => `pakki-baat-last-synced:${ownerId}`;
+type LastSynced = { hash: string; revision: number };
+
+function snapshotHash(snapshot: Snapshot, revision: number): string {
+  const canonical = (value: unknown): unknown => Array.isArray(value)
+    ? value.map(canonical)
+    : value && typeof value === "object"
+      ? Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]))
+      : value;
+  const text = JSON.stringify({ revision, snapshot: canonical(snapshot) });
+  let hash = BigInt("0xcbf29ce484222325");
+  const prime = BigInt("0x100000001b3");
+  for (let i = 0; i < text.length; i++) hash = BigInt.asUintN(64, (hash ^ BigInt(text.charCodeAt(i))) * prime);
+  return hash.toString(16).padStart(16, "0");
+}
+
+export function readLastSynced(ownerId: string): LastSynced | null {
+  try {
+    const raw = localStorage.getItem(lastSyncedKey(ownerId));
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object") return null;
+    const marker = value as Partial<LastSynced>;
+    return Number.isSafeInteger(marker.revision) && Number(marker.revision) >= 1 && typeof marker.hash === "string" && /^[0-9a-f]{16}$/.test(marker.hash)
+      ? { hash: marker.hash, revision: Number(marker.revision) } : null;
+  } catch { return null; }
+}
+
+export function recordLastSynced(ownerId: string, snapshot: Snapshot, revision: number) {
+  try { localStorage.setItem(lastSyncedKey(ownerId), JSON.stringify({ hash: snapshotHash(snapshot, revision), revision })); }
+  catch { /* Without durable storage, the next load stays conservative. */ }
+}
 export function readLedgerDirty(ownerId: string): { snapshot: Snapshot; revision: number } | null {
   try {
     const raw = localStorage.getItem(dirtyKey(ownerId));
@@ -206,12 +238,18 @@ export async function loadReportLedger(ownerId: string): Promise<LedgerRow[]> {
   });
 }
 export function cloudSnapshotsEqual(a: unknown, b: unknown) { return equalJson(a, b); }
-export function reconcileLedgerHydration(server: Snapshot, revision: number, local: Snapshot | null, dirty: { snapshot: Snapshot; revision: number } | null) {
+export function reconcileLedgerHydration(server: Snapshot, revision: number, local: Snapshot | null, dirty: { snapshot: Snapshot; revision: number } | null, lastSynced: LastSynced | null = null) {
   if (dirty) {
     if (equalJson(dirty.snapshot, server)) return { snapshot: server, conflict: false, markUnknown: false, clearDirty: true };
     return { snapshot: dirty.snapshot, conflict: dirty.revision !== revision, markUnknown: false, clearDirty: false };
   }
-  if (local && !equalJson(local, server)) return { snapshot: local, conflict: true, markUnknown: true, clearDirty: false };
+  if (local && !equalJson(local, server)) {
+    if (lastSynced && snapshotHash(local, lastSynced.revision) === lastSynced.hash)
+      return { snapshot: server, conflict: false, markUnknown: false, clearDirty: false };
+    if (lastSynced && revision === lastSynced.revision)
+      return { snapshot: local, conflict: false, markUnknown: false, clearDirty: false, markDirtyRevision: lastSynced.revision };
+    return { snapshot: local, conflict: true, markUnknown: true, clearDirty: false };
+  }
   return { snapshot: server, conflict: false, markUnknown: false, clearDirty: false };
 }
 export function blockCloudSaves(ownerId: string) {
@@ -257,6 +295,7 @@ async function writeCloud(snapshot: unknown, expectedOwnerId: string | undefined
       if (!Number.isSafeInteger(next) || Number(next) < revision) throw new Error("INVALID_LEDGER_SAVE_RESPONSE");
       state.revision = Number(next);
       state.uncertain = null;
+      recordLastSynced(ownerId, payload as Snapshot, state.revision);
     }
     if (state.uncertain) {
       const pending = state.uncertain;
