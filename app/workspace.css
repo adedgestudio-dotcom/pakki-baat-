@@ -12793,11 +12793,18 @@ footer .footer-separator {
 .backup-clock-actions { justify-content: flex-end; }
 .backup-progress { height: 8px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
 .backup-progress span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .2s ease; }
-.backup-restore-confirm-backdrop { z-index: 10010; }
-.backup-restore-confirm { box-sizing: border-box; width: min(440px, calc(100vw - 28px)); padding: 24px; border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 20px 60px #0004; }
-.backup-restore-confirm p { margin: 0 0 20px; line-height: 1.5; }
+.backup-restore-confirm-backdrop { z-index: 10010; background: rgba(0, 0, 0, .45); --surface: #fffefb; --text: #2b3834; }
+[data-theme="dark"] .backup-restore-confirm-backdrop { --surface: #222a26; --text: #f1f6f3; }
+.backup-restore-confirm { position: relative; z-index: 1; box-sizing: border-box; width: min(420px, 100%); padding: 20px; border-radius: 16px; background: var(--surface); color: var(--text); font-size: 16px; opacity: 1; filter: none; backdrop-filter: none; box-shadow: 0 20px 60px #0004; }
+.backup-restore-confirm h2 { margin: 0 0 16px; color: var(--text); font: inherit; font-weight: 700; }
+.backup-restore-confirm p { margin: 0 0 12px; color: var(--text); font-size: 16px; line-height: 1.5; }
+.backup-restore-confirm small { display: block; color: color-mix(in srgb, var(--text) 68%, var(--surface)); font-size: 13px; line-height: 1.45; }
 .backup-restore-confirm > div { display: flex; justify-content: flex-end; gap: 10px; }
-.backup-restore-confirm button { min-width: 72px; min-height: 44px; border-radius: 10px; }
+.backup-restore-confirm .backup-restore-confirm-actions { margin-top: 20px; }
+.backup-restore-confirm button { min-height: 44px; padding: 9px 14px; border-radius: 10px; }
+.backup-restore-confirm .outline { border: 1px solid color-mix(in srgb, var(--text) 24%, var(--surface)); background: transparent; color: var(--text); }
+.backup-restore-confirm .outline:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 6%, var(--surface)); color: var(--text); }
+@media (max-width: 480px) { .backup-restore-confirm .backup-restore-confirm-actions { flex-direction: column; } .backup-restore-confirm-actions button { width: 100%; } }
 @media (max-width: 600px) { .backup-clock-popover { position: fixed; top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); } }
 .backup-row-actions .outline {
   min-height: 36px;

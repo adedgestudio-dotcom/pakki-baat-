@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadWorkspaceBackups, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, LEGACY_WORKSPACE_READ_ONLY_MESSAGE, type WorkspaceBackup } from "@/lib/cloud";
-import { anchorDayForSave, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
+import { anchorDayForSave, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 import { runWorkspaceBackup } from "@/lib/workspace-daily-backup-lifecycle";
 
@@ -212,7 +212,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
         {restoreHint && <small>To undo, restore the newest safety copy.</small>}
       </section>
     </>}
-    {restoreTarget && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-label="Confirm restore"><p>Restore backup {workspaceBackupFileName(restoreTarget.created_at, savedSettings.tz, restoreTarget.backup_kind === "pre_restore")}? Your app will show exactly the entries from that backup: Now {snapshot.jobs.length} entries → Backup {isSnapshot(restoreTarget.payload) ? restoreTarget.payload.jobs.length : "?"} entries. A safety copy of your current data is saved first.</p><div><button type="button" onClick={() => setRestoreTarget(null)}>No</button><button type="button" className="primary" onClick={() => void restoreBackup(restoreTarget)}>Yes</button></div></section></div>}
+    {restoreTarget && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-labelledby="backup-restore-title"><h2 id="backup-restore-title">Restore this backup?</h2><p>{workspaceBackupDateTime(restoreTarget.created_at, savedSettings.tz)}</p><p>Now {snapshot.jobs.length} entries → Backup {isSnapshot(restoreTarget.payload) ? restoreTarget.payload.jobs.length : "?"} entries.</p><small>A safety copy of your current data is saved first.</small><div className="backup-restore-confirm-actions"><button type="button" className="outline" onClick={() => setRestoreTarget(null)}>No</button><button type="button" className="primary" onClick={() => void restoreBackup(restoreTarget)}>Yes, restore</button></div></section></div>}
     {confirmCloudData && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-label="Use cloud data"><p>Changes made only on this phone will be lost.</p><div><button type="button" disabled={busy} onClick={() => setConfirmCloudData(false)}>No</button><button type="button" className="primary" disabled={busy} onClick={() => void run(async () => { await onUseCloudData(); setConfirmCloudData(false); setStatus("Cloud data loaded on this phone."); })}>Yes</button></div></section></div>}
     {status && <p role="status">{status}</p>}
   </div>;
