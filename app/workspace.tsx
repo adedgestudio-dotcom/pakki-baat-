@@ -27,7 +27,7 @@ import {
   loadTrialSubscription,
   type TrialSubscriptionState,
 } from "@/lib/trial-offer";
-import { runAllCustomerBackups } from "@/lib/workspace-daily-backup-lifecycle";
+import { backupSuccessToast, runAllCustomerBackups } from "@/lib/workspace-daily-backup-lifecycle";
 import {
   clearStaleOfflineCloudSaveStatus,
   type WorkspaceCloudSaveStatus,
@@ -300,6 +300,7 @@ export default function Workspace() {
     [paymentRef, setPaymentRef] = useState(""),
     [paymentProof, setPaymentProof] = useState<File | null>(null),
     [paymentSubmitting, setPaymentSubmitting] = useState(false),
+    [paymentBeingVerified, setPaymentBeingVerified] = useState(false),
     [feedback, setFeedback] = useState(""),
     [loggedIn, setLoggedIn] = useState(false),
     [accountId, setAccountId] = useState<string | null>(null),
@@ -395,6 +396,8 @@ export default function Workspace() {
     [installHelpOpen, setInstallHelpOpen] = useState(false),
     [installWelcomeOpen, setInstallWelcomeOpen] = useState(false),
     [backupNudgeOpen, setBackupNudgeOpen] = useState(false);
+  const [scheduledBackupProgress, setScheduledBackupProgress] = useState<number | null>(null);
+  const [scheduledBackupError, setScheduledBackupError] = useState("");
   // Synchronous financial state prevents queued React updates from validating against stale closures.
   const financialStateRef = useRef<FinancialState>({ jobs: [], payments: [] });
   function setJobs(value: SetStateAction<Job[]>) {
@@ -582,15 +585,18 @@ export default function Workspace() {
       form.append("price", paymentPlan?.price || "");
       form.append("transactionRef", paymentRef.trim());
       if (paymentProof) form.append("proof", paymentProof);
-      const response = await fetch("/api/payment-request", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw new Error(result?.error || "Could not submit payment.");
-      setToast("Payment submitted ✓ We’ll verify it and activate your plan.");
+      for (let attempt = 0; attempt <= 3; attempt++) {
+        const response = await fetch("/api/payment-request", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result?.error || "Could not submit payment.");
+        if (!paymentProof || result.proofUploaded !== false || attempt === 3) break;
+      }
+      setPaymentBeingVerified(true);
+      setToast("Payment submitted ✓ We're verifying it. Your plan activates soon.");
       setPaymentPlan(null);
       setPaymentRef("");
       setPaymentProof(null);
@@ -603,6 +609,27 @@ export default function Workspace() {
       setPaymentSubmitting(false);
     }
   }
+
+  useEffect(() => {
+    if (tab !== "Subscription" || !accountId || !loggedIn) return;
+    let cancelled = false;
+    const ownerId = accountId;
+    void (async () => {
+      try {
+        const token = await cloudToken();
+        const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!base || !anonKey) return;
+        const response = await fetch(`${base}/rest/v1/payment_requests?owner_id=eq.${encodeURIComponent(ownerId)}&status=eq.pending&select=id&limit=1`, {
+          headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const requests = await response.json();
+        if (!cancelled && activeUserIdRef.current === ownerId) setPaymentBeingVerified(Array.isArray(requests) && requests.length > 0);
+      } catch { /* Keep the last known payment status. */ }
+    })();
+    return () => { cancelled = true; };
+  }, [tab, accountId, loggedIn]);
 
   async function startFreeTrial() {
     if (!loggedIn) {
@@ -779,6 +806,7 @@ export default function Workspace() {
       setUserEmail(session?.user.email || null);
       setUserName(accountNameFromEmail(session));
       if (activeUserIdRef.current !== (session?.user.id || null)) {
+        setPaymentBeingVerified(false);
         // Hide the outgoing account before any asynchronous hydration. Keep its
         // durable account-scoped cache and pending payments for a later sign-in.
         setJobs([]);
@@ -1754,17 +1782,28 @@ export default function Workspace() {
   useEffect(() => {
     if (!ready || !loggedIn || !hasActiveSubscription || !isOnline || !accountId) return;
     let disposed = false;
+    let running = false;
     const check = async () => {
-      if (document.visibilityState === "hidden" || autosavePausedRef.current || !cloudHydratedRef.current ||
+      if (running || document.visibilityState === "hidden" || autosavePausedRef.current || !cloudHydratedRef.current ||
           activeUserIdRef.current !== accountId || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId)) return;
+      running = true;
       try {
         const settings = await loadBackupSettings(accountId);
-        if (disposed || activeUserIdRef.current !== accountId || autosavePausedRef.current || !cloudHydratedRef.current || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) || !backupDue(settings)) return;
+        if (disposed || activeUserIdRef.current !== accountId || autosavePausedRef.current || !cloudHydratedRef.current || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) || !["daily", "weekly", "monthly"].includes(settings.frequency) || !settings.time_of_day || !backupDue(settings)) return;
         const snapshot = currentSnapshotForBackupRef.current();
         if (!backupCustomerNames(snapshot).length) return;
-        await runAllCustomerBackups(snapshot, settings, accountId);
+        setScheduledBackupError("");
+        setScheduledBackupProgress(0);
+        const result = await runAllCustomerBackups(snapshot, settings, accountId, (done, total) => {
+          if (!disposed) setScheduledBackupProgress(Math.round(done / total * 100));
+        });
+        if (!disposed && document.visibilityState === "visible") setToast(backupSuccessToast(result));
       } catch (error) {
+        if (!disposed) setScheduledBackupError(error instanceof Error ? error.message : "Please try again.");
         if (!disposed) setToast(`Automatic backup failed: ${error instanceof Error ? error.message : "Please try again."}`);
+      } finally {
+        running = false;
+        if (!disposed) setScheduledBackupProgress(null);
       }
     };
     void check();
@@ -4243,6 +4282,9 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <small>{userEmail || "Your workspace"}</small>
             </div>
           </div>
+          <button type="button" className="primary sidebar-add-entry" onClick={openNewEntry}>
+            + Add entry
+          </button>
           <span className="eyebrow nav-label">YOUR WORKSPACE</span>
           <nav>
             {nav.map(([t, i]) => (
@@ -4311,6 +4353,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </div>
           </div>
         </aside>
+        <button type="button" className="desktop-floating-add-entry" aria-label="Add entry" title="Add entry" onClick={openNewEntry}>+</button>
         <main>
           <header className="topbar">
             <div className="breadcrumb">
@@ -6475,6 +6518,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     </small>
                   </div>
                 </section>
+                {paymentBeingVerified && <p role="status">Payment being verified</p>}
                 {!subscriptionPlan && (
                   <section className="trial-value-banner">
                     <div>
@@ -6749,6 +6793,10 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </div>
                 <section className="panel backup-main-panel">
                   <CloudSettings
+                    onToast={setToast}
+                    scheduledProgress={scheduledBackupProgress}
+                    scheduledError={scheduledBackupError}
+                    onClearScheduledError={() => setScheduledBackupError("")}
                     snapshot={{
                       jobs,
                       owner,

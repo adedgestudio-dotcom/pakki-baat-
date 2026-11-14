@@ -66,20 +66,10 @@ test('daily, weekly and monthly slots catch up in the chosen timezone', () => {
   assert.equal(backup.backupDue({ ...base, frequency: 'off' }, now), null);
 });
 
-test('restore replaces only the selected customer and remaps deleted historical IDs', () => {
+test('restore replaces only the selected customer and rejects deleted historical IDs', () => {
   const old = backup.sliceCustomer(snapshot, 'Sara');
   const current = { ...snapshot, jobs: [snapshot.jobs[1]], payments: [snapshot.payments[1]], notes: [], customerPhones: { Mina: '456' } };
-  let sequence = 0;
-  const result = backup.restoreCustomer(current, old, new Set(['j1']), new Set(['p1']), () => `new-${++sequence}`);
-  assert.equal(result.copiedJobs, 1);
-  assert.deepEqual(Array.from(result.snapshot.jobs, j => j.id), ['j2', 'new-1']);
-  assert.equal(result.snapshot.payments.find(p => p.customer === 'SARA').jobId, 'new-1');
-  assert.equal(result.snapshot.payments.find(p => p.customer === 'SARA').id, 'new-2');
-  assert.deepEqual(result.snapshot.jobs[0], snapshot.jobs[1]);
-  assert.deepEqual(result.snapshot.payments[0], snapshot.payments[1]);
-  assert.equal(result.snapshot.customerPhones.Mina, '456');
-  assert.equal(result.snapshot.customerPhones.SaRa, undefined);
-  assert.equal(result.snapshot.customerPhones.Sara, '123');
+  assert.throws(() => backup.restoreCustomer(current, old, new Set(['j1']), new Set(['p1'])), /deleted later and can't be restored exactly/);
   const changed = { ...snapshot, jobs: [job('j1', 'SARA', 500), snapshot.jobs[1]], customerPhones: { SARA: '999', Mina: '456' } };
   const replacement = backup.restoreCustomer(changed, old);
   assert.equal(replacement.snapshot.jobs.find(j => j.id === 'j1').total, 100);
@@ -118,15 +108,14 @@ test('backup page removes selection and saves the all-customer keys with the sch
   assert.match(page, /const customerKeys = customerNames\(snapshot\)\.map\(normalizeCustomerName\)/);
   assert.match(page, /await setBackupCustomers\(customerKeys, ownerId\);[\s\S]*await setBackupSettings\(next, ownerId\)/);
   assert.match(page, /setStatus\(await runAllCustomerBackups\(snapshot, savedSettings, ownerId\)\)/);
-  assert.match(page, /added === 0 \? `No entries added after this backup will be removed from \$\{backup\.customer_name\}\.`/);
-  assert.match(page, /\$\{added\} \$\{added === 1 \? "entry" : "entries"\} added after this backup will be removed/);
-  assert.match(page, /Restore \$\{backup\.customer_name\} from \$\{dateLabel\(backup\.created_at\)\}\? \$\{removal\} A safety copy is saved first\./);
+  assert.match(page, /Now: \$\{currentCount\} entries · Backup: \$\{backup\.payload\.jobs\.length\} entries/);
+  assert.match(page, /A safety copy is saved first\./);
 });
 
 test('Back up uses saved settings when an unsaved weekly draft has no time', async () => {
   const saved = { frequency: 'manual', time_of_day: null, tz: 'UTC', anchor_day: null, customers: [], last_run_at: null };
   const draft = { ...saved, frequency: 'weekly' };
-  const state = [true, false, false, '', '', [], draft, saved, [], '', '', '', Date.now()];
+  const state = [true, false, false, '', [], draft, saved, Date.now()];
   let index = 0, received;
   const react = {
     useState(initial) { const slot = index++; if (!(slot in state)) state[slot] = typeof initial === 'function' ? initial() : initial; return [state[slot], value => { state[slot] = typeof value === 'function' ? value(state[slot]) : value; }]; },
@@ -198,7 +187,7 @@ test('zero customers disable Back up and Save; schedule layout and scheduler sta
   assert.match(css, /\.backup-auto-field select,[\s\S]*min-height: 44px/);
   assert.match(css, /@media \(max-width: 600px\) \{\s*\.backup-main-panel \{\s*padding: 16px/);
   assert.match(page, /saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)/);
-  assert.match(page, /const restoreNames = \[\.\.\.new Map\(backups\.map/);
+  assert.match(page, /\[\.\.\.backups\]\.sort/);
   assert.match(workspace, /visibilitychange/);
   assert.match(workspace, /60_000/);
   assert.match(workspace, /!backupDue\(settings\)/);

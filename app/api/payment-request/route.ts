@@ -51,9 +51,16 @@ export async function POST(request:NextRequest){
   }
   if(proofBytes&&proofPath){
     const objectUrl=`${base}/storage/v1/object/payment-proofs/${proofPath}`;
-    const exists=await fetch(objectUrl,{method:"HEAD",headers:{apikey:service,Authorization:`Bearer ${service}`}});
-    if(exists.status===404){const upload=await fetch(objectUrl,{method:"POST",headers:{apikey:service,Authorization:`Bearer ${service}`,"Content-Type":proofType,"x-upsert":"false"},body:proofBytes as unknown as BodyInit});if(!upload.ok&&upload.status!==409)return NextResponse.json({error:"Payment request saved, but screenshot upload failed. Please retry with the same submission."},{status:503});}
-    else if(!exists.ok)return NextResponse.json({error:"Could not verify payment screenshot. Please retry."},{status:503});
+    try {
+      const upload=await fetch(objectUrl,{method:"POST",headers:{apikey:service,Authorization:`Bearer ${service}`,"Content-Type":proofType,"x-upsert":"false"},body:proofBytes as unknown as BodyInit});
+      if(!upload.ok&&upload.status!==409){
+        console.error("Payment proof upload failed",{requestId:saved.id,status:upload.status});
+        return NextResponse.json({ok:true,status:"pending",proofUploaded:false});
+      }
+    } catch(error) {
+      console.error("Payment proof upload failed",{requestId:saved.id,error});
+      return NextResponse.json({ok:true,status:"pending",proofUploaded:false});
+    }
   }
-  return NextResponse.json({ok:true,reused:!saved.created});
+  return NextResponse.json({ok:true,status:"pending",reused:!saved.created,proofUploaded:true});
 }

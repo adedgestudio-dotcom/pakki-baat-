@@ -294,6 +294,13 @@ strong {
   display: grid;
   gap: 8px;
 }
+.sidebar-add-entry { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 100%; min-height: 44px; margin-bottom: 20px; }
+.desktop-floating-add-entry { display: none; }
+@media (min-width: 1024px) { .sidebar .sidebar-add-entry { display: flex; visibility: visible; } }
+@media (min-width: 801px) and (max-width: 1023px) {
+  .sidebar .sidebar-add-entry { display: none; }
+  .desktop-floating-add-entry { display: grid; place-items: center; position: fixed; z-index: 70; right: 24px; bottom: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: white; box-shadow: 0 8px 24px #0003; font-size: 30px; }
+}
 .sidebar nav button {
   display: flex;
   align-items: center;
@@ -12736,8 +12743,7 @@ footer .footer-separator {
 }
 .backup-auto-heading,
 .backup-next-slot,
-.backup-auto-field,
-.backup-restore-days {
+.backup-auto-field {
   display: grid;
   gap: 6px;
 }
@@ -12759,10 +12765,7 @@ footer .footer-separator {
 .backup-auto-field + .backup-auto-field,
 .backup-auto-save { margin-top: 12px; }
 .backup-auto-field select,
-.backup-auto-field input,
-.backup-restore-section input[type="search"],
-.backup-restore-section input[type="date"],
-.backup-restore-days select {
+.backup-clock-trigger {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -12774,10 +12777,22 @@ footer .footer-separator {
   color: var(--text);
   font: inherit;
 }
-.backup-restore-customers,
-.backup-restore-dates { display: grid; gap: 8px; }
-.backup-restore-option { display: flex; align-items: center; gap: 8px; min-height: 44px; }
-.backup-restore-option input { width: 18px; height: 18px; }
+.backup-clock-field { position: relative; min-width: 0; }
+.backup-clock-trigger { display: flex; align-items: center; justify-content: space-between; text-align: left; cursor: pointer; }
+.backup-clock-trigger span { font-size: 20px; }
+.backup-clock-popover { box-sizing: border-box; position: absolute; z-index: 120; top: calc(100% + 8px); right: 0; width: min(320px, calc(100vw - 24px)); padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 16px 40px #0003; }
+.backup-clock-heading, .backup-clock-period, .backup-clock-actions { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.backup-clock-heading button, .backup-clock-period button, .backup-clock-actions button { min-width: 44px; min-height: 44px; padding: 8px 12px; border-radius: 10px; background: transparent; color: var(--text); }
+.backup-clock-heading button.selected, .backup-clock-period button.selected, .backup-clock-actions button:last-child { background: var(--accent); color: white; }
+.backup-clock-actions button:disabled { opacity: .45; }
+.backup-clock-dial { position: relative; width: min(264px, 100%); aspect-ratio: 1; margin: 12px auto; border-radius: 50%; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.backup-clock-dial button { position: absolute; display: grid; place-items: center; width: 44px; height: 44px; transform: translate(-50%, -50%); border-radius: 50%; background: transparent; color: var(--text); font-weight: 700; touch-action: manipulation; }
+.backup-clock-dial button.selected { background: var(--accent); color: white; }
+.backup-clock-period { margin-bottom: 8px; }
+.backup-clock-actions { justify-content: flex-end; }
+.backup-progress { height: 8px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.backup-progress span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .2s ease; }
+@media (max-width: 600px) { .backup-clock-popover { position: fixed; top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); } }
 .backup-retention-options {
   display: flex;
   gap: 8px;

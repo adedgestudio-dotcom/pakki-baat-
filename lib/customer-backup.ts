@@ -60,7 +60,7 @@ export function entriesAddedAfterBackup(snapshot: Snapshot, slice: CustomerSlice
   return snapshot.jobs.filter(job => keyOf(job.customer) === slice.customer_key && !backedUpIds.has(job.id)).length;
 }
 
-export function restoreCustomer(snapshot: Snapshot, slice: CustomerSlice, historicalJobIds = new Set<string>(), historicalPaymentIds = new Set<string>(), makeId = () => crypto.randomUUID()): { snapshot: Snapshot; copiedJobs: number } {
+export function restoreCustomer(snapshot: Snapshot, slice: CustomerSlice, historicalJobIds = new Set<string>(), historicalPaymentIds = new Set<string>()): { snapshot: Snapshot } {
   if (!validateCustomerSlice(slice)) throw new Error("This customer backup is damaged or invalid.");
   const key = slice.customer_key;
   const currentJobs = snapshot.jobs.filter(j => keyOf(j.customer) === key);
@@ -70,16 +70,16 @@ export function restoreCustomer(snapshot: Snapshot, slice: CustomerSlice, histor
   const otherJobs = snapshot.jobs.filter(j => keyOf(j.customer) !== key);
   const otherPayments = (snapshot.payments || []).filter(p => keyOf(p.customer) !== key);
   const used = new Set([...otherJobs, ...otherPayments, ...(snapshot.notes || []).filter(n => keyOf(n.customer) !== key), ...(snapshot.reminders || []).filter(r => keyOf(r.customer || "") !== key)].map(item => item.id));
-  const fresh = () => { let id: string; do { id = makeId(); } while (!id || used.has(id)); used.add(id); return id; };
-  const remapped = new Map<string, string>();
-  let copiedJobs = 0;
-  const jobs = slice.jobs.map(j => { const copy = !currentJobIds.has(j.id) && historicalJobIds.has(j.id); const id = copy || used.has(j.id) ? fresh() : j.id; used.add(id); if (id !== j.id) { remapped.set(j.id, id); copiedJobs++; } return { ...j, id }; });
-  const payments = slice.payments.map(p => { const id = !currentPaymentIds.has(p.id) && historicalPaymentIds.has(p.id) || used.has(p.id) ? fresh() : p.id; used.add(id); return p.jobId ? { ...p, id, jobId: remapped.get(p.jobId) || p.jobId } : { ...p, id }; });
-  const notes = slice.notes.map(n => { const id = used.has(n.id) ? fresh() : n.id; used.add(id); return { ...n, id }; });
-  const reminders = slice.reminders.map(r => { const id = used.has(r.id) ? fresh() : r.id; used.add(id); return { ...r, id, jobId: r.jobId ? remapped.get(r.jobId) || r.jobId : undefined }; });
+  if (slice.jobs.some(j => historicalJobIds.has(j.id) && !currentJobIds.has(j.id)) ||
+      slice.payments.some(p => historicalPaymentIds.has(p.id) && !currentPaymentIds.has(p.id))) {
+    throw new Error("This backup contains entries that were deleted later and can't be restored exactly. Nothing was changed.");
+  }
+  if ([...slice.jobs, ...slice.payments, ...slice.notes, ...slice.reminders].some(item => used.has(item.id))) {
+    throw new Error("This backup contains IDs used by another customer and can't be restored exactly. Nothing was changed.");
+  }
   const customerPhones = Object.fromEntries(Object.entries(snapshot.customerPhones || {}).filter(([name]) => keyOf(name) !== key));
   if (slice.phone !== null) customerPhones[slice.customer_name] = slice.phone;
-  return { snapshot: { ...snapshot, jobs: [...otherJobs, ...jobs], payments: [...otherPayments, ...payments], notes: [...(snapshot.notes || []).filter(n => keyOf(n.customer) !== key), ...notes], reminders: [...(snapshot.reminders || []).filter(r => keyOf(r.customer || "") !== key), ...reminders], customerPhones }, copiedJobs };
+  return { snapshot: { ...snapshot, jobs: [...otherJobs, ...slice.jobs], payments: [...otherPayments, ...slice.payments], notes: [...(snapshot.notes || []).filter(n => keyOf(n.customer) !== key), ...slice.notes], reminders: [...(snapshot.reminders || []).filter(r => keyOf(r.customer || "") !== key), ...slice.reminders], customerPhones } };
 }
 
 function zonedParts(date: Date, tz: string) {
