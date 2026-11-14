@@ -61,6 +61,10 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const [backups, setBackups] = useState<WorkspaceBackup[]>([]);
   const [restoreTarget, setRestoreTarget] = useState<WorkspaceBackup | null>(null);
   const [selectedBackupId, setSelectedBackupId] = useState("");
+  const [backupMenuOpen, setBackupMenuOpen] = useState(false);
+  const [highlightedBackupIndex, setHighlightedBackupIndex] = useState(0);
+  const backupMenuRef = useRef<HTMLDivElement>(null);
+  const backupListRef = useRef<HTMLDivElement>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [restoreHint, setRestoreHint] = useState(false);
   const [confirmCloudData, setConfirmCloudData] = useState(false);
@@ -84,6 +88,9 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
     return watchSession(session => { const same = session?.user.id === ownerId; setLogged(same); setChecking(false); if (same) void refresh(); else { ++requestRef.current; setBackups([]); setDraft(emptySettings()); setSavedSettings(emptySettings()); } });
   }, [ownerId, refresh]);
   const sortedBackups = [...backups].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const regularBackups = sortedBackups.filter(backup => backup.backup_kind !== "pre_restore");
+  const safetyBackups = sortedBackups.filter(backup => backup.backup_kind === "pre_restore");
+  const menuBackups = [...regularBackups, ...safetyBackups];
   const last = sortedBackups[0];
   const selectedBackup = sortedBackups.find(backup => backup.id === selectedBackupId);
   const selectedSnapshot = selectedBackup && isSnapshot(selectedBackup.payload) ? selectedBackup.payload : null;
@@ -97,6 +104,37 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const displayedProgress = progress ?? scheduledProgress;
   const canBackup = backupLockReason === null;
   const saveDisabled = controlsBusy || !canBackup || scheduleNeedsTime && !draft.time_of_day;
+  useEffect(() => {
+    if (!backupMenuOpen) return;
+    const onOutsideTap = (event: PointerEvent) => {
+      if (!backupMenuRef.current?.contains(event.target as Node)) setBackupMenuOpen(false);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setBackupMenuOpen(false); backupMenuRef.current?.querySelector("button")?.focus(); }
+    };
+    document.addEventListener("pointerdown", onOutsideTap);
+    document.addEventListener("keydown", onEscape);
+    const frame = requestAnimationFrame(() => { backupListRef.current?.scrollIntoView({ block: "nearest" }); backupListRef.current?.focus(); });
+    return () => { cancelAnimationFrame(frame); document.removeEventListener("pointerdown", onOutsideTap); document.removeEventListener("keydown", onEscape); };
+  }, [backupMenuOpen]);
+  useEffect(() => {
+    if (backupMenuOpen) backupListRef.current?.querySelector(`[data-backup-index="${highlightedBackupIndex}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [backupMenuOpen, highlightedBackupIndex]);
+  useEffect(() => { if (controlsBusy || !canBackup) setBackupMenuOpen(false); }, [controlsBusy, canBackup]);
+  function chooseBackup(backup: WorkspaceBackup) {
+    setSelectedBackupId(backup.id);
+    setRestoreHint(false);
+    setBackupMenuOpen(false);
+    backupMenuRef.current?.querySelector("button")?.focus();
+  }
+  function backupMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedBackupIndex(index => Math.max(0, Math.min(menuBackups.length - 1, index + (event.key === "ArrowDown" ? 1 : -1))));
+    } else if (event.key === "Enter" && menuBackups[highlightedBackupIndex]) {
+      event.preventDefault(); chooseBackup(menuBackups[highlightedBackupIndex]);
+    }
+  }
 
   async function run(action: () => Promise<void>) {
     setBusy(true); setStatus("");
@@ -163,7 +201,12 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
         <small>Kept for 30 days (up to 60). Photos are not included.</small>
       </section>
       <section className="backup-simple-card backup-restore-card"><strong>Restore from a backup</strong>
-        {backups.length ? <><select aria-label="Choose a backup" value={selectedBackupId} disabled={controlsBusy || !canBackup} onChange={event => { setSelectedBackupId(event.target.value); setRestoreHint(false); }}><option value="">Select a backup…</option><optgroup label="Backups">{sortedBackups.filter(backup => backup.backup_kind !== "pre_restore").map(backup => <option key={backup.id} value={backup.id}>{backupLabel(backup.created_at, savedSettings.tz, now)} · {isSnapshot(backup.payload) ? backup.payload.jobs.length : "?"} entries</option>)}</optgroup><optgroup label="Safety copies (before restore)">{sortedBackups.filter(backup => backup.backup_kind === "pre_restore").map(backup => <option key={backup.id} value={backup.id}>{backupLabel(backup.created_at, savedSettings.tz, now)} · {isSnapshot(backup.payload) ? backup.payload.jobs.length : "?"} entries</option>)}</optgroup></select>
+        {backups.length ? <><div className="backup-picker" ref={backupMenuRef}>
+          <button type="button" className="backup-picker-trigger" aria-label="Choose a backup" aria-haspopup="listbox" aria-expanded={backupMenuOpen} aria-controls="backup-picker-list" disabled={controlsBusy || !canBackup} onClick={() => { setHighlightedBackupIndex(Math.max(0, menuBackups.findIndex(backup => backup.id === selectedBackupId))); setBackupMenuOpen(open => !open); }} onKeyDown={event => { if (!backupMenuOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) { event.preventDefault(); setHighlightedBackupIndex(event.key === "ArrowDown" ? 0 : menuBackups.length - 1); setBackupMenuOpen(true); } }}><span>{selectedBackup ? `${backupLabel(selectedBackup.created_at, savedSettings.tz, now)} · ${isSnapshot(selectedBackup.payload) ? selectedBackup.payload.jobs.length : "?"} entries` : "Select a backup…"}</span><span className={`backup-picker-chevron${backupMenuOpen ? " open" : ""}`} aria-hidden="true" /></button>
+          {backupMenuOpen && <div id="backup-picker-list" className="backup-picker-list" role="listbox" aria-label="Choose a backup" aria-activedescendant={`backup-picker-option-${highlightedBackupIndex}`} tabIndex={-1} ref={backupListRef} onKeyDown={backupMenuKeyDown}>
+            {([ ["Backups", regularBackups], ["Safety copies (before restore)", safetyBackups] ] as const).map(([heading, rows]) => rows.length > 0 && <div className="backup-picker-group" key={heading}><div className="backup-picker-heading">{heading}</div>{rows.map(backup => { const index = menuBackups.findIndex(row => row.id === backup.id); const selected = backup.id === selectedBackupId; return <div id={`backup-picker-option-${index}`} key={backup.id} data-backup-index={index} role="option" aria-selected={selected} className={`backup-picker-option${selected ? " selected" : ""}${index === highlightedBackupIndex ? " highlighted" : ""}`} onMouseEnter={() => setHighlightedBackupIndex(index)} onClick={() => chooseBackup(backup)}><span>{backupLabel(backup.created_at, savedSettings.tz, now)}</span><span className="backup-picker-option-meta">{isSnapshot(backup.payload) ? backup.payload.jobs.length : "?"} entries{selected && <span className="backup-picker-check" aria-hidden="true">✓</span>}</span></div>; })}</div>)}
+          </div>}
+        </div>
           {selectedBackup && <div className="backup-restore-summary">This backup: {selectedSnapshot?.jobs.length ?? "?"} entries · {selectedSnapshot ? new Set(selectedSnapshot.jobs.map(job => job.customer)).size : "?"} customers. Now: {snapshot.jobs.length} entries.{entriesRemoved > 0 && <p>{entriesRemoved} entries added after this backup will be removed.</p>}{entriesReturned > 0 && <p>{entriesReturned} entries missing now will come back.</p>}</div>}
           <button type="button" className="primary backup-run-button" disabled={!selectedBackup || controlsBusy || !canBackup} onClick={() => selectedBackup && setRestoreTarget(selectedBackup)}>Restore</button></> : <div className="notice">No backups yet. Tap Back up now.</div>}
         {restoreHint && <small>To undo, restore the newest safety copy.</small>}
