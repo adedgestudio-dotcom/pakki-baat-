@@ -317,12 +317,20 @@ strong {
   color: var(--teal);
   font-weight: 600;
 }
+[data-theme="dark"] .sidebar nav button.active {
+  color: #1f4d3a;
+  font-weight: 600;
+}
 .sidebar nav b {
   margin-left: auto;
   border-radius: 5px;
   background: #d6e7d6;
   padding: 2px 5px;
   font-size: 10px;
+}
+[data-theme="dark"] .sidebar nav b {
+  color: #1f4d3a;
+  font-weight: 600;
 }
 .sidebar-bottom {
   margin-top: auto;
@@ -781,6 +789,10 @@ main {
   font-size: 10px;
   margin-left: 5px;
 }
+[data-theme="dark"] .section-heading .count {
+  color: #1f4d3a;
+  font-weight: 600;
+}
 .text-button {
   display: inline-flex;
   gap: 7px;
@@ -850,6 +862,10 @@ main {
   background: #eaf3e7;
   color: #6d9560;
 }
+[data-theme="dark"] .tag.green {
+  color: #1f4d3a;
+  font-weight: 600;
+}
 .job > svg {
   color: #abb5a7;
 }
@@ -908,6 +924,12 @@ main {
   border-color: #e5daca;
   min-height: 36px;
   padding: 9px 13px;
+}
+[data-theme="dark"] .tip-panel .outline {
+  background: #203a30;
+  border-color: #3d5d4f;
+  color: #fff;
+  font-weight: 600;
 }
 .tiny {
   display: block;
@@ -7992,13 +8014,14 @@ select:focus-visible {
 [data-theme="dark"] .section-heading .attention-view-all {
   background: #203a30;
   border-color: #3d5d4f;
-  color: #dcebe4;
+  color: #fff;
+  font-weight: 600;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
 }
 [data-theme="dark"] .section-heading .attention-view-all:hover {
   background: #29493c;
   border-color: #557866;
-  color: #f2f7f4;
+  color: #fff;
 }
 @media (max-width: 560px) {
   .section-heading .attention-view-all {
@@ -8024,7 +8047,8 @@ select:focus-visible {
   [data-theme="dark"] .section-heading .attention-view-all {
     background: #244136;
     border-color: #406353;
-    color: #e5f1eb;
+    color: #fff;
+    font-weight: 600;
     box-shadow: 0 5px 14px rgba(0, 0, 0, 0.18);
   }
 }
