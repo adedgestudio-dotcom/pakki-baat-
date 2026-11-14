@@ -6,7 +6,7 @@ import "./workspace.css";
 import "./new-customer-picker.css";
 import "./connections.css";
 import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
-import { backupDue, customerNames as backupCustomerNames } from "@/lib/customer-backup";
+import { backupDue } from "@/lib/customer-backup";
 import CloudSettings from "./cloud-settings";
 import BackupNudge from "./backup-nudge";
 import { backupNudgeDue, recordBackupNudge, rememberFirstUse } from "@/lib/backup-nudge";
@@ -27,7 +27,7 @@ import {
   loadTrialSubscription,
   type TrialSubscriptionState,
 } from "@/lib/trial-offer";
-import { backupSuccessToast, runAllCustomerBackups } from "@/lib/workspace-daily-backup-lifecycle";
+import { runWorkspaceBackup } from "@/lib/workspace-daily-backup-lifecycle";
 import {
   clearStaleOfflineCloudSaveStatus,
   type WorkspaceCloudSaveStatus,
@@ -54,7 +54,7 @@ import {
   isRetryableCloudError,
   loadCloud,
   loadBackupSettings,
-  loadCustomerBackups,
+  loadWorkspaceBackups,
   saveCloud,
   saveWorkspaceBackup,
   signInWithGoogle,
@@ -421,7 +421,8 @@ export default function Workspace() {
     publishJobs(next.jobs);
     publishPayments(next.payments);
   }
-  const paymentRequestAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  const paymentRequestAttemptRef = useRef<string | null>(null);
+  const paymentSubmittingRef = useRef(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const voiceUrlsRef = useRef<Record<string, string>>({});
   const voiceFilesRef = useRef<Record<string, File>>({});
@@ -564,23 +565,15 @@ export default function Workspace() {
     link.click();
   }
   async function submitPaymentReference() {
-    if (!paymentProof && !paymentRef.trim()) {
-      setToast("Upload your payment screenshot or enter the transaction ID.");
-      return;
-    }
-    if (!loggedIn) {
-      setToast("Please sign in before submitting your payment.");
-      return;
-    }
+    if (paymentSubmittingRef.current) return;
+    paymentSubmittingRef.current = true;
+    setPaymentSubmitting(true);
     try {
-      setPaymentSubmitting(true);
+      if (!paymentProof && !paymentRef.trim()) throw new Error("Upload your payment screenshot or enter the transaction ID.");
+      if (!loggedIn) throw new Error("Please sign in before submitting your payment.");
       const token = await cloudToken();
       const form = new FormData();
-      const fingerprint = JSON.stringify([activeUserIdRef.current, paymentPlan?.name, paymentRef.trim(), paymentProof?.name, paymentProof?.size, paymentProof?.lastModified]);
-      if (paymentRequestAttemptRef.current?.fingerprint !== fingerprint) {
-        paymentRequestAttemptRef.current = { fingerprint, key: crypto.randomUUID() };
-      }
-      form.append("idempotencyKey", paymentRequestAttemptRef.current.key);
+      form.append("idempotencyKey", paymentRequestAttemptRef.current ??= crypto.randomUUID());
       form.append("plan", paymentPlan?.name || "");
       form.append("price", paymentPlan?.price || "");
       form.append("transactionRef", paymentRef.trim());
@@ -606,8 +599,14 @@ export default function Workspace() {
         error instanceof Error ? error.message : "Could not submit payment."
       );
     } finally {
+      paymentSubmittingRef.current = false;
       setPaymentSubmitting(false);
     }
+  }
+  function closePaymentForm() {
+    if (paymentSubmittingRef.current) return;
+    paymentRequestAttemptRef.current = null;
+    setPaymentPlan(null);
   }
 
   useEffect(() => {
@@ -1398,7 +1397,7 @@ export default function Workspace() {
     void (async () => {
       try {
         const [settings, backups] = await Promise.all([
-          loadBackupSettings(accountId), loadCustomerBackups(accountId),
+          loadBackupSettings(accountId), loadWorkspaceBackups(accountId),
         ]);
         if (cancelled || activeUserIdRef.current !== accountId || !navigator.onLine ||
             document.querySelector('[aria-modal="true"], dialog[open]')) return;
@@ -1791,13 +1790,12 @@ export default function Workspace() {
         const settings = await loadBackupSettings(accountId);
         if (disposed || activeUserIdRef.current !== accountId || autosavePausedRef.current || !cloudHydratedRef.current || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) || !["daily", "weekly", "monthly"].includes(settings.frequency) || !settings.time_of_day || !backupDue(settings)) return;
         const snapshot = currentSnapshotForBackupRef.current();
-        if (!backupCustomerNames(snapshot).length) return;
         setScheduledBackupError("");
         setScheduledBackupProgress(0);
-        const result = await runAllCustomerBackups(snapshot, settings, accountId, (done, total) => {
+        const result = await runWorkspaceBackup(snapshot, settings, accountId, "scheduled", (done, total) => {
           if (!disposed) setScheduledBackupProgress(Math.round(done / total * 100));
         });
-        if (!disposed && document.visibilityState === "visible") setToast(backupSuccessToast(result));
+        if (!disposed && document.visibilityState === "visible") setToast(result);
       } catch (error) {
         if (!disposed) setScheduledBackupError(error instanceof Error ? error.message : "Please try again.");
         if (!disposed) setToast(`Automatic backup failed: ${error instanceof Error ? error.message : "Please try again."}`);
@@ -6644,6 +6642,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           plan.name === "Smart" ? "primary" : "outline"
                         }
                         onClick={() => {
+                          if (paymentSubmittingRef.current) return;
+                          paymentRequestAttemptRef.current ??= crypto.randomUUID();
                           setPaymentPlan({
                             name: plan.name,
                             price: plan.price,
@@ -7735,7 +7735,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
         {paymentPlan && (
           <div
             className="modal-backdrop payment-backdrop"
-            onClick={() => setPaymentPlan(null)}
+            onClick={closePaymentForm}
           >
             <div
               className="modal payment-modal"
@@ -7747,7 +7747,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <button
                 className="icon-button payment-close"
                 aria-label="Close payment"
-                onClick={() => setPaymentPlan(null)}
+                onClick={closePaymentForm}
               >
                 <Icon name="close" />
               </button>
@@ -7833,7 +7833,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   }
                   onClick={() => void submitPaymentReference()}
                 >
-                  {paymentSubmitting ? "Submitting…" : "Yes, I’ve Paid"}
+                  {paymentSubmitting ? "Submitting…" : "Submit payment"}
                 </button>
                 <small className="payment-review-note">
                   Your plan will activate after payment verification. No need to
