@@ -93,10 +93,11 @@ export function isRetryableCloudError(error: unknown) {
   return true;
 }
 
-async function request(path: string, body?: unknown, token?: string) {
+async function request(path: string, body?: unknown, token?: string, cache?: RequestCache) {
   await configuredClient();
   const response = await fetch(base + path, {
     method: body ? "POST" : "GET",
+    ...(cache ? { cache } : {}),
     headers: { apikey: key, "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
@@ -255,6 +256,49 @@ export function reconcileLedgerHydration(server: Snapshot, revision: number, loc
 export function blockCloudSaves(ownerId: string) {
   const state = saveStates.get(ownerId);
   if (state?.ledgerEnabled) state.conflict = true;
+}
+
+export async function peekCloudRevision(ownerId: string): Promise<number> {
+  const session = await accountSession(ownerId);
+  const rows = await request("/rest/v1/workspaces?select=revision", undefined, session.access_token, "no-store");
+  await accountSession(ownerId);
+  const revision = rows[0]?.revision;
+  if (!Number.isSafeInteger(revision) || revision < 1) throw new Error("LEDGER_WORKSPACE_REVISION_MISSING");
+  return revision;
+}
+
+type PullCloudResult = { status: "skip" | "unchanged" | "conflict" } | { status: "updated"; snapshot: Snapshot };
+export async function pullCloudIfNewer(ownerId: string, options: { shouldSkip?: () => boolean; currentSnapshot?: () => Snapshot | null; onUpdated?: (snapshot: Snapshot) => boolean } = {}): Promise<PullCloudResult> {
+  const state = saveStates.get(ownerId);
+  if (!state?.ledgerEnabled || !state.revision || options.shouldSkip?.()) return { status: "skip" };
+  const tail = state.tail;
+  await tail.catch(() => {});
+  const unsafe = () => options.shouldSkip?.() || saveStates.get(ownerId) !== state || state.tail !== tail || state.uncertain !== null || state.conflict || readLedgerDirty(ownerId) !== null;
+  if (unsafe()) return { status: "skip" };
+  let latest: number;
+  try { latest = await peekCloudRevision(ownerId); }
+  catch (error) { if (error instanceof Error && error.message.includes("ACCOUNT_CHANGED")) return { status: "skip" }; throw error; }
+  if (unsafe()) return { status: "skip" };
+  if (latest <= state.revision) return { status: "unchanged" };
+  const session = await accountSession(ownerId).catch(() => null);
+  if (!session) return { status: "skip" };
+  const rows = await request("/rest/v1/workspaces?select=payload,revision", undefined, session.access_token, "no-store");
+  if ((await currentSession())?.user.id !== ownerId || unsafe()) return { status: "skip" };
+  const snapshot: unknown = rows[0]?.payload;
+  const revision: unknown = rows[0]?.revision;
+  if (!isSnapshot(snapshot) || !Number.isSafeInteger(revision) || Number(revision) < 1) throw new Error("INVALID_LEDGER_WORKSPACE_SNAPSHOT");
+  if (Number(revision) <= state.revision) return { status: "unchanged" };
+  const local = options.currentSnapshot?.() ?? null;
+  if (local && reconcileLedgerHydration(snapshot, Number(revision), local, null, readLastSynced(ownerId)).conflict) {
+    blockCloudSaves(ownerId);
+    markLedgerDirty(ownerId, local, 0);
+    return { status: "conflict" };
+  }
+  const changed = !local || !equalJson(local, snapshot);
+  if (changed && options.onUpdated && !options.onUpdated(snapshot)) return { status: "skip" };
+  state.revision = Number(revision);
+  recordLastSynced(ownerId, snapshot, state.revision);
+  return changed ? { status: "updated", snapshot } : { status: "unchanged" };
 }
 
 export async function saveCloud(snapshot: unknown, expectedOwnerId?: string) {

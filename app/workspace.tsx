@@ -51,6 +51,7 @@ import {
   markLedgerDirty,
   readLastSynced,
   recordLastSynced,
+  pullCloudIfNewer,
   reconcileLedgerHydration,
   readLedgerDirty,
   isRetryableCloudError,
@@ -303,6 +304,7 @@ export default function Workspace() {
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
+    [otherDeviceUpdated, setOtherDeviceUpdated] = useState(false),
     [paymentPlan, setPaymentPlan] = useState<{
       name: string;
       price: string;
@@ -1317,6 +1319,11 @@ export default function Workspace() {
     const id = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(id);
   }, [toast]);
+  useEffect(() => {
+    if (!otherDeviceUpdated) return;
+    const id = window.setTimeout(() => setOtherDeviceUpdated(false), 3000);
+    return () => window.clearTimeout(id);
+  }, [otherDeviceUpdated]);
   const modalOpen = Boolean(draft);
   useEffect(() => {
     if (!modalOpen) return;
@@ -1514,6 +1521,54 @@ export default function Workspace() {
       window.removeEventListener("online", onOnline);
     };
   }, [loggedIn]);
+
+  useEffect(() => {
+    if (!loggedIn || !ready || !accountId || loadedAccountId !== accountId) return;
+    let disposed = false;
+    let inFlight = false;
+    const blocked = () => autosavePausedRef.current || restoreTargetRef.current !== null ||
+      Boolean(pendingJobRef.current || draft || customerChatOpen || message.trim() || document.querySelector('.modal-backdrop, [role="dialog"]'));
+    const poll = async () => {
+      if (inFlight || disposed || document.visibilityState !== "visible" || !navigator.onLine || !isOnline ||
+          !cloudHydratedRef.current || blocked()) return;
+      inFlight = true;
+      try {
+        const result = await pullCloudIfNewer(accountId, {
+          shouldSkip: () => disposed || activeUserIdRef.current !== accountId || !cloudHydratedRef.current || blocked(),
+          currentSnapshot: () => currentSnapshotForBackupRef.current(),
+          onUpdated: snapshot => {
+            if (disposed || activeUserIdRef.current !== accountId || blocked()) return false;
+            writeLocalWorkspace(accountId, snapshot);
+            restore(snapshot);
+            setOtherDeviceUpdated(true);
+            return true;
+          },
+        });
+        if (disposed || activeUserIdRef.current !== accountId) return;
+        if (result.status === "conflict") {
+          cloudHydratedRef.current = false;
+          setSyncPending(true);
+          setToast("Cloud changed since your local Hisaab edits. Your local copy is preserved; automatic sync is paused to prevent overwriting newer data.");
+        }
+      } catch { /* A failed or offline read leaves the current workspace in place. */ }
+      finally { inFlight = false; }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") void poll(); };
+    const onFocus = () => void poll();
+    const onOnline = () => void poll();
+    void poll();
+    const interval = window.setInterval(() => void poll(), 30000);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [loggedIn, ready, accountId, loadedAccountId, isOnline, draft, customerChatOpen, message]);
 
   useEffect(() => {
     if (!trialEndingSoon || !subscriptionPeriodEnd) return;
@@ -4640,6 +4695,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             </div>
           )}
           <div className="content">
+            {otherDeviceUpdated && <div role="status" style={{ marginBottom: 12, color: "var(--teal)", fontSize: 12 }}>Updated from your other device ✓</div>}
             {tab === "Reports" && signedOut && (
               <>
                 <div className="page-heading">

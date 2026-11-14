@@ -33,7 +33,7 @@ function snapshot(jobs = [], payments = []) {
 
 function harness({ mode = true, initial = snapshot(), revision = 1, storage = new Map() } = {}) {
   const requests = [];
-  const state = { owner: "fictional-a", payload: initial, revision, rpc: null, switchDuringBackups: false };
+  const state = { owner: "fictional-a", payload: initial, revision, rpc: null, switchDuringBackups: false, switchDuringFullRead: false };
   const auth = { getSession: async () => ({ data: { session: state.owner ? { user: { id: state.owner }, access_token: state.owner + "-token" } : null }, error: null }) };
   const ok = (data) => ({ ok: true, status: 200, text: async () => JSON.stringify(data) });
   const fail = (status, message, code) => ({ ok: false, status, text: async () => JSON.stringify({ message, code }) });
@@ -47,6 +47,7 @@ function harness({ mode = true, initial = snapshot(), revision = 1, storage = ne
       return ok(mode ? [{ enabled: true }] : []);
     }
     if (endpoint.startsWith("/rest/v1/workspaces?")) {
+      if (state.switchDuringFullRead && endpoint.includes("select=payload,revision")) state.owner = "fictional-b";
       return ok([{ payload: state.payload, revision: state.revision }]);
     }
     if (endpoint.startsWith("/rest/v1/workspace_backups?")) {
@@ -319,6 +320,86 @@ test("old installs without a marker keep the conservative conflict rule", () => 
   assert.equal(matching.conflict, false);
   h.api.recordLastSynced("fictional-a", matching.snapshot, 4);
   assert.equal(h.api.readLastSynced("fictional-a").revision, 4);
+});
+
+test("live pull reads the full workspace only for a newer revision and accepts clean local data", async () => {
+  const local = snapshot([{ id: "old", customer: "Fictional Customer", total: 20, paid: 0 }]);
+  const newer = snapshot([{ id: "new", customer: "Fictional Customer", total: 30, paid: 0 }]);
+  const h = harness({ initial: local });
+  await h.api.loadCloudState();
+  h.api.recordLastSynced("fictional-a", local, 1);
+  h.state.payload = newer; h.state.revision = 2;
+  const result = await h.api.pullCloudIfNewer("fictional-a", { currentSnapshot: () => local });
+  assert.equal(result.status, "updated");
+  assert.equal(JSON.stringify(result.snapshot), JSON.stringify(newer));
+  assert.equal(h.api.readLastSynced("fictional-a").revision, 2);
+  assert.equal(h.requests.filter(item => item.endpoint === "/rest/v1/workspaces?select=revision").length, 1);
+  assert.equal(h.requests.filter(item => item.endpoint === "/rest/v1/workspaces?select=payload,revision").length, 2);
+});
+
+test("live pull skips a dirty local snapshot", async () => {
+  const h = harness();
+  await h.api.loadCloudState();
+  h.api.markLedgerDirty("fictional-a", snapshot([{ id: "local", customer: "Fictional Customer", total: 20, paid: 0 }]));
+  h.state.revision = 2;
+  const before = h.requests.length;
+  assert.equal((await h.api.pullCloudIfNewer("fictional-a")).status, "skip");
+  assert.equal(h.requests.length, before);
+});
+
+test("live pull skips while autosave is paused or restore is running", async () => {
+  const h = harness();
+  await h.api.loadCloudState();
+  h.state.revision = 2;
+  const before = h.requests.length;
+  let paused = true, restoring = false;
+  const shouldSkip = () => paused || restoring;
+  assert.equal((await h.api.pullCloudIfNewer("fictional-a", { shouldSkip })).status, "skip");
+  paused = false; restoring = true;
+  assert.equal((await h.api.pullCloudIfNewer("fictional-a", { shouldSkip, currentSnapshot: () => snapshot() })).status, "skip");
+  assert.equal(h.requests.length, before);
+});
+
+test("an edit opened before apply drops a newer snapshot without advancing the marker", async () => {
+  const base = snapshot();
+  const h = harness({ initial: base });
+  await h.api.loadCloudState();
+  h.api.recordLastSynced("fictional-a", base, 1);
+  h.state.payload = snapshot([{ id: "remote", customer: "Fictional Customer", total: 30, paid: 0 }]);
+  h.state.revision = 2;
+  assert.equal((await h.api.pullCloudIfNewer("fictional-a", { currentSnapshot: () => base, onUpdated: () => false })).status, "skip");
+  assert.equal(h.api.readLastSynced("fictional-a").revision, 1);
+});
+
+test("live revision peek does not fetch the payload when revisions match", async () => {
+  const h = harness();
+  await h.api.loadCloudState();
+  const before = h.requests.filter(item => item.endpoint === "/rest/v1/workspaces?select=payload,revision").length;
+  assert.equal((await h.api.pullCloudIfNewer("fictional-a", { currentSnapshot: () => h.state.payload })).status, "unchanged");
+  assert.equal(h.requests.filter(item => item.endpoint === "/rest/v1/workspaces?select=payload,revision").length, before);
+});
+
+test("account switch during the full live read drops the result", async () => {
+  const h = harness();
+  await h.api.loadCloudState();
+  h.api.recordLastSynced("fictional-a", h.state.payload, 1);
+  h.state.payload = snapshot([{ id: "remote", customer: "Fictional Customer", total: 20, paid: 0 }]);
+  h.state.revision = 2; h.state.switchDuringFullRead = true;
+  assert.equal((await h.api.pullCloudIfNewer("fictional-a", { currentSnapshot: () => snapshot() })).status, "skip");
+  assert.equal(h.api.readLastSynced("fictional-a").revision, 1);
+});
+
+test("live pull treats local-only edits plus a newer cloud as a conflict", async () => {
+  const base = snapshot();
+  const h = harness({ initial: base });
+  await h.api.loadCloudState();
+  h.api.recordLastSynced("fictional-a", base, 1);
+  const local = snapshot([{ id: "local", customer: "Fictional Customer", total: 20, paid: 0 }]);
+  h.state.payload = snapshot([{ id: "remote", customer: "Fictional Customer", total: 30, paid: 0 }]); h.state.revision = 2;
+  assert.equal((await h.api.pullCloudIfNewer("fictional-a", { currentSnapshot: () => local })).status, "conflict");
+  assert.equal(h.api.cloudWriteConflictForAccount("fictional-a"), true);
+  assert.equal(h.api.readLedgerDirty("fictional-a").revision, 0);
+  assert.equal(h.api.readLastSynced("fictional-a").revision, 1);
 });
 
 test("refresh resumes a known unsynced edit only when the server revision still matches", () => {
