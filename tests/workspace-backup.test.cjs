@@ -91,15 +91,73 @@ test('always creates a new backup, even when nothing changed, and returns its na
         writes++;
         return { created: true, created_at: createdAt[writes - 1], id: `new-${writes}` };
       },
+      setBackupSettings: async (_settings, _ownerId, lastRunAt) => assert.equal(lastRunAt, createdAt[writes - 1]),
+      waitForCloudSaveQueue: async () => {},
+    },
+  });
+  const settings = { frequency: 'manual', time_of_day: null, tz: 'Asia/Kolkata', anchor_day: null, customers: [], last_run_at: null };
+  const first = await runner.runWorkspaceBackup(saved, settings, 'owner');
+  const second = await runner.runWorkspaceBackup(saved, settings, 'owner');
+  assert.equal(writes, 2);
+  assert.equal(first, `Backup done ✓ ${backup.workspaceBackupFileName(createdAt[0], settings.tz)}`);
+  assert.equal(second, `Backup done ✓ ${backup.workspaceBackupFileName(createdAt[1], settings.tz)}`);
+});
+
+test('Back up now waits for a pending save and ignores a second tap while running', async () => {
+  let releaseSaveQueue;
+  const saveQueue = new Promise(resolve => { releaseSaveQueue = resolve; });
+  let writes = 0;
+  const runner = load('lib/workspace-daily-backup-lifecycle.ts', {
+    './customer-backup': backup,
+    './data': data,
+    './workspace-daily-backup-coordinator': { WorkspaceDailyBackupCoordinator: class {} },
+    './cloud': {
+      waitForCloudSaveQueue: async () => saveQueue,
+      saveWorkspaceBackup: async () => { writes++; return { created: true, created_at: '2026-11-15T09:00:00Z', id: 'new' }; },
       setBackupSettings: async () => {},
     },
   });
   const settings = { frequency: 'manual', time_of_day: null, tz: 'Asia/Kolkata', anchor_day: null, customers: [], last_run_at: null };
-  const first = await runner.runWorkspaceBackup(saved, settings, 'owner', 'manual');
-  const second = await runner.runWorkspaceBackup(saved, settings, 'owner', 'manual');
-  assert.equal(writes, 2);
-  assert.equal(first, `Backup done ✓ ${backup.workspaceBackupFileName(createdAt[0], settings.tz)}`);
-  assert.equal(second, `Backup done ✓ ${backup.workspaceBackupFileName(createdAt[1], settings.tz)}`);
+  const manual = new runner.ManualWorkspaceBackupRunner();
+  const first = manual.run(saved, settings, 'owner');
+  await Promise.resolve();
+  const second = await manual.run(saved, settings, 'owner');
+  assert.equal(second, null);
+  assert.equal(writes, 0);
+  releaseSaveQueue();
+  await first;
+  assert.equal(writes, 1);
+});
+
+test('a failed manual backup produces no success result', async () => {
+  let settingsWrites = 0;
+  const runner = load('lib/workspace-daily-backup-lifecycle.ts', {
+    './customer-backup': backup,
+    './data': data,
+    './workspace-daily-backup-coordinator': { WorkspaceDailyBackupCoordinator: class {} },
+    './cloud': {
+      waitForCloudSaveQueue: async () => {},
+      saveWorkspaceBackup: async () => { throw new Error('server rejected backup'); },
+      setBackupSettings: async () => { settingsWrites++; },
+    },
+  });
+  const settings = { frequency: 'manual', time_of_day: null, tz: 'Asia/Kolkata', anchor_day: null, customers: [], last_run_at: null };
+  await assert.rejects(new runner.ManualWorkspaceBackupRunner().run(saved, settings, 'owner'), /server rejected backup/);
+  assert.equal(settingsWrites, 0);
+});
+
+test('scheduled backups have no client write path', () => {
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
+  const lifecycle = fs.readFileSync('lib/workspace-daily-backup-lifecycle.ts', 'utf8');
+  const cloud = fs.readFileSync('lib/cloud.ts', 'utf8');
+  const clientBackupWriter = cloud.match(/export async function saveWorkspaceBackup\([^\n]+/)[0];
+  assert.doesNotMatch(workspace, /backupDue\(|runWorkspaceBackup|scheduledBackupProgress|scheduledBackupError/);
+  assert.doesNotMatch(lifecycle, /"manual"\s*\|\s*"scheduled"|saveWorkspaceBackup\([^\n]+"scheduled"/);
+  assert.doesNotMatch(clientBackupWriter, /"scheduled"|"daily"/);
+  assert.match(lifecycle, /await waitForCloudSaveQueue\(ownerId\)/);
+  assert.match(settings, /Backups run automatically at this time, even when the app is closed\./);
+  assert.match(settings, /Today at/);
 });
 
 test('retention SQL removes backups older than 30 days, caps at 60, and protects the newest and young safety copies', () => {

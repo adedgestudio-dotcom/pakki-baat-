@@ -6,7 +6,6 @@ import "./workspace.css";
 import "./new-customer-picker.css";
 import "./connections.css";
 import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
-import { backupDue } from "@/lib/customer-backup";
 import CloudSettings from "./cloud-settings";
 import BackupNudge from "./backup-nudge";
 import { backupNudgeDue, recordBackupNudge, rememberFirstUse } from "@/lib/backup-nudge";
@@ -27,7 +26,6 @@ import {
   loadTrialSubscription,
   type TrialSubscriptionState,
 } from "@/lib/trial-offer";
-import { runWorkspaceBackup } from "@/lib/workspace-daily-backup-lifecycle";
 import {
   clearStaleOfflineCloudSaveStatus,
   type WorkspaceCloudSaveStatus,
@@ -409,8 +407,6 @@ export default function Workspace() {
     [installHelpOpen, setInstallHelpOpen] = useState(false),
     [installWelcomeOpen, setInstallWelcomeOpen] = useState(false),
     [backupNudgeOpen, setBackupNudgeOpen] = useState(false);
-  const [scheduledBackupProgress, setScheduledBackupProgress] = useState<number | null>(null);
-  const [scheduledBackupError, setScheduledBackupError] = useState("");
   const [renameCustomer, setRenameCustomer] = useState<string | null>(null);
   const [renameCustomerName, setRenameCustomerName] = useState("");
   const [renameCustomerError, setRenameCustomerError] = useState("");
@@ -1891,39 +1887,6 @@ export default function Workspace() {
     }
     return subscription;
   }
-  useEffect(() => {
-    if (!ready || !loggedIn || !hasActiveSubscription || !isOnline || !accountId) return;
-    let disposed = false;
-    let running = false;
-    const check = async () => {
-      if (running || document.visibilityState === "hidden" || autosavePausedRef.current || !cloudHydratedRef.current ||
-          activeUserIdRef.current !== accountId || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId)) return;
-      running = true;
-      try {
-        const settings = await loadBackupSettings(accountId);
-        if (disposed || activeUserIdRef.current !== accountId || autosavePausedRef.current || !cloudHydratedRef.current || !ledgerModeForAccount(accountId) || cloudWriteConflictForAccount(accountId) || !["daily", "weekly", "monthly"].includes(settings.frequency) || !settings.time_of_day || !backupDue(settings)) return;
-        const snapshot = currentSnapshotForBackupRef.current();
-        setScheduledBackupError("");
-        setScheduledBackupProgress(0);
-        const result = await runWorkspaceBackup(snapshot, settings, accountId, "scheduled", (done, total) => {
-          if (!disposed) setScheduledBackupProgress(Math.round(done / total * 100));
-        });
-        if (!disposed && document.visibilityState === "visible") setToast(result);
-      } catch (error) {
-        if (!disposed) setScheduledBackupError(error instanceof Error ? error.message : "Please try again.");
-        if (!disposed) setToast(`Automatic backup failed: ${error instanceof Error ? error.message : "Please try again."}`);
-      } finally {
-        running = false;
-        if (!disposed) setScheduledBackupProgress(null);
-      }
-    };
-    void check();
-    const interval = window.setInterval(() => void check(), 60_000);
-    const visible = () => { if (document.visibilityState === "visible") void check(); };
-    document.addEventListener("visibilitychange", visible);
-    return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", visible); };
-  }, [ready, loggedIn, hasActiveSubscription, isOnline, accountId]);
-
   function scheduledPushKey(reminder: Reminder, endpoint: string) {
     return `${reminder.id}:${reminder.date}:${
       reminder.time || "09:00"
@@ -4429,7 +4392,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
           blocked={releaseUpdateBlocked}
           online={isOnline}
           ownerId={accountId}
-          busy={syncPending || autosavePaused || scheduledBackupProgress !== null || tab === "Backup" || cloudSaveStatus.state === "pending" || cloudSaveStatus.state === "failed"}
+          busy={syncPending || autosavePaused || tab === "Backup" || cloudSaveStatus.state === "pending" || cloudSaveStatus.state === "failed"}
           cloudBusy={() => !accountId || cloudSaveBusyForAccount(accountId)}
         />
         {legacyWorkspaceReadOnly && (
@@ -7003,9 +6966,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <section className="panel backup-main-panel">
                   <CloudSettings
                     onToast={setToast}
-                    scheduledProgress={scheduledBackupProgress}
-                    scheduledError={scheduledBackupError}
-                    onClearScheduledError={() => setScheduledBackupError("")}
                     snapshot={{
                       jobs,
                       owner,

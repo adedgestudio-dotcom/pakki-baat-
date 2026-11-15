@@ -4,10 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadWorkspaceBackups, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, LEGACY_WORKSPACE_READ_ONLY_MESSAGE, type WorkspaceBackup } from "@/lib/cloud";
 import { anchorDayForSave, lastRegularBackup, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { isSnapshot, type Snapshot } from "@/lib/data";
-import { runWorkspaceBackup } from "@/lib/workspace-daily-backup-lifecycle";
+import { ManualWorkspaceBackupRunner } from "@/lib/workspace-daily-backup-lifecycle";
 
 const emptySettings = (): BackupSettings => ({ frequency: "off", time_of_day: null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, anchor_day: null, customers: [], last_run_at: null });
-const dateLabel = (value: string | Date) => new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+function dateLabel(value: string | Date, tz: string, now: number) {
+  const date = new Date(value);
+  const day = (item: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(item);
+  const time = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(date).toLowerCase();
+  return day(date) === day(new Date(now)) ? `Today at ${time}` : new Intl.DateTimeFormat("en-IN", { timeZone: tz, day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
 function backupLabel(createdAt: string, tz: string, now: number) {
   const day = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
   const date = new Date(createdAt);
@@ -55,7 +60,7 @@ function ClockPicker({ value, disabled, onChange }: { value: string | null; disa
   </div>;
 }
 
-export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, onUseCloudData, onToast = () => {}, scheduledProgress = null, scheduledError = "", onClearScheduledError = () => {}, ownerId, backupLockReason }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; onPauseAutosave: (paused: boolean) => void; onUseCloudData: () => Promise<void>; onToast?: (message: string) => void; scheduledProgress?: number | null; scheduledError?: string; onClearScheduledError?: () => void; ownerId: string | null; backupLockReason: "loading" | "no-plan" | "conflict" | "legacy" | null }) {
+export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, onUseCloudData, onToast = () => {}, ownerId, backupLockReason }: { snapshot: Snapshot; onRestore: (snapshot: Snapshot) => void; onPauseAutosave: (paused: boolean) => void; onUseCloudData: () => Promise<void>; onToast?: (message: string) => void; ownerId: string | null; backupLockReason: "loading" | "no-plan" | "conflict" | "legacy" | null }) {
   const [logged, setLogged] = useState(false), [checking, setChecking] = useState(cloudConfigured), [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [backups, setBackups] = useState<WorkspaceBackup[]>([]);
@@ -72,7 +77,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const [savedSettings, setSavedSettings] = useState<BackupSettings>(emptySettings);
   const [now, setNow] = useState(() => Date.now());
   const [progress, setProgress] = useState<number | null>(null);
-  const requestRef = useRef(0), ownerRef = useRef(ownerId), restoreStartedRef = useRef(false);
+  const requestRef = useRef(0), ownerRef = useRef(ownerId), restoreStartedRef = useRef(false), manualBackupRef = useRef(new ManualWorkspaceBackupRunner());
   useEffect(() => { ownerRef.current = ownerId; const timer = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(timer); }, [ownerId]);
 
   const refresh = useCallback(async (preserveDraft = false) => {
@@ -100,8 +105,8 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const entriesReturned = selectedSnapshot?.jobs.filter(job => !currentIds.has(job.id)).length || 0;
   const nextSlot = scheduledSlot(savedSettings, new Date(now), true);
   const scheduleNeedsTime = ["daily", "weekly", "monthly"].includes(draft.frequency);
-  const controlsBusy = busy || scheduledProgress !== null;
-  const displayedProgress = progress ?? scheduledProgress;
+  const controlsBusy = busy;
+  const displayedProgress = progress;
   const canBackup = backupLockReason === null;
   const saveDisabled = controlsBusy || !canBackup || scheduleNeedsTime && !draft.time_of_day;
   useEffect(() => {
@@ -151,11 +156,13 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
     });
   }
   async function backUpNow() {
-    if (!ownerId || !canBackup || controlsBusy) return;
-    onClearScheduledError(); setProgress(0);
+    const runner = manualBackupRef.current;
+    if (!ownerId || !canBackup || controlsBusy || runner.isRunning) return;
+    setProgress(0);
     await run(async () => {
       try {
-        const result = await runWorkspaceBackup(snapshot, savedSettings, ownerId, "manual", (done, total) => setProgress(Math.round(done / total * 100)));
+        const result = await runner.run(snapshot, savedSettings, ownerId, (done, total) => setProgress(Math.round(done / total * 100)));
+        if (!result) return;
         setStatus(result); onToast(result); await refresh(true);
       } catch (error) { throw error; }
       finally { setProgress(null); }
@@ -191,12 +198,11 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
         <strong>{last ? `✓ Last backup: ${backupLabel(last.created_at, savedSettings.tz, now)}` : "No regular backup yet."}</strong>
         {displayedProgress !== null && <div className="backup-progress" role="progressbar" aria-valuenow={displayedProgress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${displayedProgress}%` }} /></div>}
         {displayedProgress !== null && <small>Backing up… {displayedProgress}%</small>}
-        {scheduledError && <small role="alert">{scheduledError}</small>}
         <button type="button" className="primary backup-run-button" disabled={controlsBusy || !canBackup} onClick={() => void backUpNow()}>Back up now</button>
         <div className="backup-auto-card">
           <div className="backup-auto-summary"><strong>Auto backup: {["daily", "weekly", "monthly"].includes(savedSettings.frequency) ? `${savedSettings.frequency[0].toUpperCase()}${savedSettings.frequency.slice(1)} at ${timeLabel(savedSettings.time_of_day)}` : "Off"}</strong><button type="button" className="outline" aria-expanded={scheduleOpen} onClick={() => setScheduleOpen(value => !value)}>Change</button></div>
           {scheduleOpen && <div className="backup-auto-form"><label className="backup-auto-field">Repeat<select aria-label="Repeat" value={draft.frequency} disabled={controlsBusy || !canBackup} onChange={event => setDraft(previous => ({ ...previous, frequency: event.target.value as BackupFrequency, time_of_day: null }))}><option value="off">Off</option><option value="manual">Only when I tap Back up</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>{scheduleNeedsTime && <div className="backup-auto-field"><span>Backup time</span><ClockPicker value={draft.time_of_day} disabled={controlsBusy || !canBackup} onChange={value => setDraft(previous => ({ ...previous, time_of_day: value }))}/></div>}<button type="button" className="primary backup-auto-save" disabled={saveDisabled} onClick={() => void saveSettings()}>Save</button></div>}
-          {nextSlot && <div className="backup-next-slot"><strong>Next backup: {dateLabel(nextSlot)}</strong><small className="backup-next-help">Keep the app open at backup time. If closed, it runs when you next open it.</small></div>}
+          {nextSlot && <div className="backup-next-slot"><strong>Next backup: {dateLabel(nextSlot, savedSettings.tz, now)}</strong><small className="backup-next-help">Backups run automatically at this time, even when the app is closed.</small></div>}
         </div>
         <small>Kept for 30 days (up to 60). Photos are not included.</small>
       </section>

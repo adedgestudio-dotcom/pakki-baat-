@@ -109,12 +109,27 @@ async function request(path: string, body?: unknown, token?: string, cache?: Req
 
 export type CloudWorkspaceState = { ownerId: string; snapshot: unknown; revision: number | null; ledgerEnabled: boolean };
 type WorkspaceRpc = "save_workspace_with_ledger" | "restore_workspace_with_ledger";
-type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<void>; pending: boolean; uncertain: { payload: unknown; revision: number; rpc: WorkspaceRpc } | null; conflict: boolean };
+type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<void>; pending: boolean; uncertain: { payload: unknown; revision: number; rpc: WorkspaceRpc } | null; conflict: boolean; failure: unknown | null };
 const saveStates = new Map<string, SaveState>();
 
 export function cloudSaveBusyForAccount(ownerId: string): boolean {
   const state = saveStates.get(ownerId);
-  return !state || state.pending || state.uncertain !== null || state.conflict;
+  return !state || state.pending || state.uncertain !== null || state.conflict || state.failure !== null;
+}
+
+export async function waitForCloudSaveQueue(ownerId: string): Promise<void> {
+  const state = saveStates.get(ownerId);
+  if (!state) throw new Error("Your workspace is still loading. Wait for cloud sync, then try again.");
+  while (true) {
+    const tail = state.tail;
+    await tail;
+    if (saveStates.get(ownerId) !== state) throw new Error("Your account changed while waiting for cloud sync. Try again.");
+    if (state.tail !== tail) continue;
+    if (state.failure || state.uncertain || state.conflict || readLedgerDirty(ownerId) !== null) {
+      throw new Error("Your latest changes could not finish saving. Check your connection, then try Back up now again.");
+    }
+    return;
+  }
 }
 
 function equalJson(left: unknown, right: unknown): boolean {
@@ -215,7 +230,7 @@ export async function loadCloudState(): Promise<CloudWorkspaceState> {
   const revision = rows[0]?.revision;
   if (ledgerEnabled && (!Number.isSafeInteger(revision) || revision < 1)) throw new Error("LEDGER_WORKSPACE_REVISION_MISSING");
   const previous = saveStates.get(ownerId);
-  saveStates.set(ownerId, { revision: Number.isSafeInteger(revision) ? revision : null, ledgerEnabled, tail: previous?.tail ?? Promise.resolve(), pending: previous?.pending ?? false, uncertain: null, conflict: false });
+  saveStates.set(ownerId, { revision: Number.isSafeInteger(revision) ? revision : null, ledgerEnabled, tail: previous?.tail ?? Promise.resolve(), pending: previous?.pending ?? false, uncertain: null, conflict: false, failure: previous?.failure ?? null });
   return { ownerId, snapshot: rows[0]?.payload ?? null, revision: Number.isSafeInteger(revision) ? revision : null, ledgerEnabled };
 }
 
@@ -355,8 +370,8 @@ async function writeCloud(snapshot: unknown, expectedOwnerId: string | undefined
   });
   state.pending = true;
   const tail = operation.then(
-    () => { if (state.tail === tail) state.pending = false; },
-    () => { if (state.tail === tail) state.pending = false; }
+    () => { if (state.tail === tail) { state.pending = false; state.failure = null; } },
+    (error) => { if (state.tail === tail) { state.pending = false; state.failure = error; } }
   );
   state.tail = tail;
   return operation;
@@ -380,7 +395,7 @@ export type WorkspaceBackup = {
 };
 
 export type WorkspaceBackupSaveResult = { created: boolean; created_at: string; id: string };
-export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "manual" | "scheduled" | "pre_restore" | "pre_delete" = "daily", expectedOwnerId?: string): Promise<WorkspaceBackupSaveResult> {
+export async function saveWorkspaceBackup(snapshot: unknown, kind: "manual" | "pre_restore" | "pre_delete", expectedOwnerId?: string): Promise<WorkspaceBackupSaveResult> {
   const session = await accountSession(expectedOwnerId);
   const result = await request("/rest/v1/rpc/save_workspace_backup", { payload: snapshot, kind }, session.access_token);
   await accountSession(session.user.id);
