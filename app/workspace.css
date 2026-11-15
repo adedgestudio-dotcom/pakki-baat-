@@ -411,6 +411,7 @@ main {
   font-weight: 500;
 }
 .top-actions {
+  --top-action-size: 44px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -433,66 +434,69 @@ main {
 }
 .top-actions .icon-button {
   margin-left: 16px;
+  width: var(--top-action-size);
+  height: var(--top-action-size);
+  flex: 0 0 var(--top-action-size);
 }
 .theme-toggle {
   position: relative;
-  width: 64px;
-  min-width: 64px;
-  height: 44px;
+  width: calc(var(--top-action-size) * 1.6);
+  min-width: calc(var(--top-action-size) * 1.6);
+  max-width: calc(var(--top-action-size) * 1.6);
+  height: var(--top-action-size);
   padding: 0;
-  border: 1px solid #e4d4b1;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: #fff4d8;
-  color: #b97820;
-  flex: 0 0 64px;
+  background: var(--cream);
+  color: var(--ink);
+  flex: 0 0 calc(var(--top-action-size) * 1.6);
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 .theme-toggle .theme-sun,
 .theme-toggle .theme-moon {
-  position: absolute;
-  top: 9px;
-  z-index: 3;
+  grid-area: 1 / 1;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 .theme-toggle .theme-sun svg,
 .theme-toggle .theme-moon svg {
-  width: 16px;
-  height: 16px;
+  width: 50%;
+  height: 50%;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 1.8;
 }
 .theme-toggle .theme-sun {
-  left: 9px;
-  color: #d98a18;
+  color: var(--teal);
 }
 .theme-toggle .theme-moon {
-  right: 9px;
-  color: #718099;
+  color: #1f4d3a;
   opacity: 0;
 }
 .theme-toggle-thumb {
   position: absolute;
-  z-index: 2;
   top: 4px;
   left: 4px;
-  width: 36px;
-  height: 36px;
+  display: grid;
+  place-items: center;
+  width: calc(var(--top-action-size) - 8px);
+  height: calc(var(--top-action-size) - 8px);
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 2px 7px #6b4b1826;
+  box-shadow: 0 1px 4px rgba(43, 56, 52, 0.18);
   transition: transform 0.2s ease;
 }
 .theme-toggle.is-dark {
-  background: #26354b;
-  border-color: #3b4b63;
+  background: #1b211e;
+  border-color: #354b40;
 }
 .theme-toggle.is-dark .theme-toggle-thumb {
-  transform: translateX(20px);
+  transform: translateX(calc(var(--top-action-size) * 0.6));
+  background: var(--cream);
 }
 .theme-toggle.is-dark .theme-sun {
   opacity: 0;
@@ -500,9 +504,29 @@ main {
 .theme-toggle.is-dark .theme-moon {
   opacity: 1;
 }
+.theme-toggle:hover:not(:disabled) {
+  border-color: var(--teal);
+}
+.theme-toggle:active:not(:disabled) {
+  transform: none;
+}
+.theme-toggle:active:not(:disabled) .theme-toggle-thumb {
+  transform: scale(0.96);
+}
+.theme-toggle.is-dark:active:not(:disabled) .theme-toggle-thumb {
+  transform: translateX(calc(var(--top-action-size) * 0.6)) scale(0.96);
+}
 .theme-toggle:focus-visible {
-  outline: 3px solid #2d766744;
+  outline: 3px solid rgba(45, 118, 103, 0.35);
   outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle,
+  .theme-toggle-thumb,
+  .theme-toggle .theme-sun,
+  .theme-toggle .theme-moon {
+    transition: none;
+  }
 }
 .content {
   max-width: 1440px;
@@ -1482,6 +1506,7 @@ details p {
     padding: 0 20px;
   }
   .top-actions {
+    --top-action-size: 40px;
     font-size: 9px;
   }
   .top-actions .icon-button {
@@ -1731,7 +1756,8 @@ details p {
     gap: 8px;
   }
   .top-actions .icon-button {
-    width: 30px;
+    width: var(--top-action-size);
+    height: var(--top-action-size);
   }
   .reply-modal > .text-button {
     margin-left: 10px;
@@ -5032,9 +5058,9 @@ select:focus-visible {
     max-width: none;
   }
   .top-actions > .icon-button {
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
+    width: var(--top-action-size);
+    height: var(--top-action-size);
+    flex: 0 0 var(--top-action-size);
   }
   .page-heading > .mobile-primary-action {
     box-shadow: 0 5px 15px rgba(45, 118, 103, 0.18);
@@ -9847,7 +9873,7 @@ footer .footer-separator {
 
 /* Subscription v2 - restrained, readable and aligned with workspace UI */
 .subscription-nav-button {
-  height: 38px !important;
+  height: var(--top-action-size, 44px) !important;
   min-width: 76px !important;
   padding: 0 12px !important;
   display: inline-flex !important;
@@ -10021,9 +10047,9 @@ footer .footer-separator {
 }
 @media (max-width: 800px) {
   .subscription-nav-button {
-    width: 40px !important;
-    min-width: 40px !important;
-    height: 40px !important;
+    width: var(--top-action-size, 40px) !important;
+    min-width: var(--top-action-size, 40px) !important;
+    height: var(--top-action-size, 40px) !important;
     padding: 0 !important;
     border-radius: 12px !important;
   }
@@ -13183,10 +13209,10 @@ footer .footer-separator {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
+  flex: 0 0 var(--top-action-size);
+  width: var(--top-action-size);
+  height: var(--top-action-size);
+  min-height: var(--top-action-size);
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -13398,19 +13424,22 @@ footer .footer-separator {
     gap: 7px;
   }
   .top-actions .subscription-nav-button {
-    width: 44px !important;
-    min-width: 44px !important;
-    height: 44px !important;
+    width: var(--top-action-size) !important;
+    min-width: var(--top-action-size) !important;
+    height: var(--top-action-size) !important;
   }
   .top-actions > .top-reminder-button {
-    width: 44px !important;
-    height: 44px !important;
-    flex-basis: 44px !important;
+    width: var(--top-action-size) !important;
+    height: var(--top-action-size) !important;
+    flex-basis: var(--top-action-size) !important;
   }
   .top-actions .top-account-avatar {
     border-color: color-mix(in srgb, var(--line) 65%, transparent);
   }
   [data-theme="dark"] .top-actions .top-account-avatar {
+    border-color: #2c3b33;
+  }
+  .theme-toggle.is-dark {
     border-color: #2c3b33;
   }
   .content:has(> .customer-heading) {

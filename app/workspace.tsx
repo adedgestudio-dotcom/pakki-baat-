@@ -4589,13 +4589,14 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 title={dark ? "Switch to light mode" : "Switch to dark mode"}
                 onClick={toggleTheme}
               >
-                <span className="theme-sun">
-                  <Icon name="sun" size={16} />
+                <span className="theme-toggle-thumb">
+                  <span className="theme-sun">
+                    <Icon name="sun" size={16} />
+                  </span>
+                  <span className="theme-moon">
+                    <Icon name="moon" size={16} />
+                  </span>
                 </span>
-                <span className="theme-moon">
-                  <Icon name="moon" size={16} />
-                </span>
-                <span className="theme-toggle-thumb" />
               </button>
               <button
                 className="icon-button top-reminder-button"
