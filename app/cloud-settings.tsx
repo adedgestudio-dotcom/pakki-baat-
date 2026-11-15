@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadWorkspaceBackups, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, LEGACY_WORKSPACE_READ_ONLY_MESSAGE, type WorkspaceBackup } from "@/lib/cloud";
-import { anchorDayForSave, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
+import { anchorDayForSave, lastRegularBackup, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 import { runWorkspaceBackup } from "@/lib/workspace-daily-backup-lifecycle";
 
@@ -91,7 +91,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const regularBackups = sortedBackups.filter(backup => backup.backup_kind !== "pre_restore");
   const safetyBackups = sortedBackups.filter(backup => backup.backup_kind === "pre_restore");
   const menuBackups = [...regularBackups, ...safetyBackups];
-  const last = sortedBackups[0];
+  const last = lastRegularBackup(sortedBackups);
   const selectedBackup = sortedBackups.find(backup => backup.id === selectedBackupId);
   const selectedSnapshot = selectedBackup && isSnapshot(selectedBackup.payload) ? selectedBackup.payload : null;
   const currentIds = new Set(snapshot.jobs.map(job => job.id));
@@ -188,7 +188,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
     {!cloudConfigured ? <div className="notice">Cloud backup is not connected yet.</div> : checking ? <div className="notice">Checking your backup…</div> : !logged ? <><div className="notice">Sign in to use backups.</div><button className="google-sign-in" disabled={busy} onClick={() => void run(signInWithGoogle)}>Continue with Google</button></> : <>
       {backupLockReason && <div className="notice" role="status">{backupLockReason === "loading" ? "Loading your data…" : backupLockReason === "no-plan" ? "Backups need an active plan." : backupLockReason === "legacy" ? LEGACY_WORKSPACE_READ_ONLY_MESSAGE : <>This phone&apos;s data is different from your cloud data. <button type="button" className="outline" disabled={busy} onClick={() => setConfirmCloudData(true)}>Use cloud data</button></>}</div>}
       <section className="backup-simple-card backup-run-card">
-        <strong>{last ? `✓ Last backup: ${backupLabel(last.created_at, savedSettings.tz, now)}` : "No backup yet"}</strong>
+        <strong>{last ? `✓ Last backup: ${backupLabel(last.created_at, savedSettings.tz, now)}` : "No regular backup yet."}</strong>
         {displayedProgress !== null && <div className="backup-progress" role="progressbar" aria-valuenow={displayedProgress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${displayedProgress}%` }} /></div>}
         {displayedProgress !== null && <small>Backing up… {displayedProgress}%</small>}
         {scheduledError && <small role="alert">{scheduledError}</small>}

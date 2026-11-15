@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import { lastRegularBackup } from "@/lib/customer-backup";
 
 export const runtime = "nodejs";
 
@@ -36,12 +37,13 @@ export async function POST(request: Request) {
   if (!base || !serviceKey) return Response.json({ error: "Backup check is not configured." }, { status: 503 });
 
   const backupResponse = await fetch(
-    base + "/rest/v1/workspace_backups?owner_id=eq." + encodeURIComponent(userId) + "&select=created_at&order=created_at.desc&limit=1",
+    base + "/rest/v1/workspace_backups?owner_id=eq." + encodeURIComponent(userId) + "&backup_kind=in.(daily,manual,scheduled)&select=backup_kind,created_at&order=created_at.desc&limit=3",
     { headers: { apikey: serviceKey, Authorization: "Bearer " + serviceKey } }
   );
   if (!backupResponse.ok) return Response.json({ error: "Could not verify backup status." }, { status: 503 });
   const rows = await backupResponse.json().catch(() => []);
-  const latest = rows?.[0]?.created_at ? new Date(rows[0].created_at).getTime() : NaN;
+  const regularBackup = lastRegularBackup(Array.isArray(rows) ? rows : []);
+  const latest = regularBackup ? new Date(regularBackup.created_at).getTime() : NaN;
   if (!Number.isFinite(latest) || Date.now() - latest < 3 * 24 * 60 * 60 * 1000) {
     return Response.json({ ok: true, notified: false });
   }

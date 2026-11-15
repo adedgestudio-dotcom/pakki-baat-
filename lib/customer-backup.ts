@@ -3,6 +3,11 @@ import { isSnapshot, type Snapshot } from "./data";
 export type BackupFrequency = "off" | "manual" | "daily" | "weekly" | "monthly";
 export type BackupSettings = { frequency: BackupFrequency; time_of_day: string | null; tz: string; anchor_day: number | null; customers: string[]; last_run_at: string | null };
 
+export function lastRegularBackup<T extends { backup_kind: string; created_at: string }>(backups: readonly T[]): T | null {
+  return [...backups].filter(backup => ["manual", "scheduled", "daily"].includes(backup.backup_kind))
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] || null;
+}
+
 export function validateWorkspaceBackup(value: unknown): Snapshot {
   if (!isSnapshot(value)) throw new Error("This workspace backup is damaged or invalid.");
   const jobs = new Set(value.jobs.map(job => job.id));

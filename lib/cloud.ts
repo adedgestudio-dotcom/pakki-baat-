@@ -374,13 +374,13 @@ export async function loadCloud(expectedOwnerId?: string) {
 export type WorkspaceBackup = {
   id: string;
   payload: unknown;
-  backup_kind: "daily" | "manual" | "scheduled" | "pre_restore";
+  backup_kind: "daily" | "manual" | "scheduled" | "pre_restore" | "pre_delete";
   backup_day: string;
   created_at: string;
 };
 
 export type WorkspaceBackupSaveResult = { created: boolean; created_at: string; id: string };
-export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "manual" | "scheduled" | "pre_restore" = "daily", expectedOwnerId?: string): Promise<WorkspaceBackupSaveResult> {
+export async function saveWorkspaceBackup(snapshot: unknown, kind: "daily" | "manual" | "scheduled" | "pre_restore" | "pre_delete" = "daily", expectedOwnerId?: string): Promise<WorkspaceBackupSaveResult> {
   const session = await accountSession(expectedOwnerId);
   const result = await request("/rest/v1/rpc/save_workspace_backup", { payload: snapshot, kind }, session.access_token);
   await accountSession(session.user.id);

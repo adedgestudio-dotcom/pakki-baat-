@@ -3762,7 +3762,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       };
       if (!isSnapshot(current))
         throw new Error("Current workspace is invalid.");
-      await saveWorkspaceBackup(current, "pre_restore");
+      await saveWorkspaceBackup(current, "pre_delete");
       return true;
     } catch {
       setToast(

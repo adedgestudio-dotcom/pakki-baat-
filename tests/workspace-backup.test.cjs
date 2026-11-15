@@ -39,6 +39,43 @@ test('damaged backup still throws', () => {
   assert.throws(() => backup.restoreWorkspaceSnapshot({ ...saved, payments: [{ id: 'p1', jobId: 'missing' }] }, current), /damaged or invalid|invalid payment links/);
 });
 
+test('lastRegularBackup ignores newer safety copies and returns the newest regular backup', () => {
+  const backups = [
+    { id: 'restore', backup_kind: 'pre_restore', created_at: '2026-11-15T11:00:00Z' },
+    { id: 'delete', backup_kind: 'pre_delete', created_at: '2026-11-15T10:00:00Z' },
+    { id: 'manual', backup_kind: 'manual', created_at: '2026-11-15T09:00:00Z' },
+    { id: 'daily', backup_kind: 'daily', created_at: '2026-11-15T08:00:00Z' },
+  ];
+  assert.equal(backup.lastRegularBackup(backups).id, 'manual');
+});
+
+test('lastRegularBackup returns null when only safety copies exist', () => {
+  assert.equal(backup.lastRegularBackup([
+    { backup_kind: 'pre_restore', created_at: '2026-11-15T11:00:00Z' },
+    { backup_kind: 'pre_delete', created_at: '2026-11-15T10:00:00Z' },
+  ]), null);
+});
+
+test('delete safety copies use pre_delete while restore safety copies stay pre_restore', () => {
+  const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
+  const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
+  assert.match(workspace, /saveWorkspaceBackup\(current, "pre_delete"\)/);
+  assert.match(workspace, /async function deleteReminder[\s\S]{0,500}savePreDeleteSafetyCopy\(\)/);
+  assert.match(workspace, /async function confirmDeleteCustomer[\s\S]{0,500}savePreDeleteSafetyCopy\(\)/);
+  assert.match(workspace, /async function confirmDeleteEntry[\s\S]{0,500}savePreDeleteSafetyCopy\(\)/);
+  assert.match(workspace, /saveWorkspaceBackup\([\s\S]{0,100}currentSnapshot\(\)[\s\S]{0,100}"pre_restore"/);
+  assert.match(settings, /saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)/);
+});
+
+test('last backup UI and warning route use regular backups only', () => {
+  const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
+  const route = fs.readFileSync('app/api/push/backup-warning/route.ts', 'utf8');
+  assert.match(settings, /const last = lastRegularBackup\(sortedBackups\)/);
+  assert.match(settings, /No regular backup yet\./);
+  assert.match(route, /lastRegularBackup\(Array\.isArray\(rows\) \? rows : \[\]\)/);
+  assert.match(route, /backup_kind=in\.\(daily,manual,scheduled\)/);
+});
+
 test('always creates a new backup, even when nothing changed, and returns its name', async () => {
   let writes = 0;
   const createdAt = ['2026-11-15T09:00:00Z', '2026-11-15T09:01:00Z'];
