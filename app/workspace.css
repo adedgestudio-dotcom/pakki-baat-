@@ -460,8 +460,11 @@ main {
 }
 .theme-toggle .theme-sun svg,
 .theme-toggle .theme-moon svg {
-  width: 26px;
-  height: 26px;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
 }
 .theme-toggle .theme-sun {
   left: 9px;
