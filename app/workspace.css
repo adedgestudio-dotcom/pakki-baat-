@@ -9424,9 +9424,42 @@ footer .footer-separator {
   color: #a95045 !important;
   background: transparent !important;
 }
+.customer-row-with-delete .customer-edit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--line, #e7e1d6);
+  border-radius: 0;
+  background: transparent;
+  color: var(--teal);
+}
+[data-theme="dark"] .customer-row-with-delete .customer-edit-button {
+  border-left-color: #35413b;
+  color: #8fc8b3;
+}
 .customer-trash-svg {
   display: block !important;
   flex: none !important;
+}
+.customer-rename-modal {
+  max-width: 400px;
+}
+.customer-rename-modal label {
+  display: block;
+  margin: 20px 0 8px;
+  font-weight: 650;
+}
+.customer-rename-error {
+  margin-top: 8px;
+  color: #a6534a;
+  font-size: 12px;
+}
+[data-theme="dark"] .customer-rename-error {
+  color: #df8d82;
 }
 
 /* Voice recorder v5 — the recording pill must be positioned from the full compose field,

@@ -410,6 +410,12 @@ export default function Workspace() {
     [backupNudgeOpen, setBackupNudgeOpen] = useState(false);
   const [scheduledBackupProgress, setScheduledBackupProgress] = useState<number | null>(null);
   const [scheduledBackupError, setScheduledBackupError] = useState("");
+  const [renameCustomer, setRenameCustomer] = useState<string | null>(null);
+  const [renameCustomerName, setRenameCustomerName] = useState("");
+  const [renameCustomerError, setRenameCustomerError] = useState("");
+  const [renameCustomerSaving, setRenameCustomerSaving] = useState(false);
+  const renameCustomerSavingRef = useRef(false);
+  const savedRenameSnapshotRef = useRef<{ ownerId: string; snapshot: Snapshot } | null>(null);
   // Synchronous financial state prevents queued React updates from validating against stale closures.
   const financialStateRef = useRef<FinancialState>({ jobs: [], payments: [] });
   function setJobs(value: SetStateAction<Job[]>) {
@@ -1104,6 +1110,14 @@ export default function Workspace() {
     // Signed-in expired/inactive accounts are read-only. Do not persist accidental
     // client-side mutations locally when the backend would reject the cloud save.
     if (loggedIn && (!hasActiveSubscription || !ledgerModeForAccount(storageUserId))) return;
+    const savedRename = savedRenameSnapshotRef.current;
+    if (savedRename) {
+      savedRenameSnapshotRef.current = null;
+      if (savedRename.ownerId === storageUserId && cloudSnapshotsEqual(savedRename.snapshot, snapshot)) {
+        writeLocalWorkspace(storageUserId, snapshot);
+        return;
+      }
+    }
     const ledgerMode = loggedIn && ledgerModeForAccount(storageUserId);
     if (ledgerMode) {
       try {
@@ -1151,6 +1165,7 @@ export default function Workspace() {
       retryTimer = window.setTimeout(() => {
         retryTimer = undefined;
         if (
+          renameCustomerSavingRef.current || savedRenameSnapshotRef.current ||
           disposed ||
           !navigator.onLine ||
           activeUserIdRef.current !== storageUserId ||
@@ -1196,7 +1211,7 @@ export default function Workspace() {
       }, 5000);
     };
     const timer = window.setTimeout(() => {
-      if (autosavePausedRef.current) return;
+      if (autosavePausedRef.current || renameCustomerSavingRef.current || savedRenameSnapshotRef.current) return;
       reportCloudSave("pending");
       void saveCloud(snapshot, storageUserId)
         .then(async () => {
@@ -3755,6 +3770,62 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       return false;
     }
   }
+  function openRenameCustomer(name: string) {
+    setRenameCustomer(name);
+    setRenameCustomerName(name);
+    setRenameCustomerError("");
+  }
+  async function confirmRenameCustomer() {
+    if (!renameCustomer || renameCustomerSavingRef.current) return;
+    const name = renameCustomerName.trim();
+    if (!name) { setRenameCustomerError("Enter a name."); return; }
+    if (name === renameCustomer) { setRenameCustomerError("Enter a different name."); return; }
+    if (customerNames.some((customer) => customer !== renameCustomer && customer.trim().toLowerCase() === name.toLowerCase())) {
+      setRenameCustomerError("A customer with this name already exists.");
+      return;
+    }
+    if (!requireActiveSubscriptionForSaving()) return;
+    const ownerId = activeUserIdRef.current;
+    if (!ownerId) return;
+    const previous = currentSnapshot();
+    const next: Snapshot = {
+      ...previous,
+      jobs: previous.jobs.map((job) => job.customer === renameCustomer ? { ...job, customer: name } : job),
+      payments: previous.payments?.map((payment) => payment.customer === renameCustomer ? { ...payment, customer: name } : payment),
+      notes: previous.notes?.map((note) => note.customer === renameCustomer ? { ...note, customer: name } : note),
+      reminders: previous.reminders?.map((reminder) => reminder.customer === renameCustomer ? { ...reminder, customer: name } : reminder),
+      customerPhones: Object.fromEntries(Object.entries(previous.customerPhones || {}).map(([customer, phone]) => [customer === renameCustomer ? name : customer, phone])),
+    };
+    if (!isSnapshot(next)) { setRenameCustomerError("Could not save this customer name."); return; }
+    renameCustomerSavingRef.current = true;
+    setRenameCustomerSaving(true);
+    setRenameCustomerError("");
+    try {
+      await saveCloud(next, ownerId);
+      if (activeUserIdRef.current !== ownerId) throw new Error("Account changed. Sign in again to load the saved name.");
+      const dirty = readLedgerDirty(ownerId);
+      if (dirty && cloudSnapshotsEqual(dirty.snapshot, previous)) clearLedgerDirty(ownerId);
+      savedRenameSnapshotRef.current = { ownerId, snapshot: next };
+      setJobs(next.jobs);
+      setPayments(next.payments || []);
+      setNotes(next.notes || []);
+      setReminders(next.reminders || []);
+      setCustomerPhones(next.customerPhones || {});
+      setSelectedCustomer((customer) => customer === renameCustomer ? name : customer);
+      setChatTurns((turns) => turns.map((turn) => turn.customer === renameCustomer ? { ...turn, customer: name } : turn));
+      setSyncPending(false);
+      setRenameCustomer(null);
+      setToast(`Customer renamed to ${name}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save the customer name.";
+      setRenameCustomerError(message.includes("CUSTOMER_LIMIT_REACHED")
+        ? "Customer limit reached. Your existing customers are safe. Upgrade your plan to add another customer."
+        : message);
+    } finally {
+      renameCustomerSavingRef.current = false;
+      setRenameCustomerSaving(false);
+    }
+  }
   async function confirmDeleteCustomer() {
     if (!deleteCustomer || !requireActiveSubscriptionForSaving()) return;
     if (!(await savePreDeleteSafetyCopy())) return;
@@ -5658,6 +5729,15 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                       <small>baki</small>
                                     </span>
                                     <Icon name="arrow" size={17} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="customer-edit-button"
+                                    aria-label={"Edit " + name}
+                                    title="Edit customer name"
+                                    onClick={() => openRenameCustomer(name)}
+                                  >
+                                    <Icon name="edit" size={19} />
                                   </button>
                                   <button
                                     type="button"
@@ -7961,6 +8041,36 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 </small>
               </div>
             </div>
+          </div>
+        )}
+        {renameCustomer && (
+          <div className="modal-backdrop" onClick={() => { if (!renameCustomerSaving) setRenameCustomer(null); }}>
+            <form
+              className="modal customer-rename-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="rename-customer-title"
+              onClick={(event) => event.stopPropagation()}
+              onSubmit={(event) => { event.preventDefault(); void confirmRenameCustomer(); }}
+            >
+              <h2 id="rename-customer-title">Edit customer name</h2>
+              <label htmlFor="rename-customer-name">Customer name</label>
+              <input
+                id="rename-customer-name"
+                autoFocus
+                maxLength={100}
+                value={renameCustomerName}
+                onChange={(event) => { setRenameCustomerName(event.target.value); setRenameCustomerError(""); }}
+                aria-invalid={!!renameCustomerError}
+                aria-describedby={renameCustomerError ? "rename-customer-error" : undefined}
+                disabled={renameCustomerSaving}
+              />
+              {renameCustomerError && <p id="rename-customer-error" className="customer-rename-error" role="alert">{renameCustomerError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="outline" disabled={renameCustomerSaving} onClick={() => setRenameCustomer(null)}>Cancel</button>
+                <button type="submit" className="primary" disabled={renameCustomerSaving}>{renameCustomerSaving ? "Saving…" : "Save"}</button>
+              </div>
+            </form>
           </div>
         )}
         {deleteCustomer && (
