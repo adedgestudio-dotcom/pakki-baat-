@@ -39,22 +39,30 @@ test('damaged backup still throws', () => {
   assert.throws(() => backup.restoreWorkspaceSnapshot({ ...saved, payments: [{ id: 'p1', jobId: 'missing' }] }, current), /damaged or invalid|invalid payment links/);
 });
 
-test('identical workspace hash avoids a duplicate backup', async () => {
+test('always creates a new backup, even when nothing changed, and returns its name', async () => {
   let writes = 0;
+  const createdAt = ['2026-11-15T09:00:00Z', '2026-11-15T09:01:00Z'];
   const runner = load('lib/workspace-daily-backup-lifecycle.ts', {
     './customer-backup': backup,
     './data': data,
     './workspace-daily-backup-coordinator': { WorkspaceDailyBackupCoordinator: class {} },
     './cloud': {
-      loadLatestWorkspaceBackup: async () => ({ id: 'old', payload: structuredClone(saved), created_at: '2026-11-14T09:00:00Z' }),
-      saveWorkspaceBackup: async () => { writes++; throw Error('unexpected write'); },
+      saveWorkspaceBackup: async (snapshot, kind, ownerId) => {
+        assert.deepEqual(snapshot, saved);
+        assert.equal(kind, 'manual');
+        assert.equal(ownerId, 'owner');
+        writes++;
+        return { created: true, created_at: createdAt[writes - 1], id: `new-${writes}` };
+      },
       setBackupSettings: async () => {},
     },
   });
   const settings = { frequency: 'manual', time_of_day: null, tz: 'Asia/Kolkata', anchor_day: null, customers: [], last_run_at: null };
-  const message = await runner.runWorkspaceBackup(saved, settings, 'owner', 'manual');
-  assert.equal(writes, 0);
-  assert.match(message, /^No changes since 14 Nov 2026, /);
+  const first = await runner.runWorkspaceBackup(saved, settings, 'owner', 'manual');
+  const second = await runner.runWorkspaceBackup(saved, settings, 'owner', 'manual');
+  assert.equal(writes, 2);
+  assert.equal(first, `Backup done ✓ ${backup.workspaceBackupFileName(createdAt[0], settings.tz)}`);
+  assert.equal(second, `Backup done ✓ ${backup.workspaceBackupFileName(createdAt[1], settings.tz)}`);
 });
 
 test('retention SQL removes backups older than 30 days, caps at 60, and protects the newest and young safety copies', () => {

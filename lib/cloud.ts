@@ -392,13 +392,6 @@ export async function loadWorkspaceBackups(expectedOwnerId?: string): Promise<Wo
   return rows;
 }
 
-export async function loadLatestWorkspaceBackup(expectedOwnerId: string): Promise<WorkspaceBackup | null> {
-  const session = await accountSession(expectedOwnerId);
-  const rows = await request("/rest/v1/workspace_backups?select=id,payload,backup_kind,backup_day,created_at&order=created_at.desc,id.desc&limit=1", undefined, session.access_token);
-  await accountSession(session.user.id);
-  return rows[0] || null;
-}
-
 import type { BackupSettings } from "./customer-backup";
 export async function loadBackupSettings(ownerId: string): Promise<BackupSettings> {
   const session = await accountSession(ownerId);

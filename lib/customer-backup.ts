@@ -20,12 +20,6 @@ export function restoreWorkspaceSnapshot(backup: unknown, current: unknown): Sna
   return restored;
 }
 
-export async function hashWorkspaceSnapshot(snapshot: Snapshot): Promise<string> {
-  const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(canonical(snapshot))));
-  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
-}
-
 export function workspaceBackupDateTime(createdAt: string, tz: string): string {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).formatToParts(new Date(createdAt)).map(part => [part.type, part.value]));
   return `${parts.day} ${parts.month} ${parts.year}, ${parts.hour}:${parts.minute} ${parts.dayPeriod.toLowerCase()}`;
