@@ -17,3 +17,13 @@ export function updateReloadBlocked(state: {
 }) {
   return state.entryOpen || state.hasDraft || state.hasText || state.voiceBusy;
 }
+
+export function shouldAutoUpdate(state: {
+  idleMs: number;
+  blocked: boolean;
+  dirty: boolean;
+  online: boolean;
+  busy: boolean;
+}) {
+  return state.idleMs >= 120_000 && !state.blocked && !state.dirty && state.online && !state.busy;
+}

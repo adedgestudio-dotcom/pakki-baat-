@@ -109,8 +109,13 @@ async function request(path: string, body?: unknown, token?: string, cache?: Req
 
 export type CloudWorkspaceState = { ownerId: string; snapshot: unknown; revision: number | null; ledgerEnabled: boolean };
 type WorkspaceRpc = "save_workspace_with_ledger" | "restore_workspace_with_ledger";
-type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<void>; uncertain: { payload: unknown; revision: number; rpc: WorkspaceRpc } | null; conflict: boolean };
+type SaveState = { revision: number | null; ledgerEnabled: boolean; tail: Promise<void>; pending: boolean; uncertain: { payload: unknown; revision: number; rpc: WorkspaceRpc } | null; conflict: boolean };
 const saveStates = new Map<string, SaveState>();
+
+export function cloudSaveBusyForAccount(ownerId: string): boolean {
+  const state = saveStates.get(ownerId);
+  return !state || state.pending || state.uncertain !== null || state.conflict;
+}
 
 function equalJson(left: unknown, right: unknown): boolean {
   if (left === right) return true;
@@ -210,7 +215,7 @@ export async function loadCloudState(): Promise<CloudWorkspaceState> {
   const revision = rows[0]?.revision;
   if (ledgerEnabled && (!Number.isSafeInteger(revision) || revision < 1)) throw new Error("LEDGER_WORKSPACE_REVISION_MISSING");
   const previous = saveStates.get(ownerId);
-  saveStates.set(ownerId, { revision: Number.isSafeInteger(revision) ? revision : null, ledgerEnabled, tail: previous?.tail ?? Promise.resolve(), uncertain: null, conflict: false });
+  saveStates.set(ownerId, { revision: Number.isSafeInteger(revision) ? revision : null, ledgerEnabled, tail: previous?.tail ?? Promise.resolve(), pending: previous?.pending ?? false, uncertain: null, conflict: false });
   return { ownerId, snapshot: rows[0]?.payload ?? null, revision: Number.isSafeInteger(revision) ? revision : null, ledgerEnabled };
 }
 
@@ -348,7 +353,12 @@ async function writeCloud(snapshot: unknown, expectedOwnerId: string | undefined
     await atomicSave(snapshot, state.revision, rpc);
     clearLedgerDirty(ownerId, rpc === "restore_workspace_with_ledger" ? undefined : snapshot);
   });
-  state.tail = operation;
+  state.pending = true;
+  const tail = operation.then(
+    () => { if (state.tail === tail) state.pending = false; },
+    () => { if (state.tail === tail) state.pending = false; }
+  );
+  state.tail = tail;
   return operation;
 }
 

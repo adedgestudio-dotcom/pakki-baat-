@@ -31,7 +31,16 @@ test("dirty entry, AI and voice states block update reload until they close", ()
   assert.match(workspace, /updateReloadBlocked\(\{[\s\S]*entryOpen: customerChatOpen,[\s\S]*hasDraft: Boolean\(pendingJob\) \|\| Boolean\(draft\),[\s\S]*hasText: Boolean\(message\.trim\(\)\),[\s\S]*voiceBusy/);
 });
 
-test("client checks no-store on open, foreground and every 30 minutes without automatic reload", () => {
+test("automatic update requires two minutes idle and every safety condition", () => {
+  const safe = { idleMs: 120_000, blocked: false, dirty: false, online: true, busy: false };
+  assert.equal(helpers.shouldAutoUpdate(safe), true);
+  assert.equal(helpers.shouldAutoUpdate({ ...safe, idleMs: 119_999 }), false);
+  for (const [key, value] of [["blocked", true], ["dirty", true], ["online", false], ["busy", true]]) {
+    assert.equal(helpers.shouldAutoUpdate({ ...safe, [key]: value }), false, key);
+  }
+});
+
+test("client checks no-store on open, foreground, online and every five minutes", () => {
   const source = fs.readFileSync(path.join(root, "app/release-update.tsx"), "utf8");
   const ast = ts.createSourceFile("release-update.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const effects = [];
@@ -40,14 +49,17 @@ test("client checks no-store on open, foreground and every 30 minutes without au
     ts.forEachChild(node, visit);
   }
   visit(ast);
-  assert.equal(effects.length, 1);
+  assert.ok(effects.length >= 1);
   assert.ok(effects[0].includes('fetch("/api/release-info"'));
   assert.ok(effects[0].includes('cache: "no-store"'));
   assert.ok(effects[0].includes('document.addEventListener("visibilitychange"'));
+  assert.ok(effects[0].includes('window.addEventListener("focus"'));
+  assert.ok(effects[0].includes('window.addEventListener("online"'));
   assert.ok(effects[0].includes("window.setInterval(checkForUpdate, CHECK_INTERVAL_MS)"));
   assert.ok(!effects[0].includes("location.reload"));
-  assert.ok(source.includes("const CHECK_INTERVAL_MS = 30 * 60 * 1000"));
-  assert.ok(source.includes("New version ready"));
+  assert.ok(source.includes("const CHECK_INTERVAL_MS = 5 * 60 * 1000"));
+  assert.ok(source.includes("A new version of Pakki Baat is ready."));
+  assert.ok(source.includes("shouldAutoUpdate({"));
   assert.ok(source.includes("disabled={blocked || updating}"));
 });
 

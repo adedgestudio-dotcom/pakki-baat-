@@ -44,6 +44,7 @@ import {
   loadCloudState,
   cloudSnapshotsEqual,
   blockCloudSaves,
+  cloudSaveBusyForAccount,
   cloudWriteConflictForAccount,
   LEGACY_WORKSPACE_READ_ONLY_MESSAGE,
   clearLedgerDirty,
@@ -4424,7 +4425,13 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       <div className={navigationReady ? "shell" : "shell navigation-restoring"}>
         {/* On phones the banner and the toast share one bottom stack so they never overlap. */}
         <div className="status-stack">
-        <ReleaseUpdateCard blocked={releaseUpdateBlocked} online={isOnline} />
+        <ReleaseUpdateCard
+          blocked={releaseUpdateBlocked}
+          online={isOnline}
+          ownerId={accountId}
+          busy={syncPending || autosavePaused || scheduledBackupProgress !== null || tab === "Backup" || cloudSaveStatus.state === "pending" || cloudSaveStatus.state === "failed"}
+          cloudBusy={() => !accountId || cloudSaveBusyForAccount(accountId)}
+        />
         {legacyWorkspaceReadOnly && (
           <div
             className="offline-banner offline-banner-wrap"

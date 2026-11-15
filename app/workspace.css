@@ -7989,6 +7989,53 @@ select:focus-visible {
     pointer-events: auto;
   }
 }
+@media (min-width: 801px) {
+  body.has-release-bar .shell { padding-top: 52px; }
+  body.has-release-bar .sidebar { top: 52px; height: calc(100vh - 52px); }
+  .release-update-card {
+    z-index: 200;
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: 52px;
+    max-width: none;
+    justify-content: center;
+    gap: 24px;
+    padding: 4px 24px;
+    border: 0;
+    border-bottom: 2px solid #19594c;
+    border-radius: 0;
+    background: var(--teal);
+    color: #fff;
+    box-shadow: none;
+  }
+  .release-update-card > span { gap: 0; }
+  .release-update-card strong { font-size: 14px; }
+  .release-update-card small { color: #fff; font-size: 11px; }
+  .release-update-card button {
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    background: #f8f1df;
+    color: #173e31;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .release-update-card button:hover:not(:disabled) { background: #fff9ec; }
+  .release-update-card button:disabled { opacity: .65; }
+  [data-theme="dark"] .release-update-card {
+    border-color: #2d7667;
+    background: #1b2d26;
+    color: #edf4ef;
+  }
+  [data-theme="dark"] .release-update-card small { color: #edf4ef; }
+  @media (prefers-reduced-motion: no-preference) {
+    .release-update-nudge { animation: release-update-pulse 3s ease-in-out infinite; }
+  }
+}
+@keyframes release-update-pulse {
+  50% { box-shadow: 0 0 0 6px #f8f1df55; }
+}
 @media (max-width: 560px) {
   .receipt-modal {
     width: calc(100vw - 18px);
