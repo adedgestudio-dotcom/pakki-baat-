@@ -12952,14 +12952,15 @@ footer .footer-separator {
 .backup-clock-field { position: relative; min-width: 0; }
 .backup-clock-trigger { display: flex; align-items: center; justify-content: space-between; text-align: left; cursor: pointer; }
 .backup-clock-trigger span { display: grid; place-items: center; flex: 0 0 18px; width: 18px; height: 18px; font-size: 18px; line-height: 1; }
-.backup-clock-popover { box-sizing: border-box; position: absolute; z-index: 120; top: calc(100% + 8px); right: 0; width: min(320px, calc(100vw - 24px)); padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 16px 40px #0003; }
+.backup-clock-popover { box-sizing: border-box; position: static; width: 100%; min-width: 0; margin-top: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 16px 40px #0003; }
 .backup-clock-heading, .backup-clock-period, .backup-clock-actions { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.backup-clock-heading button, .backup-clock-period button, .backup-clock-actions button { min-width: 44px; min-height: 44px; padding: 8px 12px; border-radius: 10px; background: transparent; color: var(--text); }
-.backup-clock-heading button.selected, .backup-clock-period button.selected, .backup-clock-actions button:last-child { background: var(--accent); color: white; }
+.backup-clock-heading { min-height: 44px; font-size: 24px; font-weight: 700; }
+.backup-clock-chips { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin: 8px 0 12px; }
+.backup-clock-chips button, .backup-clock-period button, .backup-clock-actions button { min-width: 0; min-height: 44px; padding: 8px 4px; border-radius: 10px; background: transparent; color: var(--text); touch-action: manipulation; }
+.backup-clock-chips button.selected, .backup-clock-period button.selected, .backup-clock-actions button:last-child { background: var(--accent); color: white; }
+.backup-clock-minute { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.backup-clock-minute input { width: 80px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); padding: 8px; }
 .backup-clock-actions button:disabled { opacity: .45; }
-.backup-clock-dial { position: relative; width: min(264px, 100%); aspect-ratio: 1; margin: 12px auto; border-radius: 50%; background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
-.backup-clock-dial button { position: absolute; display: grid; place-items: center; width: 44px; height: 44px; transform: translate(-50%, -50%); border-radius: 50%; background: transparent; color: var(--text); font-weight: 700; touch-action: manipulation; }
-.backup-clock-dial button.selected { background: var(--accent); color: white; }
 .backup-clock-period { margin-bottom: 8px; }
 .backup-clock-actions { justify-content: flex-end; }
 .backup-progress { height: 8px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
@@ -12978,7 +12979,6 @@ footer .footer-separator {
 .backup-restore-confirm .outline { border: 1px solid color-mix(in srgb, var(--text) 24%, var(--surface)); background: transparent; color: var(--text); }
 .backup-restore-confirm .outline:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 6%, var(--surface)); color: var(--text); }
 @media (max-width: 480px) { .backup-restore-confirm .backup-restore-confirm-actions { flex-direction: column; } .backup-restore-confirm-actions button { width: 100%; } }
-@media (max-width: 600px) { .backup-clock-popover { position: fixed; top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); } }
 .backup-row-actions .outline {
   min-height: 36px;
   padding: 7px 10px;

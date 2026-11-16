@@ -36,27 +36,39 @@ const timeLabel = (value: string | null) => {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
 };
 
+export function clampClockMinute(value: number): number { return Math.max(0, Math.min(59, Math.trunc(value))); }
+export function clockTime24(hour: number, minute: number, period: "AM" | "PM"): string {
+  return `${String(hour % 12 + (period === "PM" ? 12 : 0)).padStart(2, "0")}:${String(clampClockMinute(minute)).padStart(2, "0")}`;
+}
 function ClockPicker({ value, disabled, onChange }: { value: string | null; disabled: boolean; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"hour" | "minute">("hour");
   const [hour, setHour] = useState<number | null>(null);
   const [minute, setMinute] = useState<number | null>(null);
   const [period, setPeriod] = useState<"AM" | "PM" | null>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (!fieldRef.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); setOpen(false); fieldRef.current?.querySelector("button")?.focus(); } };
+    document.addEventListener("pointerdown", outside); document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [open]);
   const openPicker = () => {
     const [h, m] = value ? value.split(":").map(Number) : [NaN, NaN];
     setHour(Number.isFinite(h) ? h % 12 || 12 : null);
-    setMinute(Number.isFinite(m) ? Math.round(m / 5) * 5 % 60 : null);
+    setMinute(Number.isFinite(m) ? clampClockMinute(m) : null);
     setPeriod(Number.isFinite(h) ? h < 12 ? "AM" : "PM" : null);
-    setStep("hour"); setOpen(true);
+    setOpen(true);
   };
-  const choices = step === "hour" ? Array.from({ length: 12 }, (_, i) => i + 1) : Array.from({ length: 12 }, (_, i) => i * 5);
-  return <div className="backup-clock-field">
+  return <div className="backup-clock-field" ref={fieldRef}>
     <button type="button" className="backup-clock-trigger" disabled={disabled} onClick={openPicker} aria-haspopup="dialog" aria-expanded={open}>{timeLabel(value)} <span aria-hidden="true">◷</span></button>
-    {open && <div className="backup-clock-popover" role="dialog" aria-label="Pick backup time" onKeyDown={event => { if (event.key === "Escape") setOpen(false); }}>
-      <div className="backup-clock-heading"><button type="button" className={step === "hour" ? "selected" : ""} onClick={() => setStep("hour")}>{hour === null ? "Hour" : hour}</button><span>:</span><button type="button" className={step === "minute" ? "selected" : ""} onClick={() => setStep("minute")}>{minute === null ? "Min" : String(minute).padStart(2, "0")}</button></div>
-      <div className="backup-clock-dial" aria-label={step === "hour" ? "Choose hour" : "Choose minutes"}>{choices.map((choice, index) => <button key={choice} type="button" className={(step === "hour" ? hour : minute) === choice ? "selected" : ""} style={{ left: `${50 + 39 * Math.sin(index * Math.PI / 6)}%`, top: `${50 - 39 * Math.cos(index * Math.PI / 6)}%` }} onClick={() => { if (step === "hour") { setHour(choice); setStep("minute"); } else setMinute(choice); }}>{step === "minute" ? String(choice).padStart(2, "0") : choice}</button>)}</div>
-      <div className="backup-clock-period"><button type="button" className={period === "AM" ? "selected" : ""} onClick={() => setPeriod("AM")}>AM</button><button type="button" className={period === "PM" ? "selected" : ""} onClick={() => setPeriod("PM")}>PM</button></div>
-      <div className="backup-clock-actions"><button type="button" onClick={() => setOpen(false)}>Cancel</button><button type="button" disabled={hour === null || minute === null || period === null} onClick={() => { onChange(`${String(hour! % 12 + (period === "PM" ? 12 : 0)).padStart(2, "0")}:${String(minute).padStart(2, "0")}`); setOpen(false); }}>OK</button></div>
+    {open && <div className="backup-clock-popover" role="dialog" aria-label="Pick backup time">
+      <div className="backup-clock-heading">{hour ?? "--"}:{minute === null ? "--" : String(minute).padStart(2, "0")} {period ?? ""}</div>
+      <strong>Hour</strong><div className="backup-clock-chips">{Array.from({ length: 12 }, (_, i) => i + 1).map(choice => <button key={choice} type="button" aria-pressed={hour === choice} className={hour === choice ? "selected" : ""} onClick={() => setHour(choice)}>{choice}</button>)}</div>
+      <strong>Minute</strong><div className="backup-clock-chips">{Array.from({ length: 12 }, (_, i) => i * 5).map(choice => <button key={choice} type="button" aria-pressed={minute === choice} className={minute === choice ? "selected" : ""} onClick={() => setMinute(choice)}>{String(choice).padStart(2, "0")}</button>)}</div>
+      <label className="backup-clock-minute">MM <input type="number" inputMode="numeric" min="0" max="59" placeholder="MM" value={minute ?? ""} onChange={event => setMinute(event.target.value === "" ? null : clampClockMinute(Number(event.target.value)))} /></label>
+      <div className="backup-clock-period"><button type="button" aria-pressed={period === "AM"} className={period === "AM" ? "selected" : ""} onClick={() => setPeriod("AM")}>AM</button><button type="button" aria-pressed={period === "PM"} className={period === "PM" ? "selected" : ""} onClick={() => setPeriod("PM")}>PM</button></div>
+      <div className="backup-clock-actions"><button type="button" onClick={() => setOpen(false)}>Cancel</button><button type="button" disabled={hour === null || minute === null || period === null} onClick={() => { if (hour !== null && minute !== null && period !== null) onChange(clockTime24(hour, minute, period)); setOpen(false); }}>OK</button></div>
     </div>}
   </div>;
 }
