@@ -7,6 +7,7 @@ import "./new-customer-picker.css";
 import "./connections.css";
 import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
 import CloudSettings from "./cloud-settings";
+import SelectMenu from "./select-menu";
 import BackupNudge from "./backup-nudge";
 import { backupNudgeDue, recordBackupNudge, rememberFirstUse } from "@/lib/backup-nudge";
 import ChatComposer from "./chat-composer";
@@ -7511,17 +7512,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               {directReminderOpen && (
                 <label className="reminder-customer-select">
                   Customer <span>optional</span>
-                  <select
-                    value={reminderCustomer}
-                    onChange={(e) => setReminderCustomer(e.target.value)}
-                  >
-                    <option value="">General reminder</option>
-                    {customerNames.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                  <SelectMenu aria-label="Customer" value={reminderCustomer} onChange={setReminderCustomer} options={[{ value: "", label: "General reminder" }, ...customerNames.map(name => ({ value: name, label: name }))]} />
                 </label>
               )}
               <label className="reminder-text-label">
@@ -8371,23 +8362,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <label>
                   Why are you fixing it?{" "}
                   <span style={{ color: "#e74c3c" }}>*</span>
-                  <select
-                    value={editPaymentReason}
-                    onChange={(e) =>
-                      setEditPaymentReason(
-                        e.target.value as
-                          | "wrong_amount"
-                          | "duplicate"
-                          | "data_entry_error"
-                          | "other"
-                      )
-                    }
-                  >
-                    <option value="wrong_amount">Wrong amount</option>
-                    <option value="duplicate">Duplicate entry</option>
-                    <option value="data_entry_error">Data entry error</option>
-                    <option value="other">Other</option>
-                  </select>
+                  <SelectMenu aria-label="Why are you fixing it?" value={editPaymentReason} onChange={value => setEditPaymentReason(value as "wrong_amount" | "duplicate" | "data_entry_error" | "other")} options={[{ value: "wrong_amount", label: "Wrong amount" }, { value: "duplicate", label: "Duplicate entry" }, { value: "data_entry_error", label: "Data entry error" }, { value: "other", label: "Other" }]} />
                 </label>
                 <label>
                   Explanation <span style={{ color: "#999" }}>optional</span>
@@ -9032,16 +9007,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   </label>
                   <label className="full">
                     Customer confirmation
-                    <select
-                      value={draft.status}
-                      onChange={(e) =>
-                        setDraft({ ...draft, status: e.target.value })
-                      }
-                    >
-                      <option value="Waiting">Pending</option>
-                      <option value="Confirmed">In progress</option>
-                      <option value="Completed">Done</option>
-                    </select>
+                    <SelectMenu aria-label="Customer confirmation" value={draft.status} onChange={value => setDraft({ ...draft, status: value })} options={[{ value: "Waiting", label: "Pending" }, { value: "Confirmed", label: "In progress" }, { value: "Completed", label: "Done" }]} />
                   </label>
                 </div>
 

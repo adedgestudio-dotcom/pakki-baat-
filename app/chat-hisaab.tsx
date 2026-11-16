@@ -4,6 +4,7 @@ import type { Job, Payment } from "@/lib/data";
 import { formatMoneyRupees as money } from "@/lib/money";
 import HisaabEntryPhoto from "./hisaab-entry-photo";
 import ChatSheet from "./chat-sheet";
+import SelectMenu from "./select-menu";
 import { ChatBottomBar, ClipMenu, EntryActionMenu } from "./chat-hisaab-menus";
 export { ChatBottomBar, ClipMenu, EntryActionMenu } from "./chat-hisaab-menus";
 import "./chat-hisaab.css";
@@ -70,7 +71,7 @@ export default function ChatCustomer(props: Props) {
     <ChatSheet open={attach} label="Attach" onClose={() => setAttach(false)}><h2>Attach</h2><ClipMenu onChoose={chooseAction}/></ChatSheet>
     <ChatSheet open={paste} label="Paste message" onClose={() => setPaste(false)}><h2>Paste message</h2><p>Paste a customer message to turn it into an entry.</p><textarea className="hisaab-paste-text" value={pasteText} onChange={event => setPasteText(event.target.value)}/><button className="primary hisaab-paste-submit" disabled={!pasteText.trim()} onClick={() => { props.onQuick(); props.onMessage(pasteText); setPaste(false); }}>Continue in Quick entry</button></ChatSheet>
     <input ref={photoPicker} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose entry photo" hidden onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; setPhotoFile(file); setPhoto("preview"); }}/>
-    <ChatSheet open={!!photo} label="Attach photo" onClose={closePhoto}><h2>Attach photo</h2>{props.jobs.length && photoFile ? <><label className="hisaab-photo-target">For: Entry {orderedJobs.findIndex(job => job.id === photoEntry) + 1} · {orderedJobs.find(job => job.id === photoEntry)?.work}<select aria-label="Attach to entry" value={photoEntry} onChange={e => setPhotoEntry(e.target.value)}>{orderedJobs.map((job, index) => <option key={job.id} value={job.id}>Entry {index + 1} · {job.work}</option>)}</select></label><HisaabEntryPhoto ownerId={props.ownerId} entryId={photoEntry} entryNumber={orderedJobs.findIndex(job => job.id === photoEntry) + 1} canUpload={props.canUpload} initialFile={photoFile} onPreviewCancel={closePhoto} onAttached={() => { closePhoto(); props.onToast("Photo attached"); }}/></> : null}</ChatSheet>
+    <ChatSheet open={!!photo} label="Attach photo" onClose={closePhoto}><h2>Attach photo</h2>{props.jobs.length && photoFile ? <><div>For: Entry {orderedJobs.findIndex(job => job.id === photoEntry) + 1} · {orderedJobs.find(job => job.id === photoEntry)?.work}<SelectMenu aria-label="Attach to entry" value={photoEntry} onChange={setPhotoEntry} options={orderedJobs.map((job, index) => ({ value: job.id, label: `Entry ${index + 1} · ${job.work}` }))} /></div><HisaabEntryPhoto ownerId={props.ownerId} entryId={photoEntry} entryNumber={orderedJobs.findIndex(job => job.id === photoEntry) + 1} canUpload={props.canUpload} initialFile={photoFile} onPreviewCancel={closePhoto} onAttached={() => { closePhoto(); props.onToast("Photo attached"); }}/></> : null}</ChatSheet>
   </section></ChatContext.Provider>;
 }
 export function ChatEntryBubble({ job, number, ownerId = null, canDelete = false, onDeleted, onPayment, onCopy, onEdit }: { job: Job; number: number; ownerId?: string | null; canDelete?: boolean; onDeleted?: () => void; onPayment: () => void; onCopy: () => void; onEdit: () => void }) {
