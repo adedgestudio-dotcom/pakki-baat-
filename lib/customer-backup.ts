@@ -34,9 +34,33 @@ export function groupWorkspaceBackups<T extends { backup_kind: string; created_a
   };
 }
 
-export function restoreMenuBackups<T extends { backup_kind: string; created_at: string }>(backups: readonly T[], showOlder: boolean): T[] {
-  const regular = groupWorkspaceBackups(backups).regular.filter(backup => backup.backup_kind === "manual" || backup.backup_kind === "scheduled");
-  return showOlder ? regular : regular.slice(0, 10);
+function calendarDay(value: Date, tz: string): number {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value).map(part => [part.type, part.value]));
+  return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) / 86_400_000;
+}
+
+export function restoreMenuBackups<T extends { backup_kind: string; created_at: string }>(backups: readonly T[], tz: string, now = Date.now()): T[] {
+  const today = calendarDay(new Date(now), tz);
+  const days = new Set<number>();
+  return groupWorkspaceBackups(backups).regular.filter(backup => {
+    const timestamp = Date.parse(backup.created_at);
+    if (!["manual", "scheduled"].includes(backup.backup_kind) || !Number.isFinite(timestamp) || timestamp > now) return false;
+    const day = calendarDay(new Date(timestamp), tz);
+    if (day > today || day < today - 29 || days.has(day)) return false;
+    days.add(day);
+    return true;
+  });
+}
+
+export function restoreBackupLabel(createdAt: string, tz: string, now = Date.now()): string {
+  const date = new Date(createdAt), difference = calendarDay(new Date(now), tz) - calendarDay(date, tz);
+  const label = difference === 0 ? "Today" : difference === 1 ? "Yesterday" : new Intl.DateTimeFormat("en-GB", { timeZone: tz, day: "numeric", month: "short", year: "numeric" }).format(date);
+  const time = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(date).toLowerCase();
+  return `${label}, ${time}`;
+}
+
+export function backupCount(count: number | "?", singular: "entry" | "customer"): string {
+  return `${count} ${count === 1 ? singular : singular === "entry" ? "entries" : "customers"}`;
 }
 
 export function validateWorkspaceBackup(value: unknown): Snapshot {

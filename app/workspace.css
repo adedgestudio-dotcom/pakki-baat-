@@ -12879,7 +12879,10 @@ footer .footer-separator {
 }
 .backup-run-card > .backup-auto-card { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 4px; }
 .backup-auto-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.backup-auto-summary strong, .backup-page .backup-simple-card > * { min-width: 0; overflow-wrap: anywhere; }
 .backup-auto-summary .outline { min-height: 44px; padding: 8px 14px; border-radius: 10px; }
+.backup-page, .backup-main-panel, .backup-simple-card, .backup-restore-card { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.backup-page, .backup-restore-card { grid-template-columns: minmax(0, 1fr); }
 .backup-restore-card { display: grid; gap: 12px; }
 .backup-picker { display: grid; gap: 8px; min-width: 0; }
 .backup-picker-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 48px; padding: 10px 13px 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; font: inherit; }
@@ -12906,6 +12909,9 @@ footer .footer-separator {
 .backup-picker-option:hover, .backup-picker-option.highlighted { background: color-mix(in srgb, var(--teal) 8%, var(--picker-surface)); }
 .backup-picker-option.selected { background: color-mix(in srgb, var(--teal) 14%, var(--picker-surface)); }
 .backup-picker-option-meta { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.backup-restore-card .backup-picker, .backup-restore-card .backup-picker-trigger, .backup-restore-card .backup-picker-panel, .backup-restore-card .backup-picker-list, .backup-restore-card .backup-picker-option { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.backup-restore-card .backup-picker-trigger > span:first-child, .backup-restore-card .backup-picker-option > span:first-child { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; overflow: visible; }
+.backup-restore-card .backup-picker-option-meta { display: block; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .backup-picker-check { color: var(--teal); font-size: 15px; font-weight: 700; }
 .backup-restore-summary { padding: 12px; border: 1px solid var(--line); border-radius: 12px; line-height: 1.5; }
 .backup-restore-summary p { margin: 6px 0 0; }

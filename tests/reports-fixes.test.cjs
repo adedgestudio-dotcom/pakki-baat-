@@ -42,9 +42,9 @@ test("entry rows combine linked payments, retain summaries and export the displa
 });
 
 test("entry filters use job balances, entry dates, and stable newest-first order", () => {
-  const data = { ...snapshot, jobs: [...snapshot.jobs, { ...snapshot.jobs[0], id: 'z', paid: 100, date: '2026-11-08', createdAt: '2026-11-12T00:00:00Z' }] };
+  const data = { ...snapshot, jobs: [...snapshot.jobs, { ...snapshot.jobs[0], id: 'z', paid: 100, date: '2026-11-08', createdAt: '2026-11-12T00:00:00Z' }, { ...snapshot.jobs[0], id: 'zero', total: 0, paid: 0, date: '2026-11-07' }] };
   const filter = { ...reports.defaultReportFilter };
-  assert.deepEqual(Array.from(reports.selectReportEntries(data, filter), row => row.id), ['job:j', 'job:b', 'job:z']);
+  assert.deepEqual(Array.from(reports.selectReportEntries(data, filter), row => row.id), ['job:j', 'job:b', 'job:z', 'job:zero']);
   assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, kind: 'pending_sales' }), row => row.id), ['job:j', 'job:b']);
   assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, kind: 'fully_paid' }), row => row.id), ['job:z']);
   assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, from: '2026-11-09', search: 'Cake' }), row => row.id), ['job:j', 'job:b']);

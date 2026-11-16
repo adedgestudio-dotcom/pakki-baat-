@@ -47,7 +47,7 @@ export function selectReportEntries(snapshot: Snapshot, filter: ReportFilter): R
   const query = filter.search.trim().toLocaleLowerCase();
   const numeric = query.replace(/[₹,\s]/g, "");
   const result = rows.filter(row => (!filter.from || row.day >= filter.from) && (!filter.to || row.day <= filter.to)
-    && (filter.kind === "all" || filter.kind === "pending_sales" && !row.unlinked && row.pendingPaise > 0 || filter.kind === "fully_paid" && !row.unlinked && row.pendingPaise === 0)
+    && (filter.kind === "all" || filter.kind === "pending_sales" && !row.unlinked && row.pendingPaise > 0 || filter.kind === "fully_paid" && !row.unlinked && row.totalPaise > 0 && row.pendingPaise === 0)
     && (!query || `${row.customer} ${row.work}`.toLocaleLowerCase().includes(query) || /^\d+(?:\.\d+)?$/.test(numeric) && [row.totalPaise, row.receivedPaise, row.pendingPaise].some(value => String(value / 100).includes(numeric))));
   result.sort((a, b) => {
     const primary = filter.sort === "amount" ? a.totalPaise - b.totalPaise : filter.sort === "customer" ? a.customer.localeCompare(b.customer) : a.day.localeCompare(b.day);

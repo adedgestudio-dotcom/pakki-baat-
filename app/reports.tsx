@@ -1,9 +1,9 @@
 "use client";
 
-import { useReducer, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { Snapshot } from "@/lib/data";
 import { formatReportMoney, legacyReport, reportEntriesCsv, selectReport, selectReportEntries, type ReportEntry, type ReportFilter } from "@/lib/reports";
-import { createReportUiState, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
+import { createReportUiState, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
 import "./reports.css";
 import ReportsPrintDocument from "./reports-print";
 import ReportsGroups from "./reports-groups";
@@ -15,12 +15,17 @@ type Props = { ownerId: string | null; ledgerEnabled: boolean; snapshot: Snapsho
 
 export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVersion, pending }: Props) {
   const [ui, dispatch] = useReducer(reportUiReducer, undefined, () => createReportUiState(new Date()));
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => { dispatch({ type: "edit", filter: { search } }); dispatch({ type: "apply", now: new Date() }); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
   const filter = ui.applied.filter;
   const [reload, setReload] = useState(0);
   const [selected, setSelected] = useState<{ownerId:string; key:string; row:ReportEntry}|null>(null);
   const requestKey = `${ownerId}:${ledgerEnabled}:${cloudSaveVersion}:${reload}`;
   function refresh() { setReload(value => value + 1); }
-  function update<K extends keyof ReportFilter>(key: K, value: ReportFilter[K]) { dispatch({ type: "edit", filter: { [key]: value } }); }
+  function update<K extends keyof ReportFilter>(key: K, value: ReportFilter[K]) { dispatch({ type: "edit", filter: { [key]: value } }); dispatch({ type: "apply", now: new Date() }); }
   if (!ownerId) return <section className="panel reports-page reports-state"><h1>Reports</h1><p>Sign in and load your workspace to view Reports.</p></section>;
   let report: ReturnType<typeof legacyReport>, view: ReturnType<typeof selectReport>, matchingRows: ReportEntry[];
   try {
@@ -33,7 +38,6 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
   const detail = selected?.ownerId === ownerId && selected.key === requestKey ? matchingRows.find(row => row.id === selected.row.id) ?? null : null;
   const openDetail = (row: ReportEntry) => setSelected({ ownerId, key: requestKey, row });
   const draft = ui.draft.filter;
-  const unapplied = reportFiltersPending(ui);
   const incomplete = report.warnings.some(warning => warning.includes("incomplete") || warning.includes("do not reconcile") || warning.includes("omitted"));
   function download() {
     const blob = new Blob([reportEntriesCsv(matchingRows)], { type: "text/csv;charset=utf-8" });
@@ -47,16 +51,15 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     <div className="reports-overview">{[["Total sales", view.sales], ["Received", view.payments], ["Pending", report.activeOutstandingPaise]].map(([label, value], index) => <div className="panel" key={String(label)}><span>{label}</span><strong>{incomplete && index < 2 ? "Needs reconciliation" : formatReportMoney(Number(value))}</strong></div>)}</div>
     <form className="reports-filter-panel" onSubmit={event => { event.preventDefault(); dispatch({ type: "apply", now: new Date() }); }}>
       <div className="reports-filters">
-        <label>Period<SelectMenu aria-label="Period" value={ui.draft.period} onChange={value => dispatch({ type: "period", period: value as ReportPeriod, now: new Date() })} options={[{value:"today",label:"Today"},{value:"seven",label:"Last 7 days"},{value:"thirty",label:"Last 30 days"},{value:"custom",label:"Custom range"}]} /></label>
+        <label>Period<SelectMenu aria-label="Period" value={ui.draft.period} onChange={value => { dispatch({ type: "period", period: value as ReportPeriod, now: new Date() }); dispatch({ type: "apply", now: new Date() }); }} options={[{value:"today",label:"Today"},{value:"seven",label:"Last 7 days"},{value:"thirty",label:"Last 30 days"},{value:"custom",label:"Custom range"}]} /></label>
         {ui.draft.period === "custom" && <><label>From<input type="date" value={draft.from} onChange={event => update("from", event.target.value)} /></label><label>To<input type="date" value={draft.to} onChange={event => update("to", event.target.value)} /></label></>}
-        <label>Customer or amount<input type="search" placeholder="Name or ₹ amount" value={draft.search} onChange={event => update("search", event.target.value)} /></label>
+        <label>Customer or amount<input type="search" placeholder="Name or ₹ amount" value={search} onChange={event => setSearch(event.target.value)} /></label>
         <label>Entries<SelectMenu aria-label="Entries" value={draft.kind} onChange={value => update("kind", value)} options={["all", "pending_sales", "fully_paid"].map(kind => ({value:kind,label:reportTypeLabels[kind]}))} /></label>
       </div>
       <details className="reports-advanced"><summary>Advanced Filters</summary><div className="reports-filters">
         <label>Sort by<SelectMenu aria-label="Sort by" value={draft.sort} onChange={value => update("sort", value as ReportFilter["sort"])} options={[{value:"date",label:"Date"},{value:"amount",label:"Amount"},{value:"customer",label:"Customer"}]} /></label>
         <label>Order<SelectMenu aria-label="Order" value={draft.descending ? "desc" : "asc"} onChange={value => update("descending", value === "desc")} options={[{value:"desc",label:"Newest / highest first"},{value:"asc",label:"Oldest / lowest first"}]} /></label>
       </div></details>
-      <div className="reports-apply"><button type="submit" className="primary">Show Report</button>{unapplied && <span role="status" aria-live="polite">Filters changed — click Show Report to apply.</span>}</div>
       {ui.error && <p role="alert" className="reports-filter-error">{ui.error}</p>}
     </form>
     <ReportsMobileTransactions rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} onSelect={openDetail} />

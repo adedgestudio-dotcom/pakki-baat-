@@ -68,18 +68,30 @@ test('undo uses only the newest recent pre-restore copy unless a newer regular b
 
 test('restore menu excludes safety copies and undo uses the existing restore flow', () => {
   const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
-  assert.match(settings, /const menuBackups = restoreMenuBackups\(backups, showOlderBackups\)/);
+  assert.match(settings, /const menuBackups = restoreMenuBackups\(backups, deviceTz, now\)/);
   assert.doesNotMatch(settings, /"Safety copies"/);
   assert.match(settings, /restoreBackup\(undoBackup\)/);
   assert.match(settings, /loadBackupPayload\(backup\.id, ownerId\)[\s\S]*?saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)[\s\S]*?restoreCloud\(restored, ownerId\)/);
 });
 
-test('restore menu starts with the newest ten regular backups and can show older ones', () => {
-  const rows = Array.from({ length: 12 }, (_, i) => ({ id: String(i), backup_kind: i % 2 ? 'manual' : 'scheduled', created_at: new Date(Date.UTC(2026, 10, i + 1)).toISOString() }));
-  rows.push({ id: 'safety', backup_kind: 'pre_restore', created_at: '2026-12-01T00:00:00Z' }, { id: 'delete', backup_kind: 'pre_delete', created_at: '2026-12-02T00:00:00Z' }, { id: 'daily', backup_kind: 'daily', created_at: '2026-12-03T00:00:00Z' });
-  const short = backup.restoreMenuBackups(rows, false), all = backup.restoreMenuBackups(rows, true);
-  assert.equal(short.length, 10); assert.equal(short[0].id, '11'); assert.equal(all.length, 12);
-  assert.ok(all.every(row => row.backup_kind === 'manual' || row.backup_kind === 'scheduled'));
+test('restore menu picks the newest scheduled or manual backup per local day in the last 30 days', () => {
+  const rows = [
+    { id: 'new', backup_kind: 'manual', created_at: '2026-11-16T09:00:00Z' },
+    { id: 'same', backup_kind: 'scheduled', created_at: '2026-11-15T23:00:00Z' },
+    { id: 'yesterday', backup_kind: 'scheduled', created_at: '2026-11-15T17:00:00Z' },
+    { id: 'old', backup_kind: 'manual', created_at: '2026-10-16T09:00:00Z' },
+    { id: 'safety', backup_kind: 'pre_restore', created_at: '2026-11-16T10:00:00Z' },
+    { id: 'delete', backup_kind: 'pre_delete', created_at: '2026-11-16T11:00:00Z' },
+    { id: 'daily', backup_kind: 'daily', created_at: '2026-11-16T11:00:00Z' },
+  ];
+  const now = Date.parse('2026-11-16T12:00:00Z');
+  const list = backup.restoreMenuBackups(rows, 'Asia/Kolkata', now);
+  assert.deepEqual(Array.from(list, row => row.id), ['new', 'yesterday']);
+  assert.equal(backup.restoreBackupLabel(rows[0].created_at, 'Asia/Kolkata', now), 'Today, 2:30 pm');
+  assert.equal(backup.restoreBackupLabel(rows[2].created_at, 'Asia/Kolkata', now), 'Yesterday, 10:30 pm');
+  assert.equal(backup.restoreBackupLabel('2026-11-14T03:35:00Z', 'Asia/Kolkata', now), '14 Nov 2026, 9:05 am');
+  assert.equal(backup.backupCount(1, 'entry'), '1 entry'); assert.equal(backup.backupCount(2, 'entry'), '2 entries');
+  assert.equal(backup.backupCount(1, 'customer'), '1 customer'); assert.equal(backup.backupCount(0, 'customer'), '0 customers');
 });
 
 test('backup kind labels cover regular, safety, and unknown kinds', () => {
