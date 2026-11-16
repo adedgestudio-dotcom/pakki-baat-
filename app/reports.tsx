@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useReducer, useState } from "react";
-import { loadReportLedger } from "@/lib/cloud";
+import { useReducer, useState } from "react";
 import type { Snapshot } from "@/lib/data";
-import { formatReportMoney, ledgerReport, legacyReport, reportCsv, selectReport, type ReportTransaction, type LedgerRow, type ReportFilter } from "@/lib/reports";
-import { advancedReportTypes, createReportUiState, orderReportDates, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
+import { formatReportMoney, legacyReport, reportCsv, selectReport, type ReportTransaction, type ReportFilter } from "@/lib/reports";
+import { advancedReportTypes, createReportUiState, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
 import "./reports.css";
 import ReportsPrintDocument from "./reports-print";
 import ReportsGroups from "./reports-groups";
@@ -14,56 +13,32 @@ import ReportsTransactionDetail from "./reports-detail";
 import SelectMenu from "./select-menu";
 
 type Props = { ownerId: string | null; ledgerEnabled: boolean; snapshot: Snapshot; cloudSaveVersion: number; pending: boolean };
-type History = { ownerId: string; key: string; state: "loaded"; rows: LedgerRow[] } | { ownerId: string; key: string; state: "error" } | null;
 
 export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVersion, pending }: Props) {
-  const [history, setHistory] = useState<History>(null);
   const [ui, dispatch] = useReducer(reportUiReducer, undefined, () => createReportUiState(new Date()));
   const filter = ui.applied.filter;
   const [reload, setReload] = useState(0);
   const [selected, setSelected] = useState<{ownerId:string; key:string; row:ReportTransaction}|null>(null);
   const requestKey = `${ownerId}:${ledgerEnabled}:${cloudSaveVersion}:${reload}`;
-  useEffect(() => {
-    if (!ownerId || !ledgerEnabled) return;
-    let disposed = false;
-    // Clear previous results before any new read; never display another owner's data.
-    void loadReportLedger(ownerId).then(rows => {
-      if (!disposed) setHistory({ ownerId, key: requestKey, state: "loaded", rows });
-    }).catch(() => {
-      if (!disposed) setHistory({ ownerId, key: requestKey, state: "error" });
-    });
-    return () => { disposed = true; };
-  }, [ownerId, ledgerEnabled, requestKey]);
-  const current = history?.ownerId === ownerId && history.key === requestKey ? history : null;
-  function refresh() { setHistory(null); setReload(value => value + 1); }
+  function refresh() { setReload(value => value + 1); }
   function update<K extends keyof ReportFilter>(key: K, value: ReportFilter[K]) { dispatch({ type: "edit", filter: { [key]: value } }); }
   if (!ownerId) return <section className="panel reports-page reports-state"><h1>Reports</h1><p>Sign in and load your workspace to view Reports.</p></section>;
-  if (ledgerEnabled && !current) return <section className="panel reports-page reports-state" aria-busy="true"><h1>Reports</h1><p role="status">Loading your ledger history…</p></section>;
-  if (ledgerEnabled && current?.state === "error") return <section className="panel reports-page reports-state"><h1>Reports</h1><p role="alert">Ledger history could not be loaded. No partial or legacy totals are shown.</p><button className="outline" onClick={refresh}>Try again</button></section>;
   let report: ReturnType<typeof legacyReport>, view: ReturnType<typeof selectReport>, groups: ReportGroup[];
   try {
-    report = ledgerEnabled && current?.state === "loaded" ? ledgerReport(current.rows, ownerId, snapshot) : legacyReport(snapshot);
-    const ledgerRows = ledgerEnabled && current?.state === "loaded" ? current.rows : undefined;
+    report = legacyReport(snapshot);
     if (filter.kind === "pending_sales") {
       const allFilter = { ...filter, kind: "all" };
-      const candidates = groupReportRows(ownerId, report, snapshot, selectReport(report, allFilter).rows, allFilter, ledgerRows);
+      const candidates = groupReportRows(ownerId, report, snapshot, selectReport(report, allFilter).rows, allFilter);
       const pendingJobs = pendingReportJobIds(candidates);
       const pendingRows = new Set(candidates.filter(group => group.jobId && pendingJobs.has(group.jobId)).flatMap(group => group.matches.map(row => row.id)));
       view = selectReport(report, filter, pendingRows);
     } else view = selectReport(report, filter);
-    groups = groupReportRows(ownerId, report, snapshot, view.rows, filter, ledgerRows);
+    groups = groupReportRows(ownerId, report, snapshot, view.rows, filter);
   } catch (cause) {
     return <section className="panel reports-page reports-state"><h1>Reports</h1><p role="alert">{cause instanceof Error ? cause.message : "Report unavailable."}</p><button className="outline" onClick={refresh}>Reload history</button></section>;
   }
-  const timestamps = new Map<string, number>();
-  if (ledgerEnabled && current?.state === "loaded") {
-    current.rows.forEach(row => timestamps.set(row.id, Date.parse(row.occurred_at)));
-  } else {
-    snapshot.jobs.forEach(job => timestamps.set(`job:${job.id}`, Date.parse(job.createdAt || job.date)));
-    snapshot.payments?.forEach(payment => timestamps.set(`payment:${payment.id}`, Date.parse(payment.createdAt)));
-  }
-  const matchingRows = orderReportDates(view.rows, filter, timestamps);
-  const detail = selected?.ownerId === ownerId && selected.key === requestKey ? selected.row : null;
+  const matchingRows = view.rows;
+  const detail = selected?.ownerId === ownerId && selected.key === requestKey ? matchingRows.find(row => row.id === selected.row.id) ?? null : null;
   const detailGroup = detail ? groups.find(group => group.matches.some(row => row.id === detail.id)) : undefined;
   const openDetail = (row: ReportTransaction) => setSelected({ ownerId, key: requestKey, row });
   const draft = ui.draft.filter;
@@ -99,12 +74,12 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     <div className="reports-pagination"><p>Showing {Math.min(ui.visibleCount, matchingRows.length)} of {matchingRows.length} transactions</p>{ui.visibleCount < matchingRows.length && <button type="button" className="outline" onClick={() => dispatch({ type: "more" })}>Load 20 More</button>}</div>
     <details className="reports-accounting"><summary>How to read this</summary>
       <p className="reports-semantics">Total sales and Received use the selected dates. Pending covers all active sales. Search and transaction type filter the list, CSV and print, while the three cards keep their existing totals.</p>
-      <p className="reports-semantics">Leave either custom date blank for an open range. Presets use your local calendar; transactions use UTC dates. Corrections undo or replace earlier entries. Historical or unlinked entries may appear in the list but do not add to Pending.</p>
-      {pending && <p role="status" className="reports-notice">Workspace changes are awaiting cloud acknowledgement. Ledger figures show the last loaded server history; active Pending includes local changes.</p>}
+      <p className="reports-semantics">Leave either custom date blank for an open range. Presets use your local calendar; transactions use UTC dates. Unlinked payments may appear in the list but do not add to Pending.</p>
+      {pending && <p role="status" className="reports-notice">Workspace changes are awaiting cloud acknowledgement.</p>}
       {report.warnings.map(warning => <p className="reports-notice" key={warning}>{warning}</p>)}
       <div className="reports-print-context">Applied period: {filter.from || "All dates"} to {filter.to || "All dates"} · Search: {filter.search || "None"} · Transactions: {reportTypeLabels[filter.kind] || filter.kind}</div>
     </details>
-    <ReportsPrintDocument filter={filter} rows={matchingRows} summary={{ sales: view.sales, payments: view.payments, periodBalance: view.periodBalance, outstanding: report.activeOutstandingPaise }} incomplete={incomplete} warnings={report.warnings} pending={pending} ledgerEnabled={ledgerEnabled} />
+    <ReportsPrintDocument filter={filter} rows={matchingRows} summary={{ sales: view.sales, payments: view.payments, periodBalance: view.periodBalance, outstanding: report.activeOutstandingPaise }} incomplete={incomplete} warnings={report.warnings} pending={false} ledgerEnabled={false} />
     {detail && <ReportsTransactionDetail row={detail} group={detailGroup} onClose={() => setSelected(null)} />}
   </section>;
 }

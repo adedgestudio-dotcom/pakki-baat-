@@ -194,7 +194,7 @@ test("summary, filters, flat list and one collapsed reading guide are in order",
   const guide = screen.match(/<details className="reports-accounting">[\s\S]*?<\/details>/g);
   assert.equal(guide.length, 1);
   assert.ok(guide[0].includes('<summary>How to read this</summary>'));
-  for (const text of ["Presets use your local calendar", "Corrections undo", "report.warnings.map"]) assert.ok(guide[0].includes(text), text);
+  for (const text of ["Presets use your local calendar", "Unlinked payments", "report.warnings.map"]) assert.ok(guide[0].includes(text), text);
   assert.ok(screen.indexOf('className="reports-overview"') < screen.indexOf('className="reports-filter-panel"'));
   assert.ok(screen.indexOf('className="reports-filter-panel"') < screen.indexOf('<ReportsMobileTransactions'));
   assert.ok(screen.indexOf('<ReportsGroups') < screen.indexOf(guide[0]));

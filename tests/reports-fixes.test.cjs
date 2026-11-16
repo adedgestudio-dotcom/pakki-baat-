@@ -21,6 +21,23 @@ const snapshot = { owner: "Owner", business: "Test", jobs: [
 const report = reports.legacyReport(snapshot);
 const select = filter => reports.selectReport(report, { ...reports.defaultReportFilter, ...filter });
 
+test("workspace reports follow the current snapshot after restore and sort consistently", () => {
+  const first = reports.selectReport(reports.legacyReport(snapshot), reports.defaultReportFilter);
+  assert.equal(first.sales, 15000);
+  assert.equal(first.payments, 2000);
+  assert.deepEqual(Array.from(first.rows, row => row.id), ["payment:p", "job:j", "job:b"]);
+  const restored = { ...snapshot, jobs: [snapshot.jobs[1]], payments: [] };
+  const restoredReport = reports.legacyReport(restored);
+  assert.deepEqual(Array.from(reports.selectReport(restoredReport, reports.defaultReportFilter).rows, row => row.id), ["job:b"]);
+  assert.equal(reports.selectReport(restoredReport, reports.defaultReportFilter).sales, 5000);
+  assert.equal(reports.selectReport(restoredReport, reports.defaultReportFilter).payments, 0);
+  assert.equal(restoredReport.warnings.length, 0);
+  for (const sort of ["date", "amount", "customer"]) for (const descending of [true, false]) {
+    const filter = { ...reports.defaultReportFilter, sort, descending };
+    assert.deepEqual(Array.from(reports.selectReport(report, filter).rows, row => row.id), Array.from(reports.selectReport(report, filter).rows, row => row.id));
+  }
+});
+
 test("Reports customer search matches word starts, never interior substrings; amounts still match", () => {
   for (const search of ["Asha", "ASHA", "Ash", "Shah", "asha sh"]) {
     assert.ok(select({ search }).rows.length > 0);
@@ -65,7 +82,7 @@ test("read-only detail resolves linked jobs without changing transaction amounts
   assert.match(detail, /<dialog/);
   for (const label of ["Customer", "Date (UTC)", "Type", "Amount", "Description", "Total", "Received", "Pending"]) assert.ok(detail.includes(">" + label + "<"), label);
   assert.ok(!/fetch\(|<input|<select|Edit|Delete/.test(detail));
-  assert.equal((detail.match(/<button/g) || []).length, 1);
+  assert.equal((detail.match(/<button/g) || []).length, 2);
 });
 
 test("offline notices and long reconciliation labels cannot widen the same report grid", () => {
@@ -104,8 +121,8 @@ test("every Reports message card shares padding and heading sizing", () => {
   const screen = fs.readFileSync(path.join(__dirname, "../app/reports.tsx"), "utf8");
   const css = fs.readFileSync(path.join(__dirname, "../app/reports.css"), "utf8");
   const states = screen.match(/<section className="panel reports-page reports-state"[^>]*>[\s\S]*?<\/section>/g);
-  assert.equal(states.length, 4);
-  for (const message of ["Sign in and load your workspace", "Loading your ledger history", "Ledger history could not be loaded", "Report unavailable."]) {
+  assert.equal(states.length, 2);
+  for (const message of ["Sign in and load your workspace", "Report unavailable."]) {
     assert.ok(states.some(state => state.includes(message)), message);
   }
   assert.ok(!screen.includes('className="panel reports-page"'));

@@ -9,7 +9,7 @@ export type LedgerRow = {
 };
 export type ReportTransaction = {
   id: string; customer: string; kind: string; amountPaise: number;
-  day: string; description: string; historical: boolean;
+  day: string; sortAt: number; description: string; historical: boolean;
   salesEffect: number; paymentEffect: number;
   unclassified?: boolean;
 };
@@ -80,7 +80,7 @@ export function ledgerReport(input: LedgerRow[], ownerId: string, snapshot: Snap
     const correction = row.metadata?.reason === "payment_edit" || row.metadata?.reason === "job_edit";
     return {
       id: row.id, customer: row.customer_name, kind: row.transaction_kind === "reversal" ? "reversal" : correction ? "correction" : row.transaction_kind,
-      amountPaise: amount, day: utcDay(row.occurred_at), description: correction ? `Replacement ${basis}. ${description}` : description,
+      amountPaise: amount, day: utcDay(row.occurred_at), sortAt: Date.parse(row.occurred_at), description: correction ? `Replacement ${basis}. ${description}` : description,
       historical: !row.job_id || !activeIds.has(row.job_id),
       unclassified,
       salesEffect: basis === "charge" ? amount * sign : 0,
@@ -101,19 +101,18 @@ export function ledgerReport(input: LedgerRow[], ownerId: string, snapshot: Snap
   return { rows, warnings: [...warnings], activeOutstandingPaise: activeOutstanding(snapshot) };
 }
 export function legacyReport(snapshot: Snapshot): Report {
-  const warnings = ["Legacy snapshot report: deleted records and earlier corrections cannot be reconstructed. This is not an immutable transaction audit."];
+  const warnings: string[] = [];
   const activeIds = new Set(snapshot.jobs.map(job => job.id));
   const rows: ReportTransaction[] = [];
   for (const job of snapshot.jobs) {
-    const day = job.createdAt ? utcDay(job.createdAt) : job.date;
-    if (!validReportDay(day)) warnings.push("A legacy job has no usable date and is omitted from dated totals.");
-    else rows.push({ id: `job:${job.id}`, customer: job.customer, kind: "charge", amountPaise: paise(job.total), day, description: `${job.work}${job.createdAt ? "" : " (legacy work date; creation date unavailable)"}`, historical: false, salesEffect: paise(job.total), paymentEffect: 0 });
-    const linked = sum((snapshot.payments || []).filter(p => p.jobId === job.id).map(p => paise(p.amount)));
-    if (linked !== paise(job.paid)) warnings.push("Job received amounts do not reconcile with linked payment history. No missing payment transactions have been invented.");
+    const createdAt = Date.parse(job.createdAt || "");
+    const day = Number.isFinite(createdAt) ? utcDay(job.createdAt!) : validReportDay(job.date) ? job.date : "";
+    rows.push({ id: `job:${job.id}`, customer: job.customer, kind: "charge", amountPaise: paise(job.total), day, sortAt: Number.isFinite(createdAt) ? createdAt : day ? Date.parse(`${day}T00:00:00Z`) : 0, description: job.work, historical: false, salesEffect: paise(job.total), paymentEffect: 0 });
   }
   for (const payment of snapshot.payments || []) {
     if (!validReportDay(payment.date)) throw Error("Legacy payment has an invalid date.");
-    rows.push({ id: `payment:${payment.id}`, customer: payment.customer, kind: "payment", amountPaise: paise(payment.amount), day: payment.date, description: payment.note || "Payment", historical: !payment.jobId || !activeIds.has(payment.jobId), salesEffect: 0, paymentEffect: paise(payment.amount) });
+    const createdAt = Date.parse(payment.createdAt || "");
+    rows.push({ id: `payment:${payment.id}`, customer: payment.customer, kind: "payment", amountPaise: paise(payment.amount), day: payment.date, sortAt: Number.isFinite(createdAt) ? createdAt : Date.parse(`${payment.date}T00:00:00Z`), description: payment.note || "Payment", historical: !payment.jobId || !activeIds.has(payment.jobId), salesEffect: 0, paymentEffect: paise(payment.amount) });
   }
   if (new Set(rows.map(row => row.id)).size !== rows.length) throw Error("Legacy records contain duplicate IDs; totals are unavailable.");
   return { rows, warnings: [...new Set(warnings)], activeOutstandingPaise: activeOutstanding(snapshot) };
@@ -130,7 +129,7 @@ export function selectReport(report: Report, filter: ReportFilter, pendingRowIds
   const rows = period.filter(row => (filter.kind === "pending_sales" ? !!pendingRowIds?.has(row.id) : filter.kind === "all" || row.kind === filter.kind || filter.kind === "correction" && row.kind === "reversal") && (!query || queryWords.length > 0 && queryWords.every(word => nameWords(row.customer).some(name => name.startsWith(word))) || numericSearch && String(row.amountPaise / 100).includes(numericQuery)));
   rows.sort((a, b) => {
     const result = filter.sort === "amount" ? a.amountPaise - b.amountPaise : filter.sort === "customer" ? a.customer.localeCompare(b.customer) : a.day.localeCompare(b.day);
-    return (result || a.id.localeCompare(b.id)) * (filter.descending ? -1 : 1);
+    return (result || a.sortAt - b.sortAt || a.id.localeCompare(b.id)) * (filter.descending ? -1 : 1);
   });
   return { rows, sales, payments, periodBalance: sum([sales, -payments]) };
 }
