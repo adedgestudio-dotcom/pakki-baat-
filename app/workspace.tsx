@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { paymentPaise, paymentRupees, validateEntryMoney, planQuickPayment, planPaymentCorrection, type FinancialState } from "@/lib/payment-safety";
 import { version as appVersion } from "@/package.json";
 import "./workspace.css";
@@ -21,6 +21,7 @@ import ChatEntryFields from "./chat-entry-fields";
 import HisaabPayments from "./hisaab-payments";
 import HisaabEntryPhoto from "./hisaab-entry-photo";
 import SignedOutState from "./signed-out-state";
+import { createPendingDeleteController, withoutPendingDelete, type PendingDelete } from "@/lib/pending-delete";
 import { formatMoneyRupees } from "@/lib/money";
 import {
   canOfferTrial,
@@ -278,8 +279,8 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
 }
 export default function Workspace() {
   const [tab, setTab] = useState<Tab>("Today"),
-    [jobs, publishJobs] = useState<Job[]>([]),
-    [reminders, setReminders] = useState<Reminder[]>([]),
+    [savedJobs, publishJobs] = useState<Job[]>([]),
+    [savedReminders, setReminders] = useState<Reminder[]>([]),
     [ready, setReady] = useState(false),
     [owner, setOwner] = useState(""),
     [business, setBusiness] = useState("My small business"),
@@ -346,9 +347,10 @@ export default function Workspace() {
       state: "idle",
     }),
     [selectedCustomer, setSelectedCustomer] = useState<string | null>(null),
-    [payments, publishPayments] = useState<Payment[]>([]),
-    [notes, setNotes] = useState<CustomerNote[]>([]),
-    [customerPhones, setCustomerPhones] = useState<Record<string, string>>({}),
+    [savedPayments, publishPayments] = useState<Payment[]>([]),
+    [savedNotes, setNotes] = useState<CustomerNote[]>([]),
+    [savedCustomerPhones, setCustomerPhones] = useState<Record<string, string>>({}),
+    [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null),
     [customerContactsOpen, setCustomerContactsOpen] = useState(false),
     [contactQuery, setContactQuery] = useState(""),
     [newCustomerOpen, setNewCustomerOpen] = useState(false),
@@ -418,6 +420,13 @@ export default function Workspace() {
   const renameCustomerSavingRef = useRef(false);
   const savedRenameSnapshotRef = useRef<{ ownerId: string; snapshot: Snapshot } | null>(null);
   // Synchronous financial state prevents queued React updates from validating against stale closures.
+  const realSnapshotRef = useRef<Snapshot>({ jobs: [], owner: "", business: "My small business" });
+  realSnapshotRef.current = { jobs: savedJobs, owner, business, reminders: savedReminders, payments: savedPayments, notes: savedNotes, customerPhones: savedCustomerPhones };
+  const visibleSnapshot = useMemo(() => withoutPendingDelete({ jobs: savedJobs, owner, business, reminders: savedReminders, payments: savedPayments, notes: savedNotes, customerPhones: savedCustomerPhones }, pendingDelete), [savedJobs, owner, business, savedReminders, savedPayments, savedNotes, savedCustomerPhones, pendingDelete]);
+  const { jobs, reminders = [], payments = [], notes = [], customerPhones = {} } = visibleSnapshot;
+  const applyDeleteRef = useRef<(pending: PendingDelete) => void>(() => {});
+  const deleteControllerRef = useRef<ReturnType<typeof createPendingDeleteController> | null>(null);
+  if (!deleteControllerRef.current) deleteControllerRef.current = createPendingDeleteController(value => applyDeleteRef.current(value), setPendingDelete);
   const financialStateRef = useRef<FinancialState>({ jobs: [], payments: [] });
   function setJobs(value: SetStateAction<Job[]>) {
     const next = typeof value === "function" ? value(financialStateRef.current.jobs) : value;
@@ -805,6 +814,7 @@ export default function Workspace() {
 
     async function applySession(session: Session | null) {
       if (cancelled) return;
+      if (activeUserIdRef.current !== (session?.user.id || null)) deleteControllerRef.current?.flush();
       const nextUserId = session?.user.id || LOCAL_WORKSPACE_ID;
       // Auth can notify again while getSession/cloud reads are still pending.
       // Claim this account before any await, including guest and offline restores.
@@ -1111,13 +1121,13 @@ export default function Workspace() {
   useEffect(() => {
     if (!ready) return;
     const snapshot = {
-      jobs,
+      jobs: savedJobs,
       owner,
       business,
-      reminders,
-      payments,
-      notes,
-      customerPhones,
+      reminders: savedReminders,
+      payments: savedPayments,
+      notes: savedNotes,
+      customerPhones: savedCustomerPhones,
     };
     const storageUserId = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
     if (workspaceUserIdRef.current !== storageUserId) return;
@@ -1287,13 +1297,13 @@ export default function Workspace() {
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
   }, [
-    jobs,
+    savedJobs,
     owner,
     business,
-    reminders,
-    payments,
-    notes,
-    customerPhones,
+    savedReminders,
+    savedPayments,
+    savedNotes,
+    savedCustomerPhones,
     ready,
     loggedIn,
     isOnline,
@@ -1346,7 +1356,7 @@ export default function Workspace() {
   }, [chatTurns, tab]);
   useEffect(() => {
     if (!toast) return;
-    const id = setTimeout(() => setToast(""), 4500);
+    const id = setTimeout(() => setToast(""), toast === "Deleted." ? 10000 : 4500);
     return () => clearTimeout(id);
   }, [toast]);
   useEffect(() => {
@@ -1565,7 +1575,7 @@ export default function Workspace() {
     if (!loggedIn || !ready || !accountId || loadedAccountId !== accountId) return;
     let disposed = false;
     let inFlight = false;
-    const blocked = () => autosavePausedRef.current || restoreTargetRef.current !== null ||
+    const blocked = () => Boolean(pendingDelete) || autosavePausedRef.current || restoreTargetRef.current !== null ||
       Boolean(pendingJobRef.current || draft || customerChatOpen || message.trim() || document.querySelector('.modal-backdrop, [role="dialog"]'));
     const poll = async () => {
       if (inFlight || disposed || document.visibilityState !== "visible" || !navigator.onLine || !isOnline ||
@@ -1607,7 +1617,7 @@ export default function Workspace() {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
     };
-  }, [loggedIn, ready, accountId, loadedAccountId, isOnline, draft, customerChatOpen, message]);
+  }, [loggedIn, ready, accountId, loadedAccountId, isOnline, draft, customerChatOpen, message, pendingDelete]);
 
   useEffect(() => {
     if (!trialEndingSoon || !subscriptionPeriodEnd) return;
@@ -2423,6 +2433,9 @@ export default function Workspace() {
   }
   async function handleSignOut() {
     try {
+      const account = activeUserIdRef.current;
+      const flushed = deleteControllerRef.current?.flush();
+      if (flushed && account) void saveCloud(realSnapshotRef.current, account).catch(() => {});
       await signOut();
       setLoggedIn(false);
       setUserName(null);
@@ -2931,7 +2944,7 @@ export default function Workspace() {
       setToast(LEGACY_WORKSPACE_READ_ONLY_MESSAGE);
       return false;
     }
-    if (hasActiveSubscription) return true;
+    if (hasActiveSubscription) { deleteControllerRef.current?.flush(); return true; }
     if (
       trialSubscription.ownerId !== activeUserIdRef.current ||
       trialSubscription.status === "loading" ||
@@ -3496,15 +3509,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     }
   }
   function currentSnapshot(): Snapshot {
-    return {
-      jobs,
-      owner,
-      business,
-      reminders,
-      payments,
-      notes,
-      customerPhones,
-    };
+    return realSnapshotRef.current;
   }
   function rememberUndo(message: string) {
     setLastUndo({ message, snapshot: currentSnapshot() });
@@ -3741,26 +3746,45 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   async function savePreDeleteSafetyCopy() {
     if (!loggedIn) return true;
     try {
-      const current: Snapshot = {
-        jobs,
-        owner,
-        business,
-        reminders,
-        payments,
-        notes,
-        customerPhones,
-      };
-      if (!isSnapshot(current))
-        throw new Error("Current workspace is invalid.");
-      await saveWorkspaceBackup(current, "pre_delete");
+      await saveWorkspaceBackup(currentSnapshot(), "pre_delete", activeUserIdRef.current || undefined);
       return true;
     } catch {
-      setToast(
-        "Could not create a safety copy. Check your internet and try again."
-      );
+      setToast("Could not create a safety copy. Check your internet and try again.");
       return false;
     }
   }
+  applyDeleteRef.current = (pending) => {
+    const account = activeUserIdRef.current || LOCAL_WORKSPACE_ID;
+    if (workspaceUserIdRef.current !== account) return;
+    const current = realSnapshotRef.current;
+    const next = withoutPendingDelete(current, pending);
+    realSnapshotRef.current = next;
+    if (activeUserIdRef.current) {
+      void saveWorkspaceBackup(current, "pre_delete", account).catch(() => {});
+      try { markLedgerDirty(account, next); } catch { /* Local save below still preserves the deletion. */ }
+    }
+    writeLocalWorkspace(account, next);
+    setJobs(next.jobs);
+    setPayments(next.payments || []);
+    setReminders(next.reminders || []);
+    setNotes(next.notes || []);
+    setCustomerPhones(next.customerPhones || {});
+    setChatTurns(items => items.filter(item => pending.type === "customer" ? item.customer !== pending.id : item.replyFor?.id !== pending.id));
+    if (pending.type === "entry" && draft?.id === pending.id) setDraft(null);
+    if (pending.type === "customer" && selectedCustomer === pending.id) setSelectedCustomer(null);
+    setLastUndo(null);
+  };
+  useEffect(() => {
+    const flush = () => {
+      const account = activeUserIdRef.current;
+      const flushed = deleteControllerRef.current?.flush();
+      if (flushed && account && workspaceUserIdRef.current === account) void saveCloud(realSnapshotRef.current, account).catch(() => {});
+    };
+    const onHidden = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => { window.removeEventListener("pagehide", flush); document.removeEventListener("visibilitychange", onHidden); };
+  }, []);
   function openRenameCustomer(name: string) {
     setRenameCustomer(name);
     setRenameCustomerName(name);
@@ -3819,51 +3843,17 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
   }
   async function confirmDeleteCustomer() {
     if (!deleteCustomer || !requireActiveSubscriptionForSaving()) return;
-    if (!(await savePreDeleteSafetyCopy())) return;
     const name = deleteCustomer;
-    if (ledgerModeForAccount(activeUserIdRef.current || "")) setLastUndo(null);
-    else rememberUndo("Customer deleted");
-    const jobIds = new Set(
-      jobs.filter((j) => j.customer === name).map((j) => j.id)
-    );
-    setJobs((items) => items.filter((j) => j.customer !== name));
-    setPayments((items) =>
-      items.filter(
-        (p) => p.customer !== name && (!p.jobId || !jobIds.has(p.jobId))
-      )
-    );
-    setReminders((items) =>
-      items.filter(
-        (r) => r.customer !== name && (!r.jobId || !jobIds.has(r.jobId))
-      )
-    );
-    setNotes((items) => items.filter((n) => n.customer !== name));
-    setChatTurns((items) => items.filter((t) => t.customer !== name));
-    setCustomerPhones((items) => {
-      const next = { ...items };
-      delete next[name];
-      return next;
-    });
+    deleteControllerRef.current?.start({ type: "customer", id: name });
     if (selectedCustomer === name) setSelectedCustomer(null);
     setDeleteCustomer(null);
-    setToast(name + " deleted from Hisaab");
+    setToast("Deleted.");
   }
   async function confirmDeleteEntry() {
     if (!deleteJob || !requireActiveSubscriptionForSaving()) return;
-    if (!(await savePreDeleteSafetyCopy())) return;
-    const job = deleteJob;
-    const message = "Entry deleted";
-    if (ledgerModeForAccount(activeUserIdRef.current || "")) setLastUndo(null);
-    else rememberUndo(message);
-    setJobs((items) => items.filter((item) => item.id !== job.id));
-    setPayments((items) => items.filter((item) => item.jobId !== job.id));
-    setReminders((items) => items.filter((item) => item.jobId !== job.id));
-    setChatTurns((items) =>
-      items.filter((item) => item.replyFor?.id !== job.id)
-    );
-    if (draft?.id === job.id) setDraft(null);
+    deleteControllerRef.current?.start({ type: "entry", id: deleteJob.id });
     setDeleteJob(null);
-    setToast(message);
+    setToast("Deleted.");
   }
   async function shareFeedback() {
     try {
@@ -4439,10 +4429,12 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             device
           </div>
         )}
-        {toast && (
+        {(toast || pendingDelete) && (
           <div className="toast" role="status">
-            <span>{toast}</span>
-            {lastUndo?.message === toast && (
+            <span>{pendingDelete ? "Deleted." : toast}</span>
+            {pendingDelete ? (
+              <button type="button" onClick={() => { deleteControllerRef.current?.undo(); setToast(""); }}>Undo</button>
+            ) : lastUndo?.message === toast && (
               <button type="button" onClick={undoLastAction}>
                 Undo
               </button>
@@ -6994,15 +6986,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <section className="panel backup-main-panel">
                   <CloudSettings
                     onToast={setToast}
-                    snapshot={{
-                      jobs,
-                      owner,
-                      business,
-                      reminders,
-                      payments,
-                      notes,
-                      customerPhones,
-                    }}
+                    snapshot={{ jobs: savedJobs, owner, business, reminders: savedReminders, payments: savedPayments, notes: savedNotes, customerPhones: savedCustomerPhones }}
                     onRestore={(saved) => {
                       restoreTargetRef.current = normalizedSnapshot(saved);
                       restore(saved, true);
@@ -7016,7 +7000,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     }}
                     onUseCloudData={useCloudData}
                     ownerId={accountId}
-                    backupLockReason={backupLockReason}
+                    backupLockReason={pendingDelete ? "loading" : backupLockReason}
                   />
                 </section>
                 <footer className="settings-brand-footer product-footer">
@@ -9050,20 +9034,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       type="button"
                       className="text-button danger"
                       onClick={() => {
-                        if (!requireActiveSubscriptionForSaving()) return;
-                        if (
-                          confirm(
-                            "Delete this commitment? This cannot be undone."
-                          )
-                        ) {
-                          setJobs(jobs.filter((j) => j.id !== draft.id));
-                          setChatTurns((turns) =>
-                            turns.filter(
-                              (turn) => turn.replyFor?.id !== draft.id
-                            )
-                          );
-                          setDraft(null);
-                        }
+                        setDeleteJob(draft);
+                        setDraft(null);
                       }}
                     >
                       Delete

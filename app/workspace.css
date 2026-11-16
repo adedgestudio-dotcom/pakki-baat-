@@ -5899,6 +5899,8 @@ select:focus-visible {
 }
 .toast button {
   flex: 0 0 auto;
+  min-width: 40px;
+  min-height: 40px;
   padding: 5px 9px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.15);

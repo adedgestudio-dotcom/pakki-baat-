@@ -122,10 +122,10 @@ test('backup list falls back to the payload loader when the metadata RPC fails',
 test('delete safety copies use pre_delete while restore safety copies stay pre_restore', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
   const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
-  assert.match(workspace, /saveWorkspaceBackup\(current, "pre_delete"\)/);
+  assert.match(workspace, /saveWorkspaceBackup\(current, "pre_delete", account\)/);
   assert.match(workspace, /async function deleteReminder[\s\S]{0,500}savePreDeleteSafetyCopy\(\)/);
-  assert.match(workspace, /async function confirmDeleteCustomer[\s\S]{0,500}savePreDeleteSafetyCopy\(\)/);
-  assert.match(workspace, /async function confirmDeleteEntry[\s\S]{0,500}savePreDeleteSafetyCopy\(\)/);
+  assert.match(workspace, /async function confirmDeleteCustomer[\s\S]{0,500}deleteControllerRef\.current\?\.start/);
+  assert.match(workspace, /async function confirmDeleteEntry[\s\S]{0,500}deleteControllerRef\.current\?\.start/);
   assert.match(workspace, /saveWorkspaceBackup\([\s\S]{0,100}currentSnapshot\(\)[\s\S]{0,100}"pre_restore"/);
   assert.match(settings, /saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)/);
 });
