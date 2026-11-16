@@ -14,6 +14,7 @@ export default function ReportsTransactionDetail({ row, group, onClose }: { row:
     return () => { element?.close(); };
   }, []);
   return <dialog className="reports-detail" ref={dialog} onClose={onClose} aria-labelledby="report-detail-title">
+    <button type="button" className="modal-close-x" aria-label="Close" onClick={() => dialog.current?.close()}>×</button>
     <h2 id="report-detail-title">Transaction details</h2>
     <dl>
       <div><dt>Customer</dt><dd>{row.customer}</dd></div>

@@ -7388,6 +7388,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               aria-labelledby="reminder-alarm-title"
               onClick={(e) => e.stopPropagation()}
             >
+              <button type="button" className="modal-close-x" aria-label="Close" onClick={() => setRingingReminder(null)}>×</button>
               <span className="reminder-alarm-icon">
                 <Icon name="bell" size={27} />
               </span>
@@ -7773,6 +7774,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             aria-label="Free trial activated"
           >
             <section className="trial-welcome-card trial-activated-card">
+              <button type="button" className="modal-close-x" aria-label="Close" onClick={() => setTrialActivatedOpen(false)}>×</button>
               <span className="trial-activated-icon">
                 <Icon name="check" size={26} />
               </span>
@@ -7805,6 +7807,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
             aria-label="Trial ending soon"
           >
             <section className="trial-welcome-card trial-ending-modal">
+              <button type="button" className="modal-close-x" aria-label="Close" onClick={() => setTrialExpiryPromptOpen(false)}>×</button>
               <span className="trial-value-kicker">TRIAL ENDING SOON</span>
               <h2>
                 {trialDaysLeft} {trialDaysLeft === 1 ? "day" : "days"} left on
@@ -8022,6 +8025,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               onClick={(event) => event.stopPropagation()}
               onSubmit={(event) => { event.preventDefault(); void confirmRenameCustomer(); }}
             >
+              <button type="button" className="modal-close-x" aria-label="Close" disabled={renameCustomerSaving} onClick={() => setRenameCustomer(null)}>×</button>
               <h2 id="rename-customer-title">Edit customer name</h2>
               <label htmlFor="rename-customer-name">Customer name</label>
               <input

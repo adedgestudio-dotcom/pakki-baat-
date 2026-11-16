@@ -1,6 +1,7 @@
 export default function BackupNudge({ onSetup, onLater }: { onSetup: () => void; onLater: () => void }) {
   return <div className="modal-backdrop backup-nudge-backdrop" role="dialog" aria-modal="true" aria-labelledby="backup-nudge-title">
     <section className="modal backup-nudge-card">
+      <button type="button" className="modal-close-x" aria-label="Close" onClick={onLater}>×</button>
       <h2 id="backup-nudge-title">Protect your data</h2>
       <p>Pick how often Pakki Baat backs up your customers. It takes 10 seconds.</p>
       <div className="backup-nudge-actions">
