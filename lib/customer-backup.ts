@@ -8,6 +8,23 @@ export function lastRegularBackup<T extends { backup_kind: string; created_at: s
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] || null;
 }
 
+export function backupKindLabel(kind: string): string {
+  if (kind === "manual") return "Manual";
+  if (kind === "daily" || kind === "scheduled") return "Automatic";
+  if (kind === "pre_restore") return "Before restore";
+  if (kind === "pre_delete") return "Before deletion";
+  return "Older safety copy";
+}
+
+export function groupWorkspaceBackups<T extends { backup_kind: string; created_at: string }>(backups: readonly T[]) {
+  const sorted = [...backups].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const regularKinds = new Set(["daily", "manual", "scheduled"]);
+  return {
+    regular: sorted.filter(backup => regularKinds.has(backup.backup_kind)),
+    safety: sorted.filter(backup => !regularKinds.has(backup.backup_kind)),
+  };
+}
+
 export function validateWorkspaceBackup(value: unknown): Snapshot {
   if (!isSnapshot(value)) throw new Error("This workspace backup is damaged or invalid.");
   const jobs = new Set(value.jobs.map(job => job.id));

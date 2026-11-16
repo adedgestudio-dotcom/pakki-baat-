@@ -394,6 +394,14 @@ export type WorkspaceBackup = {
   created_at: string;
 };
 
+export type WorkspaceBackupSummary = {
+  id: string;
+  backup_kind: string;
+  created_at: string;
+  entry_count: number;
+  customer_count: number;
+};
+
 export type WorkspaceBackupSaveResult = { created: boolean; created_at: string; id: string };
 export async function saveWorkspaceBackup(snapshot: unknown, kind: "manual" | "pre_restore" | "pre_delete", expectedOwnerId?: string): Promise<WorkspaceBackupSaveResult> {
   const session = await accountSession(expectedOwnerId);
@@ -415,6 +423,35 @@ export async function loadWorkspaceBackups(expectedOwnerId?: string): Promise<Wo
   }
   await accountSession(session.user.id);
   return rows;
+}
+
+export async function loadBackupList(expectedOwnerId?: string): Promise<WorkspaceBackupSummary[]> {
+  const session = await accountSession(expectedOwnerId);
+  try {
+    const rows = await request("/rest/v1/rpc/list_workspace_backups", { p_limit: 200 }, session.access_token);
+    if (!Array.isArray(rows)) throw new Error("Invalid backup list response.");
+    await accountSession(session.user.id);
+    return rows as WorkspaceBackupSummary[];
+  } catch {
+    const backups = await loadWorkspaceBackups(session.user.id);
+    return backups.map(backup => {
+      const snapshot = isSnapshot(backup.payload) ? backup.payload : null;
+      return {
+        id: backup.id,
+        backup_kind: backup.backup_kind,
+        created_at: backup.created_at,
+        entry_count: snapshot?.jobs.length ?? 0,
+        customer_count: snapshot ? new Set(snapshot.jobs.map(job => job.customer)).size : 0,
+      };
+    });
+  }
+}
+
+export async function loadBackupPayload(id: string, expectedOwnerId?: string): Promise<unknown | null> {
+  const session = await accountSession(expectedOwnerId);
+  const rows = await request(`/rest/v1/workspace_backups?id=eq.${encodeURIComponent(id)}&select=payload&limit=1`, undefined, session.access_token);
+  await accountSession(session.user.id);
+  return Array.isArray(rows) ? rows[0]?.payload ?? null : null;
 }
 
 import type { BackupSettings } from "./customer-backup";

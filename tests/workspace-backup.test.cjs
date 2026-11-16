@@ -5,12 +5,12 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const { webcrypto } = require('node:crypto');
 
-function load(file, mocks = {}) {
+function load(file, mocks = {}, globals = {}) {
   const module = { exports: {} };
   const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  vm.runInNewContext(source, { module, exports: module.exports, require: name => mocks[name] || require(name), crypto: webcrypto, TextEncoder, Date, Intl, Set, Map });
+  vm.runInNewContext(source, { module, exports: module.exports, require: name => mocks[name] || require(name), crypto: webcrypto, TextEncoder, Date, Intl, Set, Map, ...globals });
   return module.exports;
 }
 
@@ -56,6 +56,51 @@ test('lastRegularBackup returns null when only safety copies exist', () => {
   ]), null);
 });
 
+test('backup kind labels cover regular, safety, and unknown kinds', () => {
+  assert.equal(backup.backupKindLabel('daily'), 'Automatic');
+  assert.equal(backup.backupKindLabel('scheduled'), 'Automatic');
+  assert.equal(backup.backupKindLabel('manual'), 'Manual');
+  assert.equal(backup.backupKindLabel('pre_restore'), 'Before restore');
+  assert.equal(backup.backupKindLabel('pre_delete'), 'Before deletion');
+  assert.equal(backup.backupKindLabel('legacy_copy'), 'Older safety copy');
+});
+
+test('backup groups are newest first and unknown kinds stay with safety copies', () => {
+  const grouped = backup.groupWorkspaceBackups([
+    { id: 'manual-old', backup_kind: 'manual', created_at: '2026-11-15T08:00:00Z' },
+    { id: 'delete-new', backup_kind: 'pre_delete', created_at: '2026-11-15T12:00:00Z' },
+    { id: 'daily-new', backup_kind: 'daily', created_at: '2026-11-15T11:00:00Z' },
+    { id: 'unknown-old', backup_kind: 'legacy_copy', created_at: '2026-11-15T09:00:00Z' },
+    { id: 'restore-middle', backup_kind: 'pre_restore', created_at: '2026-11-15T10:00:00Z' },
+  ]);
+  assert.deepEqual(Array.from(grouped.regular, row => row.id), ['daily-new', 'manual-old']);
+  assert.deepEqual(Array.from(grouped.safety, row => row.id), ['delete-new', 'restore-middle', 'unknown-old']);
+});
+
+test('backup list falls back to the payload loader when the metadata RPC fails', async () => {
+  const requests = [];
+  const session = { user: { id: 'owner' }, access_token: 'token' };
+  const client = { auth: { getSession: async () => ({ data: { session }, error: null }) } };
+  const oldBackup = { id: 'old', payload: saved, backup_kind: 'manual', backup_day: '2026-11-15', created_at: '2026-11-15T09:00:00Z' };
+  const cloud = load('lib/cloud.ts', {
+    '@supabase/supabase-js': { createClient: () => client },
+    './data': data,
+  }, {
+    process: { env: { NEXT_PUBLIC_SUPABASE_URL: 'https://example.test', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'key' } },
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      if (String(url).includes('/rpc/list_workspace_backups')) return { ok: false, status: 404, text: async () => JSON.stringify({ message: 'missing RPC' }) };
+      return { ok: true, status: 200, text: async () => JSON.stringify([oldBackup]) };
+    },
+  });
+  const rows = await cloud.loadBackupList('owner');
+  assert.equal(requests.length, 2);
+  assert.match(requests[0].url, /\/rpc\/list_workspace_backups$/);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { p_limit: 200 });
+  assert.match(requests[1].url, /select=id,payload,backup_kind,backup_day,created_at/);
+  assert.deepEqual(JSON.parse(JSON.stringify(rows)), [{ id: 'old', backup_kind: 'manual', created_at: '2026-11-15T09:00:00Z', entry_count: 3, customer_count: 1 }]);
+});
+
 test('delete safety copies use pre_delete while restore safety copies stay pre_restore', () => {
   const workspace = fs.readFileSync('app/workspace.tsx', 'utf8');
   const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
@@ -70,7 +115,9 @@ test('delete safety copies use pre_delete while restore safety copies stay pre_r
 test('last backup UI and warning route use regular backups only', () => {
   const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
   const route = fs.readFileSync('app/api/push/backup-warning/route.ts', 'utf8');
-  assert.match(settings, /const last = lastRegularBackup\(sortedBackups\)/);
+  assert.match(settings, /const last = lastRegularBackup\(backups\)/);
+  assert.match(settings, /loadBackupList\(ownerId\)/);
+  assert.equal((settings.match(/loadBackupPayload\(backup\.id, ownerId\)/g) || []).length, 2);
   assert.match(settings, /No regular backup yet\./);
   assert.match(route, /lastRegularBackup\(Array\.isArray\(rows\) \? rows : \[\]\)/);
   assert.match(route, /backup_kind=in\.\(daily,manual,scheduled\)/);
