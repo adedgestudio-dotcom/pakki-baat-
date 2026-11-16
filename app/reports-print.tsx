@@ -32,7 +32,7 @@ export default function ReportsPrintDocument({ filter, rows, summary, incomplete
     </div>
     {pending && <p className="reports-print-warning">Workspace changes are awaiting cloud acknowledgement. Ledger figures reflect loaded server history; Overall Outstanding includes local changes.</p>}
     {warnings.map(warning => <p className="reports-print-warning" key={warning}>{warning}</p>)}
-    <p className="reports-print-explanation">Dates are inclusive. Entries use their recorded date. Summary totals use the existing transaction dates; search and entry status filter the list. Overall Outstanding covers active work across all dates.</p>
+    <p className="reports-print-explanation">Dates are inclusive. Entries use their recorded date. Summary totals use the same filtered entries as the list.</p>
     <table>
       <caption>Entries ({rows.length})</caption>
       <colgroup><col className="print-date" /><col className="print-customer" /><col className="print-details" /><col className="print-money" /><col className="print-money" /><col className="print-money" /></colgroup>

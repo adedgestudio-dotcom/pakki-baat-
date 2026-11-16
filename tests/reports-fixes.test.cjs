@@ -50,6 +50,32 @@ test("entry filters use job balances, entry dates, and stable newest-first order
   assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, from: '2026-11-09', search: 'Cake' }), row => row.id), ['job:j', 'job:b']);
 });
 
+test("summary totals match the filtered entry rows for all, pending and fully paid", () => {
+  const data = { ...snapshot, jobs: [...snapshot.jobs, { ...snapshot.jobs[0], id: 'paid', paid: 100 }, { ...snapshot.jobs[0], id: 'zero', total: 0, paid: 0 }], payments: [...snapshot.payments, { id: 'extra', customer: 'Asha Shah', amount: 7, date: '2026-11-09', createdAt: '2026-11-09T14:00:00Z' }] };
+  for (const kind of ['all', 'pending_sales', 'fully_paid']) {
+    const rows = reports.selectReportEntries(data, { ...reports.defaultReportFilter, kind, search: 'Asha', from: '2026-11-09', to: '2026-11-09' });
+    const totals = reports.summarizeReportEntries(rows);
+    assert.equal(totals.sales, rows.reduce((sum, row) => sum + row.totalPaise, 0));
+    assert.equal(totals.payments, rows.reduce((sum, row) => sum + row.receivedPaise, 0));
+    assert.equal(totals.outstanding, rows.reduce((sum, row) => sum + row.pendingPaise, 0));
+    const expected = { all: [20000, 12700, 8000], pending_sales: [10000, 2000, 8000], fully_paid: [10000, 10000, 0] }[kind];
+    assert.deepEqual([totals.sales, totals.payments, totals.outstanding], expected);
+    if (kind === 'pending_sales') assert.ok(rows.every(row => row.pendingPaise > 0));
+    if (kind === 'fully_paid') assert.ok(rows.every(row => row.pendingPaise === 0 && row.totalPaise > 0));
+  }
+});
+
+test("report filter edits remain drafts until Show Report applies them", () => {
+  const now = new Date(2026, 10, 9);
+  let state = ui.createReportUiState(now);
+  state = ui.reportUiReducer(state, { type: 'edit', filter: { kind: 'fully_paid', search: 'Asha' } });
+  assert.equal(state.applied.filter.kind, 'all'); assert.equal(state.applied.filter.search, '');
+  assert.equal(ui.reportFiltersPending(state), true);
+  state = ui.reportUiReducer(state, { type: 'apply', now });
+  assert.equal(state.applied.filter.kind, 'fully_paid'); assert.equal(state.applied.filter.search, 'Asha');
+  assert.equal(ui.reportFiltersPending(state), false);
+});
+
 test("workspace reports follow the current snapshot after restore and sort consistently", () => {
   const first = reports.selectReport(reports.legacyReport(snapshot), reports.defaultReportFilter);
   assert.equal(first.sales, 15000);
