@@ -14,6 +14,10 @@
 .hisaab-action-chevron { margin-left: auto; color: #97a49a; font-size: 22px; }
 .hisaab-action-delete { margin-top: 3px; border-radius: 13px; background: #fff8f6; color: #b24843; }
 .hisaab-action-delete .hisaab-action-icon { background: #fae9e6; color: #b24843; }
+[data-theme="dark"] .hisaab-action-group .hisaab-action-copy strong { color: #253b30; }
+[data-theme="dark"] .hisaab-action-delete strong { color: #a02e28; }
+[data-theme="dark"] .hisaab-action-group .hisaab-action-copy small { color: #59685e; }
+[data-theme="dark"] .hisaab-clip-options button, [data-theme="dark"] .hisaab-clip-options button strong { color: #253b30; }
 .hisaab-actions button:disabled, .hisaab-attach-grid button:disabled { opacity: .45; }
 .hisaab-attach-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 15px 0 3px; }
 .hisaab-attach-grid button { border: 0; background: transparent; display: grid; justify-items: center; align-content: start; gap: 8px; color: #33493a; font-size: 12px; padding: 0; }

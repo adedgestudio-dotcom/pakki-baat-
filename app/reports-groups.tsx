@@ -7,8 +7,11 @@ export default function ReportsGroups({ rows, groups, total, onSelect }: {
   rows: ReportTransaction[]; groups: ReportGroup[]; total: number; onSelect: (row: ReportTransaction) => void;
 }) {
   const byRow = new Map(groups.flatMap(group => group.matches.map(row => [row.id, group] as const)));
+  const matchingRows = groups.flatMap(group => group.matches);
+  const sales = matchingRows.filter(row => row.kind === "charge").length;
+  const payments = matchingRows.filter(row => row.kind === "payment").length;
   return <section className="reports-table-wrap" aria-label="Transactions">
-    <table><caption>Transactions ({total})</caption><thead><tr><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Pending</th></tr></thead>
+    <table><caption>Transactions ({total}) · {sales} sales · {payments} payments</caption><thead><tr><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Pending</th></tr></thead>
       <tbody>{rows.map(row => {
         const group = byRow.get(row.id);
         return <tr key={row.id} onClick={() => onSelect(row)}>

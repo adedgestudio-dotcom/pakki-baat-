@@ -5,8 +5,11 @@ const typeLabel: Record<string, string> = { charge: "Sale", payment: "Payment re
 
 export default function ReportsMobileTransactions({ rows, groups, total, onSelect }: { rows: ReportTransaction[]; groups: ReportGroup[]; total: number; onSelect: (row: ReportTransaction) => void }) {
   const byRow = new Map(groups.flatMap(group => group.matches.map(row => [row.id, group] as const)));
+  const matchingRows = groups.flatMap(group => group.matches);
+  const sales = matchingRows.filter(row => row.kind === "charge").length;
+  const payments = matchingRows.filter(row => row.kind === "payment").length;
   return <section className="reports-mobile-transactions" aria-label="Transactions">
-    <h2>Transactions ({total})</h2>
+    <h2>Transactions ({total}) · {sales} sales · {payments} payments</h2>
     <ul>{rows.map(row => {
       const group = byRow.get(row.id);
       return <li key={row.id}><button type="button" className="reports-transaction-card" onClick={() => onSelect(row)}>
