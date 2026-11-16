@@ -37,6 +37,8 @@ import {
   cloudToken,
   claimFreeTrial,
   currentSession,
+  verifySession,
+  replacedMessage,
   loadSubscription,
   loadVoiceUsage,
   loadServerTime,
@@ -304,6 +306,7 @@ export default function Workspace() {
     [query, setQuery] = useState(""),
     [filter, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
+    [sessionMessage, setSessionMessage] = useState(""),
     [otherDeviceUpdated, setOtherDeviceUpdated] = useState(false),
     [paymentPlan, setPaymentPlan] = useState<{
       name: string;
@@ -826,6 +829,10 @@ export default function Workspace() {
       setUserEmail(session?.user.email || null);
       setUserName(accountNameFromEmail(session));
       if (activeUserIdRef.current !== (session?.user.id || null)) {
+        setSubscriptionPlan(null);
+        setSubscriptionStatus(null);
+        setSubscriptionPeriodEnd(null);
+        if (session) setSessionMessage("");
         setPaymentBeingVerified(false);
         // Hide the outgoing account before any asynchronous hydration. Keep its
         // durable account-scoped cache and pending payments for a later sign-in.
@@ -924,6 +931,9 @@ export default function Workspace() {
             const subscription = result.subscription;
             setTrialSubscription(result.state);
             if (serverTime !== null) applyTrustedServerTime(serverTime);
+            if (result.state.status === "error") {
+              setTrialOfferOpen(false);
+            } else {
             setSubscriptionPlan(subscription?.plan?.toLowerCase() || null);
             setSubscriptionStatus(subscription?.status?.toLowerCase() || null);
             setSubscriptionPeriodEnd(subscription?.period_end || null);
@@ -934,6 +944,7 @@ export default function Workspace() {
               Math.max(0, Number(subscription?.bonus_voice_seconds || 0))
             );
             setTrialOfferOpen(canOfferTrial(result.state, session.user.id));
+            }
           }
         } catch {
           if (
@@ -943,9 +954,6 @@ export default function Workspace() {
           ) {
             setTrialSubscription({ ownerId: session.user.id, status: "error" });
             setTrialOfferOpen(false);
-            setSubscriptionPlan(null);
-            setSubscriptionStatus(null);
-            setSubscriptionPeriodEnd(null);
           }
         }
         // The trial welcome is the first-run onboarding. The full guide remains available from Help.
@@ -1088,7 +1096,8 @@ export default function Workspace() {
       hydratedUserId = null;
       hydratingUserId = null;
       void applySession(null);
-      setToast("You were signed out because this account was opened on another device.");
+      setSessionMessage(replacedMessage);
+      setTab("Today");
     };
     window.addEventListener("pakki-session-replaced", sessionReplaced);
 
@@ -1502,6 +1511,15 @@ export default function Workspace() {
     setServerNowMs(serverTime);
     setTrustedClockTick((tick) => tick + 1);
   }
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    const verify = () => { void verifySession(true).catch(() => {}); };
+    const onVisible = () => { if (document.visibilityState === "visible") verify(); };
+    const interval = window.setInterval(verify, 30000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
+  }, [loggedIn]);
 
   useEffect(() => {
     if (!loggedIn || serverNowMs === null) return;
@@ -4379,7 +4397,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     signedOut && (
       <SignedOutState
         title={title}
-        text={text}
+        text={sessionMessage || text}
         onSignIn={() => void startGoogleSignIn()}
         canSignIn={cloudConfigured}
       />

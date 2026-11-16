@@ -8,17 +8,16 @@ let client: SupabaseClient | null = base && key ? createClient(base, key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 }) : null;
 let configPromise: Promise<SupabaseClient | null> | null = null;
-const replacedMessage = "You were signed out because this account was opened on another device.";
+export const replacedMessage = "This account is now open on another device. You have been signed out here. Sign in again to use it on this device.";
 let replacingSession: Promise<void> | null = null;
 let lastClaimedSession = "";
 
-function online() { return typeof navigator === "undefined" || navigator.onLine; }
 function sessionGone(error: { message?: string; code?: string; status?: number } | null | undefined) {
   const text = `${error?.code || ""} ${error?.message || ""}`;
-  return /SESSION_REPLACED|session_not_found|refresh_token_not_found|session (?:does not exist|not found)/i.test(text) || error?.status === 401;
+  return /SESSION_REPLACED|session_not_found|refresh[_ ]token.*(?:not found|invalid)|session (?:does not exist|not found)|invalid.*(?:jwt|token)|jwt.*(?:invalid|expired)/i.test(text) || error?.status === 401 || error?.status === 403;
 }
 async function handleSessionFailure(error: { message?: string; code?: string; status?: number }) {
-  if (!online() || !sessionGone(error)) return;
+  if (!sessionGone(error)) return;
   replacingSession ||= (async () => {
     try { await signOut(true); } finally {
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("pakki-session-replaced", { detail: replacedMessage }));
@@ -103,6 +102,22 @@ export async function currentSession() {
   return data.session;
 }
 
+export async function verifySession(expectedSession = false) {
+  const session = await currentSession();
+  if (!session) {
+    if (expectedSession) await handleSessionFailure({ message: "session_not_found" });
+    return null;
+  }
+  const { data, error } = await (await configuredClient()).auth.getUser(session.access_token);
+  if (error) { await handleSessionFailure(error); throw error; }
+  if (!data.user) {
+    const missing = { message: "session_not_found" };
+    await handleSessionFailure(missing);
+    throw new Error(missing.message);
+  }
+  return session;
+}
+
 export function watchSession(onChange: (session: Session | null) => void) {
   let unsubscribe = () => {};
   void loadRuntimeConfig().then((ready) => {
@@ -142,7 +157,8 @@ async function request(path: string, body?: unknown, token?: string, cache?: Req
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const raw = await response.text();
-  const result = raw ? JSON.parse(raw) : null;
+  let result = null;
+  try { result = raw ? JSON.parse(raw) : null; } catch { /* Preserve the HTTP status on non-JSON errors. */ }
   if (!response.ok) {
     const error = new CloudRequestError(result?.message || result?.error_description || result?.msg || "Cloud request failed.", response.status, result?.code);
     await handleSessionFailure(error);
@@ -534,10 +550,12 @@ export async function loadServerTime(): Promise<number> {
 }
 
 export async function loadSubscription(): Promise<SubscriptionInfo | null> {
+  const session = await verifySession(true);
+  if (!session) throw new Error("No signed-in session.");
   const rows = await request(
     "/rest/v1/subscriptions?select=plan,status,period_start,period_end,bonus_voice_seconds",
     undefined,
-    await cloudToken()
+    session.access_token
   );
   return rows[0] || null;
 }
