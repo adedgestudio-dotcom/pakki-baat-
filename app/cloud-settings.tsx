@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadBackupList, loadBackupPayload, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, LEGACY_WORKSPACE_READ_ONLY_MESSAGE, type WorkspaceBackupSummary } from "@/lib/cloud";
-import { anchorDayForSave, backupKindLabel, groupWorkspaceBackups, lastRegularBackup, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
+import { anchorDayForSave, backupKindLabel, groupWorkspaceBackups, lastRegularBackup, undoRestoreBackup, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 import { ManualWorkspaceBackupRunner } from "@/lib/workspace-daily-backup-lifecycle";
 import SelectMenu from "./select-menu";
@@ -85,7 +85,8 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const backupMenuRef = useRef<HTMLDivElement>(null);
   const backupListRef = useRef<HTMLDivElement>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [restoreHint, setRestoreHint] = useState(false);
+  const [undoConfirm, setUndoConfirm] = useState(false);
+  const [restoreNotice, setRestoreNotice] = useState("");
   const [confirmCloudData, setConfirmCloudData] = useState(false);
   const [draft, setDraft] = useState<BackupSettings>(emptySettings);
   const [savedSettings, setSavedSettings] = useState<BackupSettings>(emptySettings);
@@ -104,12 +105,14 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   useEffect(() => {
     if (!cloudConfigured) return;
     void currentSession().then(session => { setLogged(session?.user.id === ownerId); if (session?.user.id === ownerId) void refresh(); }).catch(() => setStatus("Could not check your sign-in.")).finally(() => setChecking(false));
-    return watchSession(session => { const same = session?.user.id === ownerId; setLogged(same); setChecking(false); if (same) void refresh(); else { ++requestRef.current; setBackups([]); setSelectedBackupId(""); setSelectedPayload(null); setDraft(emptySettings()); setSavedSettings(emptySettings()); } });
+    return watchSession(session => { const same = session?.user.id === ownerId; setLogged(same); setChecking(false); if (same) void refresh(); else { ++requestRef.current; setBackups([]); setSelectedBackupId(""); setSelectedPayload(null); setRestoreNotice(""); setUndoConfirm(false); setDraft(emptySettings()); setSavedSettings(emptySettings()); } });
   }, [ownerId, refresh]);
-  const { regular: regularBackups, safety: safetyBackups } = groupWorkspaceBackups(backups);
-  const menuBackups = [...regularBackups, ...safetyBackups];
+  const { regular: regularBackups } = groupWorkspaceBackups(backups);
+  const menuBackups = regularBackups;
+  const undoBackup = undoRestoreBackup(backups, now);
+  useEffect(() => { if (!restoreNotice) return; const timer = window.setTimeout(() => setRestoreNotice(""), 30_000); return () => window.clearTimeout(timer); }, [restoreNotice]);
   const last = lastRegularBackup(backups);
-  const selectedBackup = backups.find(backup => backup.id === selectedBackupId);
+  const selectedBackup = regularBackups.find(backup => backup.id === selectedBackupId);
   const selectedSnapshot = selectedBackup && selectedPayload?.id === selectedBackup.id && isSnapshot(selectedPayload.payload) ? selectedPayload.payload : null;
   const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const restoreOptionLabel = (backup: WorkspaceBackupSummary) => `${backupKindLabel(backup.backup_kind)} · ${workspaceBackupDateTime(backup.created_at, deviceTz)}`;
@@ -143,7 +146,6 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   async function chooseBackup(backup: WorkspaceBackupSummary) {
     setSelectedBackupId(backup.id);
     setSelectedPayload(null);
-    setRestoreHint(false);
     setBackupMenuOpen(false);
     backupMenuRef.current?.querySelector("button")?.focus();
     if (!ownerId) return;
@@ -192,6 +194,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   }
   async function restoreBackup(backup: WorkspaceBackupSummary) {
     if (!ownerId || !canBackup || !backups.some(row => row.id === backup.id)) return;
+    if (backup.backup_kind === "pre_restore" && undoRestoreBackup(backups)?.id !== backup.id) return;
     setRestoreTarget(null);
     await run(async () => {
       const payload = await loadBackupPayload(backup.id, ownerId);
@@ -203,13 +206,15 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
       if (dirty && !cloudSnapshotsEqual(dirty.snapshot, snapshot)) throw new Error("Workspace changed during restore. Retry with the latest data.");
       restoreWorkspaceSnapshot(restored, snapshot);
       onPauseAutosave(true); restoreStartedRef.current = true;
-      await saveWorkspaceBackup(snapshot, "pre_restore", ownerId);
+      const safety = await saveWorkspaceBackup(snapshot, "pre_restore", ownerId);
       await restoreCloud(restored, ownerId);
       if ((await currentSession())?.user.id !== ownerId) throw new Error("ACCOUNT_CHANGED: restore was saved to the original account. Sign in again.");
       onRestore(restored);
       restoreStartedRef.current = false;
-      setSelectedBackupId(""); setSelectedPayload(null); setRestoreHint(true);
-      onToast(`Restored ✓ ${workspaceBackupFileName(backup.created_at, savedSettings.tz, backup.backup_kind === "pre_restore")}`);
+      setSelectedBackupId(""); setSelectedPayload(null);
+      setNow(Date.now());
+      setBackups(previous => [{ id: safety.id, backup_kind: "pre_restore", created_at: safety.created_at, entry_count: snapshot.jobs.length, customer_count: new Set(snapshot.jobs.map(job => job.customer)).size }, ...previous]);
+      setRestoreNotice(`Restored ✓ ${workspaceBackupFileName(backup.created_at, savedSettings.tz, backup.backup_kind === "pre_restore")}`);
       await refresh(true).catch(() => {});
     });
   }
@@ -231,19 +236,21 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
         <small>Kept for 30 days (up to 60). Photos are not included.</small>
       </section>
       <section className="backup-simple-card backup-restore-card"><strong>Restore from a backup</strong>
-        {backups.length ? <><div className="backup-picker" ref={backupMenuRef}>
+        {regularBackups.length ? <><div className="backup-picker" ref={backupMenuRef}>
           <button type="button" className="backup-picker-trigger" aria-label="Choose a backup" aria-haspopup="listbox" aria-expanded={backupMenuOpen} aria-controls="backup-picker-list" disabled={controlsBusy || !canBackup} onClick={() => { setHighlightedBackupIndex(Math.max(0, menuBackups.findIndex(backup => backup.id === selectedBackupId))); setBackupMenuOpen(open => !open); }} onKeyDown={event => { if (!backupMenuOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) { event.preventDefault(); setHighlightedBackupIndex(event.key === "ArrowDown" ? 0 : menuBackups.length - 1); setBackupMenuOpen(true); } }}><span>{selectedBackup ? `${restoreOptionLabel(selectedBackup)} · ${selectedBackup.entry_count} entries · ${selectedBackup.customer_count} customers` : "Select a backup…"}</span><span className={`backup-picker-chevron${backupMenuOpen ? " open" : ""}`} aria-hidden="true" /></button>
           {backupMenuOpen && <div className="backup-picker-panel"><div id="backup-picker-list" className="backup-picker-list" role="listbox" aria-label="Choose a backup" aria-activedescendant={`backup-picker-option-${highlightedBackupIndex}`} tabIndex={-1} ref={backupListRef} onKeyDown={backupMenuKeyDown}>
-            {([ ["Regular backups", regularBackups], ["Safety copies", safetyBackups] ] as const).map(([heading, rows]) => rows.length > 0 && <div className="backup-picker-group" key={heading}><div className="backup-picker-heading">{heading}</div>{rows.map(backup => { const index = menuBackups.findIndex(row => row.id === backup.id); const selected = backup.id === selectedBackupId; return <div id={`backup-picker-option-${index}`} key={backup.id} data-backup-index={index} role="option" aria-selected={selected} className={`backup-picker-option${selected ? " selected" : ""}${index === highlightedBackupIndex ? " highlighted" : ""}`} onMouseEnter={() => setHighlightedBackupIndex(index)} onClick={() => void chooseBackup(backup)}><span>{restoreOptionLabel(backup)}</span><span className="backup-picker-option-meta">{backup.entry_count} entries · {backup.customer_count} customers{selected && <span className="backup-picker-check" aria-hidden="true">✓</span>}</span></div>; })}</div>)}
+            <div className="backup-picker-group"><div className="backup-picker-heading">Regular backups</div>{regularBackups.map((backup, index) => { const selected = backup.id === selectedBackupId; return <div id={`backup-picker-option-${index}`} key={backup.id} data-backup-index={index} role="option" aria-selected={selected} className={`backup-picker-option${selected ? " selected" : ""}${index === highlightedBackupIndex ? " highlighted" : ""}`} onMouseEnter={() => setHighlightedBackupIndex(index)} onClick={() => void chooseBackup(backup)}><span>{restoreOptionLabel(backup)}</span><span className="backup-picker-option-meta">{backup.entry_count} entries · {backup.customer_count} customers{selected && <span className="backup-picker-check" aria-hidden="true">✓</span>}</span></div>; })}</div>
           </div></div>}
         </div>
           {selectedBackup && <div className="backup-restore-summary">This backup: {selectedSnapshot?.jobs.length ?? "?"} entries · {selectedSnapshot ? new Set(selectedSnapshot.jobs.map(job => job.customer)).size : "?"} customers. Now: {snapshot.jobs.length} entries.{entriesRemoved > 0 && <p>{entriesRemoved} entries added after this backup will be removed.</p>}{entriesReturned > 0 && <p>{entriesReturned} entries missing now will come back.</p>}</div>}
           <button type="button" className="primary backup-run-button" disabled={!selectedBackup || !selectedSnapshot || controlsBusy || !canBackup} onClick={() => selectedBackup && selectedSnapshot && setRestoreTarget(selectedBackup)}>Restore</button></> : <div className="notice">No backups yet. Tap Back up now.</div>}
-        {restoreHint && <small>To undo, restore the newest safety copy.</small>}
+        {undoBackup && <button type="button" className="outline" disabled={controlsBusy || !canBackup} onClick={() => setUndoConfirm(true)}>Undo last restore</button>}
       </section>
     </>}
     {restoreTarget && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-labelledby="backup-restore-title"><button type="button" className="modal-close-x" aria-label="Close" onClick={() => setRestoreTarget(null)}>×</button><h2 id="backup-restore-title">Restore this backup?</h2><p>{workspaceBackupDateTime(restoreTarget.created_at, deviceTz)}</p><p>Now {snapshot.jobs.length} entries → Backup {restoreTarget.entry_count} entries.</p><small>A safety copy of your current data is saved first.</small><div className="backup-restore-confirm-actions"><button type="button" className="outline" onClick={() => setRestoreTarget(null)}>No</button><button type="button" className="primary" onClick={() => void restoreBackup(restoreTarget)}>Yes, restore</button></div></section></div>}
+    {undoConfirm && undoBackup && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-label="Undo last restore"><button type="button" className="modal-close-x" aria-label="Close" onClick={() => setUndoConfirm(false)}>×</button><p>Go back to how your data was before the last restore?</p><div className="backup-restore-confirm-actions"><button type="button" className="outline" onClick={() => setUndoConfirm(false)}>Cancel</button><button type="button" className="primary" disabled={controlsBusy || !canBackup} onClick={() => { setUndoConfirm(false); setRestoreNotice(""); void restoreBackup(undoBackup); }}>Undo restore</button></div></section></div>}
     {confirmCloudData && <div className="modal-backdrop backup-restore-confirm-backdrop"><section className="backup-restore-confirm" role="dialog" aria-modal="true" aria-label="Use cloud data"><button type="button" className="modal-close-x" aria-label="Close" disabled={busy} onClick={() => setConfirmCloudData(false)}>×</button><p>Changes made only on this phone will be lost.</p><div><button type="button" disabled={busy} onClick={() => setConfirmCloudData(false)}>No</button><button type="button" className="primary" disabled={busy} onClick={() => void run(async () => { await onUseCloudData(); setConfirmCloudData(false); setStatus("Cloud data loaded on this phone."); })}>Yes</button></div></section></div>}
+    {restoreNotice && <p role="status">{restoreNotice} {undoBackup && <button type="button" disabled={controlsBusy || !canBackup} onClick={() => setUndoConfirm(true)}>Undo</button>}</p>}
     {status && <p role="status">{status}</p>}
   </div>;
 }

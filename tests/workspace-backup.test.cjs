@@ -56,6 +56,24 @@ test('lastRegularBackup returns null when only safety copies exist', () => {
   ]), null);
 });
 
+test('undo uses only the newest recent pre-restore copy unless a newer regular backup exists', () => {
+  const now = Date.parse('2026-11-15T12:00:00Z');
+  const copy = { id: 'copy', backup_kind: 'pre_restore', created_at: '2026-11-15T11:00:00Z' };
+  const deletion = { id: 'delete', backup_kind: 'pre_delete', created_at: '2026-11-15T11:30:00Z' };
+  assert.equal(backup.undoRestoreBackup([copy, deletion], now), copy);
+  assert.equal(backup.undoRestoreBackup([copy, { backup_kind: 'manual', created_at: '2026-11-15T11:30:00Z' }], now), null);
+  assert.equal(backup.undoRestoreBackup([copy], now + 7 * 86400000), null);
+  assert.equal(backup.undoRestoreBackup([deletion], now), null);
+});
+
+test('restore menu excludes safety copies and undo uses the existing restore flow', () => {
+  const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
+  assert.match(settings, /const menuBackups = regularBackups/);
+  assert.doesNotMatch(settings, /"Safety copies"/);
+  assert.match(settings, /restoreBackup\(undoBackup\)/);
+  assert.match(settings, /loadBackupPayload\(backup\.id, ownerId\)[\s\S]*?saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)[\s\S]*?restoreCloud\(restored, ownerId\)/);
+});
+
 test('backup kind labels cover regular, safety, and unknown kinds', () => {
   assert.equal(backup.backupKindLabel('daily'), 'Automatic');
   assert.equal(backup.backupKindLabel('scheduled'), 'Automatic');

@@ -8,6 +8,15 @@ export function lastRegularBackup<T extends { backup_kind: string; created_at: s
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0] || null;
 }
 
+export function undoRestoreBackup<T extends { backup_kind: string; created_at: string }>(backups: readonly T[], now = Date.now()): T | null {
+  const latest = backups.filter(backup => backup.backup_kind === "pre_restore").sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+  if (!latest) return null;
+  const time = Date.parse(latest.created_at);
+  if (!Number.isFinite(time) || time > now || now - time >= 7 * 86_400_000) return null;
+  const regular = lastRegularBackup(backups);
+  return regular && Date.parse(regular.created_at) > time ? null : latest;
+}
+
 export function backupKindLabel(kind: string): string {
   if (kind === "manual") return "Manual";
   if (kind === "daily" || kind === "scheduled") return "Automatic";
