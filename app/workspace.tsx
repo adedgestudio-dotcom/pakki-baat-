@@ -1084,10 +1084,18 @@ export default function Workspace() {
     const stopWatching = watchSession((session) => {
       void applySession(session);
     });
+    const sessionReplaced = () => {
+      hydratedUserId = null;
+      hydratingUserId = null;
+      void applySession(null);
+      setToast("You were signed out because this account was opened on another device.");
+    };
+    window.addEventListener("pakki-session-replaced", sessionReplaced);
 
     return () => {
       cancelled = true;
       stopWatching();
+      window.removeEventListener("pakki-session-replaced", sessionReplaced);
       window.removeEventListener("online", retryWorkspaceOnOnline);
     };
   }, []);

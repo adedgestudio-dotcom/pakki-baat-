@@ -8,6 +8,40 @@ let client: SupabaseClient | null = base && key ? createClient(base, key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 }) : null;
 let configPromise: Promise<SupabaseClient | null> | null = null;
+const replacedMessage = "You were signed out because this account was opened on another device.";
+let replacingSession: Promise<void> | null = null;
+let lastClaimedSession = "";
+
+function online() { return typeof navigator === "undefined" || navigator.onLine; }
+function sessionGone(error: { message?: string; code?: string; status?: number } | null | undefined) {
+  const text = `${error?.code || ""} ${error?.message || ""}`;
+  return /SESSION_REPLACED|session_not_found|refresh_token_not_found|session (?:does not exist|not found)/i.test(text) || error?.status === 401;
+}
+async function handleSessionFailure(error: { message?: string; code?: string; status?: number }) {
+  if (!online() || !sessionGone(error)) return;
+  replacingSession ||= (async () => {
+    try { await signOut(true); } finally {
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("pakki-session-replaced", { detail: replacedMessage }));
+    }
+  })().finally(() => { replacingSession = null; });
+  await replacingSession;
+}
+
+async function claimDeviceSession(session: Session) {
+  const token = session.access_token;
+  let sessionId = token;
+  try { sessionId = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).session_id || token; } catch { /* Use the token if it cannot be decoded. */ }
+  const marker = `pakki-device-session:${session.user.id}`;
+  try { if (localStorage.getItem(marker) === sessionId) { lastClaimedSession = sessionId; return; } } catch { /* Storage may be unavailable. */ }
+  if (lastClaimedSession === sessionId) return;
+  lastClaimedSession = sessionId;
+  try { await request("/rest/v1/rpc/claim_device_session", {}, token); try { localStorage.setItem(marker, sessionId); } catch { /* Storage may be unavailable. */ } }
+  catch (error) {
+    if (error instanceof CloudRequestError && (error.status === 404 || error.code === "PGRST202" || error.code === "42883")) return;
+    lastClaimedSession = "";
+    throw error;
+  }
+}
 
 export const cloudConfigured = true;
 
@@ -57,6 +91,7 @@ export async function signInWithPassword(email: string, password: string) {
     password,
   });
   if (error) throw error;
+  if (data.session) await claimDeviceSession(data.session);
   return data.session;
 }
 
@@ -64,7 +99,7 @@ export async function currentSession() {
   const ready = await loadRuntimeConfig();
   if (!ready) return null;
   const { data, error } = await ready.auth.getSession();
-  if (error) throw error;
+  if (error) { await handleSessionFailure(error); throw error; }
   return data.session;
 }
 
@@ -72,7 +107,12 @@ export function watchSession(onChange: (session: Session | null) => void) {
   let unsubscribe = () => {};
   void loadRuntimeConfig().then((ready) => {
     if (!ready) return;
-    const { data } = ready.auth.onAuthStateChange((_event, session) => onChange(session));
+    const { data } = ready.auth.onAuthStateChange((event, session) => {
+      onChange(session);
+      const navigation = typeof performance !== "undefined" ? performance.getEntriesByType("navigation")[0]?.name || "" : "";
+      const authReturn = /[?#&](?:code|access_token|token_hash)=/.test(navigation);
+      if (session && (event === "SIGNED_IN" || (event === "INITIAL_SESSION" && authReturn))) setTimeout(() => { void claimDeviceSession(session).catch(() => {}); }, 0);
+    });
     unsubscribe = () => data.subscription.unsubscribe();
   });
   return () => unsubscribe();
@@ -103,7 +143,11 @@ async function request(path: string, body?: unknown, token?: string, cache?: Req
   });
   const raw = await response.text();
   const result = raw ? JSON.parse(raw) : null;
-  if (!response.ok) throw new CloudRequestError(result?.message || result?.error_description || result?.msg || "Cloud request failed.", response.status, result?.code);
+  if (!response.ok) {
+    const error = new CloudRequestError(result?.message || result?.error_description || result?.msg || "Cloud request failed.", response.status, result?.code);
+    await handleSessionFailure(error);
+    throw error;
+  }
   return result;
 }
 
@@ -550,7 +594,7 @@ export async function claimFreeTrial() {
   return result as { allowed: boolean; reason: string };
 }
 
-export async function signOut() {
-  const { error } = await (await configuredClient()).auth.signOut();
+export async function signOut(localOnly = false) {
+  const { error } = await (await configuredClient()).auth.signOut(localOnly ? { scope: "local" } : undefined);
   if (error) throw error;
 }
