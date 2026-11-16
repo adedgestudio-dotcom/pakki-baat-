@@ -11,6 +11,7 @@ import ReportsGroups from "./reports-groups";
 import ReportsMobileTransactions from "./reports-mobile";
 import { groupReportRows, pendingReportJobIds, type ReportGroup } from "@/lib/reports-groups";
 import ReportsTransactionDetail from "./reports-detail";
+import SelectMenu from "./select-menu";
 
 type Props = { ownerId: string | null; ledgerEnabled: boolean; snapshot: Snapshot; cloudSaveVersion: number; pending: boolean };
 type History = { ownerId: string; key: string; state: "loaded"; rows: LedgerRow[] } | { ownerId: string; key: string; state: "error" } | null;
@@ -80,15 +81,15 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
     <div className="reports-overview">{[["Total sales", view.sales], ["Received", view.payments], ["Pending", report.activeOutstandingPaise]].map(([label, value], index) => <div className="panel" key={String(label)}><span>{label}</span><strong>{incomplete && index < 2 ? "Needs reconciliation" : formatReportMoney(Number(value))}</strong></div>)}</div>
     <form className="reports-filter-panel" onSubmit={event => { event.preventDefault(); dispatch({ type: "apply", now: new Date() }); }}>
       <div className="reports-filters">
-        <label>Period<select value={ui.draft.period} onChange={event => dispatch({ type: "period", period: event.target.value as ReportPeriod, now: new Date() })}><option value="today">Today</option><option value="seven">Last 7 days</option><option value="thirty">Last 30 days</option><option value="custom">Custom range</option></select></label>
+        <label>Period<SelectMenu aria-label="Period" value={ui.draft.period} onChange={value => dispatch({ type: "period", period: value as ReportPeriod, now: new Date() })} options={[{value:"today",label:"Today"},{value:"seven",label:"Last 7 days"},{value:"thirty",label:"Last 30 days"},{value:"custom",label:"Custom range"}]} /></label>
         {ui.draft.period === "custom" && <><label>From<input type="date" value={draft.from} onChange={event => update("from", event.target.value)} /></label><label>To<input type="date" value={draft.to} onChange={event => update("to", event.target.value)} /></label></>}
         <label>Customer or amount<input type="search" placeholder="Name or ₹ amount" value={draft.search} onChange={event => update("search", event.target.value)} /></label>
-        <label>Transactions<select value={advancedReportTypes.includes(draft.kind) ? "advanced" : draft.kind} onChange={event => update("kind", event.target.value)}>{["all", "charge", "payment", "correction", "pending_sales"].map(kind => <option key={kind} value={kind}>{reportTypeLabels[kind]}</option>)}{advancedReportTypes.includes(draft.kind) && <option value="advanced" disabled>{reportTypeLabels[draft.kind]} (Advanced)</option>}</select></label>
+        <label>Transactions<SelectMenu aria-label="Transactions" value={advancedReportTypes.includes(draft.kind) ? "advanced" : draft.kind} onChange={value => update("kind", value)} options={[...["all", "charge", "payment", "correction", "pending_sales"].map(kind => ({value:kind,label:reportTypeLabels[kind]})), ...(advancedReportTypes.includes(draft.kind) ? [{value:"advanced",label:`${reportTypeLabels[draft.kind]} (Advanced)`,disabled:true}] : [])]} /></label>
       </div>
       <details className="reports-advanced"><summary>Advanced Filters</summary><div className="reports-filters">
-        <label>Audit transaction type<select value={advancedReportTypes.includes(draft.kind) ? draft.kind : ""} onChange={event => { if (event.target.value) update("kind", event.target.value); }}><option value="">Choose an audit type</option>{advancedReportTypes.map(kind => <option key={kind} value={kind}>{reportTypeLabels[kind]}</option>)}</select></label>
-        <label>Sort by<select value={draft.sort} onChange={event => update("sort", event.target.value as ReportFilter["sort"])}><option value="date">Date</option><option value="amount">Amount</option><option value="customer">Customer</option></select></label>
-        <label>Order<select value={draft.descending ? "desc" : "asc"} onChange={event => update("descending", event.target.value === "desc")}><option value="desc">Newest / highest first</option><option value="asc">Oldest / lowest first</option></select></label>
+        <label>Audit transaction type<SelectMenu aria-label="Audit transaction type" value={advancedReportTypes.includes(draft.kind) ? draft.kind : ""} onChange={value => { if (value) update("kind", value); }} options={[{value:"",label:"Choose an audit type"}, ...advancedReportTypes.map(kind => ({value:kind,label:reportTypeLabels[kind]}))]} /></label>
+        <label>Sort by<SelectMenu aria-label="Sort by" value={draft.sort} onChange={value => update("sort", value as ReportFilter["sort"])} options={[{value:"date",label:"Date"},{value:"amount",label:"Amount"},{value:"customer",label:"Customer"}]} /></label>
+        <label>Order<SelectMenu aria-label="Order" value={draft.descending ? "desc" : "asc"} onChange={value => update("descending", value === "desc")} options={[{value:"desc",label:"Newest / highest first"},{value:"asc",label:"Oldest / lowest first"}]} /></label>
       </div></details>
       <div className="reports-apply"><button type="submit" className="primary">Show Report</button>{unapplied && <span role="status" aria-live="polite">Filters changed — click Show Report to apply.</span>}</div>
       {ui.error && <p role="alert" className="reports-filter-error">{ui.error}</p>}
