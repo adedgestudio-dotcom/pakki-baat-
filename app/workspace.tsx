@@ -6435,6 +6435,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                           this customer book
                         </p>
                       </div>
+                      <button type="button" className="customer-done-tick" aria-label="Done, back to Hisaab" onClick={() => setSelectedCustomer(null)}><Icon name="check" size={22} /></button>
                     </div>
                     <div className="customer-summary-strip">
                       <div>

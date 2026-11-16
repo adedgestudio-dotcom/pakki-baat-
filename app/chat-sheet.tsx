@@ -14,6 +14,6 @@ export default function ChatSheet({ open, onClose, label, children, scrollKey }:
   }, [open]);
   if (!open || typeof document === "undefined") return null;
   return createPortal(<dialog ref={ref} className="hisaab-sheet" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="hisaab-sheet-content"><button type="button" className="hisaab-sheet-close" aria-label={`Close ${label}`} onClick={onClose}>×</button>{children}</div>
+    <div className="hisaab-sheet-content"><button type="button" className="hisaab-sheet-close modal-close-x" aria-label={`Close ${label}`} onClick={onClose}>×</button>{children}</div>
   </dialog>, document.body);
 }
