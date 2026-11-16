@@ -74,6 +74,22 @@ test('restore menu excludes safety copies and undo uses the existing restore flo
   assert.match(settings, /loadBackupPayload\(backup\.id, ownerId\)[\s\S]*?saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)[\s\S]*?restoreCloud\(restored, ownerId\)/);
 });
 
+test('successful manual backup refreshes the list immediately', async () => {
+  const source = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
+  const ast = ts.createSourceFile('cloud-settings.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let backUpNow;
+  function visit(node) { if (ts.isFunctionDeclaration(node) && node.name?.text === 'backUpNow') backUpNow = node; ts.forEachChild(node, visit); }
+  visit(ast);
+  const calls = [];
+  const context = { manualBackupRef: { current: { isRunning: false, run: async () => { calls.push('backup'); return 'Saved'; } } }, ownerId: 'owner', canBackup: true, controlsBusy: false, snapshot: saved, savedSettings: {}, setProgress() {}, setStatus() {}, onToast() {}, refresh: async preserve => { assert.equal(preserve, true); calls.push('refresh'); }, run: async action => action() };
+  vm.createContext(context);
+  vm.runInContext(ts.transpileModule(backUpNow.getText(ast), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
+  await context.backUpNow();
+  assert.deepEqual(calls, ['backup', 'refresh']);
+  assert.match(source, /const nextBackups = await loadBackupList\(ownerId\)[\s\S]*?setNow\(Date\.now\(\)\); setBackups\(nextBackups\)/);
+  assert.match(source, /setRestoreNotice\([\s\S]*?await refresh\(true\)/);
+});
+
 test('restore menu picks the newest scheduled or manual backup per local day in the last 30 days', () => {
   const rows = [
     { id: 'new', backup_kind: 'manual', created_at: '2026-11-16T09:00:00Z' },

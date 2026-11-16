@@ -141,6 +141,7 @@
 
 /* One clear list and three equal summary cards; print styles above stay untouched. */
 .reports-overview{grid-template-columns:repeat(3,minmax(0,1fr))}
+.reports-overview.two-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
 .reports-overview>.panel,.reports-filter-panel,.reports-table-wrap,.reports-mobile-transactions .reports-transaction-card{border:1px solid var(--reports-group-line,#ded9cd);background:var(--reports-group-surface);color:var(--reports-group-text);box-shadow:0 3px 12px #1c2a2612}
 .reports-page{--reports-group-line:#d8d2c6}
 [data-theme="dark"] .reports-page{--reports-group-line:#42594c}

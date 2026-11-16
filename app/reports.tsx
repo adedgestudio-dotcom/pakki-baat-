@@ -2,7 +2,7 @@
 
 import { useReducer, useRef, useState } from "react";
 import type { Snapshot } from "@/lib/data";
-import { formatReportMoney, legacyReport, reportEntriesCsv, selectReportEntries, summarizeReportEntries, type ReportEntry, type ReportFilter } from "@/lib/reports";
+import { formatReportMoney, legacyReport, reportEntriesCsv, reportEntryColumns, reportSummaryCards, selectReportEntries, summarizeReportEntries, type ReportEntry, type ReportFilter } from "@/lib/reports";
 import { createReportUiState, reportFiltersPending, reportTypeLabels, reportUiReducer, type ReportPeriod } from "@/lib/reports-ui";
 import "./reports.css";
 import ReportsPrintDocument from "./reports-print";
@@ -34,9 +34,10 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
   const detail = selected?.ownerId === ownerId && selected.key === requestKey ? matchingRows.find(row => row.id === selected.row.id) ?? null : null;
   const openDetail = (row: ReportEntry) => setSelected({ ownerId, key: requestKey, row });
   const draft = ui.draft.filter;
+  const columns = reportEntryColumns(filter.kind);
   const incomplete = report.warnings.some(warning => warning.includes("incomplete") || warning.includes("do not reconcile") || warning.includes("omitted"));
   function download() {
-    const blob = new Blob([reportEntriesCsv(matchingRows)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([reportEntriesCsv(matchingRows, filter.kind)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url; anchor.download = "pakki-baat-transactions.csv"; anchor.click();
@@ -44,13 +45,13 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
   }
   return <section className="reports-page" aria-label="Financial reports">
     <header className="reports-heading"><h1>Reports</h1><div className="reports-actions"><button className="outline" onClick={refresh}>Refresh history</button><button className="outline" onClick={download}>Download CSV</button><button className="outline" onClick={() => window.print()}>Print</button></div></header>
-    <div className="reports-overview">{[["Total sales", totals.sales], ["Received", totals.payments], ["Pending", totals.outstanding]].map(([label, value]) => <div className="panel" key={String(label)}><span>{label}</span><strong>{formatReportMoney(Number(value))}</strong></div>)}</div>
+    <div className={`reports-overview${columns.received && columns.pending ? "" : " two-cards"}`}>{reportSummaryCards(filter.kind, totals).map(([label, value]) => <div className="panel" key={label}><span>{label}</span><strong>{formatReportMoney(value)}</strong></div>)}</div>
     <form className="reports-filter-panel" onSubmit={event => { event.preventDefault(); dispatch({ type: "apply", now: new Date() }); requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }}>
       <div className="reports-filters">
         <label>Period<SelectMenu aria-label="Period" value={ui.draft.period} onChange={value => dispatch({ type: "period", period: value as ReportPeriod, now: new Date() })} options={[{value:"today",label:"Today"},{value:"seven",label:"Last 7 days"},{value:"thirty",label:"Last 30 days"},{value:"custom",label:"Custom range"}]} /></label>
         {ui.draft.period === "custom" && <><label>From<input type="date" value={draft.from} onChange={event => update("from", event.target.value)} /></label><label>To<input type="date" value={draft.to} onChange={event => update("to", event.target.value)} /></label></>}
         <label>Customer or amount<input type="search" placeholder="Name or ₹ amount" value={draft.search} onChange={event => update("search", event.target.value)} /></label>
-        <label>Entries<SelectMenu aria-label="Entries" value={draft.kind} onChange={value => update("kind", value)} options={["all", "pending_sales", "fully_paid"].map(kind => ({value:kind,label:reportTypeLabels[kind]}))} /></label>
+        <label>Entries<SelectMenu aria-label="Entries" value={draft.kind} onChange={value => dispatch({ type: "entry-filter", kind: value })} options={["all", "pending_sales", "received"].map(kind => ({value:kind,label:reportTypeLabels[kind]}))} /></label>
       </div>
       <details className="reports-advanced"><summary>Advanced Filters</summary><div className="reports-filters">
         <label>Sort by<SelectMenu aria-label="Sort by" value={draft.sort} onChange={value => update("sort", value as ReportFilter["sort"])} options={[{value:"date",label:"Date"},{value:"amount",label:"Amount"},{value:"customer",label:"Customer"}]} /></label>
@@ -60,8 +61,8 @@ export default function Reports({ ownerId, ledgerEnabled, snapshot, cloudSaveVer
       {ui.error && <p role="alert" className="reports-filter-error">{ui.error}</p>}
     </form>
     <div ref={resultsRef} />
-    <ReportsMobileTransactions rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} onSelect={openDetail} />
-    <ReportsGroups rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} onSelect={openDetail} />
+    <ReportsMobileTransactions rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} columns={columns} onSelect={openDetail} />
+    <ReportsGroups rows={matchingRows.slice(0, ui.visibleCount)} total={matchingRows.length} columns={columns} onSelect={openDetail} />
     <div className="reports-pagination"><p>Showing {Math.min(ui.visibleCount, matchingRows.length)} of {matchingRows.length} entries</p>{ui.visibleCount < matchingRows.length && <button type="button" className="outline" onClick={() => dispatch({ type: "more" })}>Load 20 More</button>}</div>
     <details className="reports-accounting"><summary>How to read this</summary>
       <p className="reports-semantics">The cards, list, CSV and print use the same entries and filters.</p>

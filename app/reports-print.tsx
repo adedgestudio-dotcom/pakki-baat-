@@ -1,4 +1,4 @@
-import { formatReportMoney, type ReportFilter, type ReportEntry } from "@/lib/reports";
+import { formatReportMoney, reportEntryColumns, reportSummaryCards, type ReportFilter, type ReportEntry } from "@/lib/reports";
 import { reportTypeLabels } from "@/lib/reports-ui";
 
 type Props = {
@@ -13,6 +13,7 @@ type Props = {
 
 // Presentation only. Receives exactly the same applied selection and values as the screen/CSV.
 export default function ReportsPrintDocument({ filter, rows, summary, incomplete, warnings, pending }: Props) {
+  const columns = reportEntryColumns(filter.kind);
   return <section className="reports-print-document" data-reports-print-root="true" aria-label="Printable financial report">
     <header className="reports-print-heading">
       <p className="reports-print-brand">Pakki Baat</p>
@@ -26,7 +27,7 @@ export default function ReportsPrintDocument({ filter, rows, summary, incomplete
       <div><dt>Sort</dt><dd>{filter.sort} · {filter.descending ? "descending" : "ascending"}</dd></div>
     </dl>
     <div className="reports-print-summary">
-      {[["Total Sales", summary.sales], ["Payments Received", summary.payments], ["Overall Outstanding", summary.outstanding]].map(([label, value], index) =>
+      {reportSummaryCards(filter.kind, summary).map(([label, value], index) =>
         <div key={String(label)}><span>{label}</span><strong>{incomplete && index < 2 ? "Needs reconciliation" : formatReportMoney(Number(value))}</strong></div>
       )}
     </div>
@@ -35,11 +36,11 @@ export default function ReportsPrintDocument({ filter, rows, summary, incomplete
     <p className="reports-print-explanation">Dates are inclusive. Entries use their recorded date. Summary totals use the same filtered entries as the list.</p>
     <table>
       <caption>Entries ({rows.length})</caption>
-      <colgroup><col className="print-date" /><col className="print-customer" /><col className="print-details" /><col className="print-money" /><col className="print-money" /><col className="print-money" /></colgroup>
-      <thead><tr><th scope="col">Date</th><th scope="col">Customer</th><th scope="col">Work</th><th scope="col">Total</th><th scope="col">Received</th><th scope="col">Pending</th></tr></thead>
+      <colgroup><col className="print-date" /><col className="print-customer" /><col className="print-details" /><col className="print-money" />{columns.received && <col className="print-money" />}{columns.pending && <col className="print-money" />}</colgroup>
+      <thead><tr><th scope="col">Date</th><th scope="col">Customer</th><th scope="col">Work</th><th scope="col">Total</th>{columns.received && <th scope="col">Received</th>}{columns.pending && <th scope="col">Pending</th>}</tr></thead>
       <tbody>{rows.map(row => <tr key={row.id}>
         <td>{row.day}</td>
-        <td>{row.customer}</td><td>{row.work}</td><td>{formatReportMoney(row.totalPaise)}</td><td>{formatReportMoney(row.receivedPaise)}</td><td>{formatReportMoney(row.pendingPaise)}</td>
+        <td>{row.customer}</td><td>{row.work}</td><td>{formatReportMoney(row.totalPaise)}</td>{columns.received && <td>{formatReportMoney(row.receivedPaise)}</td>}{columns.pending && <td>{formatReportMoney(row.pendingPaise)}</td>}
       </tr>)}</tbody>
     </table>
     {!rows.length && <p>No entries match the applied filters.</p>}

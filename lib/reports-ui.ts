@@ -6,11 +6,12 @@ export type ReportUiState = { draft: ReportSelection; applied: ReportSelection; 
 export type ReportUiAction =
   | { type: "edit"; filter: Partial<ReportFilter> }
   | { type: "period"; period: ReportPeriod; now: Date }
+  | { type: "entry-filter"; kind: string }
   | { type: "apply"; now: Date }
   | { type: "more" };
 
 export const reportTypeLabels: Record<string, string> = {
-  all: "All entries", charge: "Sales", payment: "Payments Received", correction: "Corrections", pending_sales: "Pending", fully_paid: "Fully paid",
+  all: "All entries", charge: "Sales", payment: "Payments Received", correction: "Corrections", pending_sales: "Pending", received: "Received",
   reversal: "Reversals", adjustment: "Adjustments", opening_balance: "Opening Balances",
 };
 export const advancedReportTypes = ["reversal", "adjustment", "opening_balance"];
@@ -35,9 +36,11 @@ export function reportFiltersPending(state: ReportUiState) {
 export function reportUiReducer(state: ReportUiState, action: ReportUiAction): ReportUiState {
   if (action.type === "more") return { ...state, visibleCount: state.visibleCount + REPORT_PAGE_SIZE };
   if (action.type === "edit") return { ...state, draft: { ...state.draft, filter: { ...state.draft.filter, ...action.filter } }, error: null };
+  if (action.type === "entry-filter") return { ...state, draft: { ...state.draft, filter: { ...state.draft.filter, kind: action.kind } }, applied: { ...state.applied, filter: { ...state.applied.filter, kind: action.kind } }, visibleCount: REPORT_PAGE_SIZE };
   if (action.type === "period") return {
-    ...state, error: null,
+    ...state, error: null, visibleCount: REPORT_PAGE_SIZE,
     draft: { period: action.period, filter: { ...state.draft.filter, ...(action.period === "custom" ? {} : reportPeriodDates(action.period, action.now)) } },
+    applied: { period: action.period, filter: { ...state.applied.filter, ...(action.period === "custom" ? {} : reportPeriodDates(action.period, action.now)) } },
   };
   // Re-evaluate relative presets on confirmation, including across local midnight.
   const draft = state.draft.period === "custom" ? state.draft : {

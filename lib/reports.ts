@@ -49,7 +49,7 @@ export function selectReportEntries(snapshot: Snapshot, filter: ReportFilter): R
   const words = (value: string) => value.toLocaleLowerCase().split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean);
   const queryWords = words(query);
   const result = rows.filter(row => (!filter.from || row.day >= filter.from) && (!filter.to || row.day <= filter.to)
-    && (filter.kind === "all" || filter.kind === "pending_sales" && !row.unlinked && row.pendingPaise > 0 || filter.kind === "fully_paid" && !row.unlinked && row.totalPaise > 0 && row.pendingPaise === 0)
+    && (filter.kind === "all" || filter.kind === "pending_sales" && row.pendingPaise > 0 || filter.kind === "received" && row.receivedPaise > 0)
     && (!query || queryWords.length > 0 && queryWords.every(word => words(`${row.customer} ${row.work}`).some(candidate => candidate.startsWith(word))) || /^\d+(?:\.\d+)?$/.test(numeric) && [row.totalPaise, row.receivedPaise, row.pendingPaise].some(value => String(value / 100).includes(numeric))));
   result.sort((a, b) => {
     const primary = filter.sort === "amount" ? a.totalPaise - b.totalPaise : filter.sort === "customer" ? a.customer.localeCompare(b.customer) : a.day.localeCompare(b.day);
@@ -58,9 +58,14 @@ export function selectReportEntries(snapshot: Snapshot, filter: ReportFilter): R
   return result;
 }
 
-export function reportEntriesCsv(rows: ReportEntry[]) {
+export function reportEntryColumns(kind: string) {
+  return { received: kind !== "pending_sales", pending: kind !== "received" };
+}
+
+export function reportEntriesCsv(rows: ReportEntry[], kind = "all") {
   const cell = (value: string) => '"' + (!/^-?\d+(?:\.\d+)?$/.test(value) && /^[\s]*[=+\-@\t\r]/.test(value) ? "'" : "") + value.replaceAll('"', '""') + '"';
-  return '\uFEFF' + ["Date,Customer,Work,Total,Received,Pending", ...rows.map(row => [row.day, row.customer, row.work, paiseDecimal(row.totalPaise), paiseDecimal(row.receivedPaise), paiseDecimal(row.pendingPaise)].map(cell).join(","))].join("\r\n");
+  const columns = reportEntryColumns(kind);
+  return '\uFEFF' + [["Date", "Customer", "Work", "Total", ...(columns.received ? ["Received"] : []), ...(columns.pending ? ["Pending"] : [])].join(","), ...rows.map(row => [row.day, row.customer, row.work, paiseDecimal(row.totalPaise), ...(columns.received ? [paiseDecimal(row.receivedPaise)] : []), ...(columns.pending ? [paiseDecimal(row.pendingPaise)] : [])].map(cell).join(","))].join("\r\n");
 }
 
 export function summarizeReportEntries(rows: readonly ReportEntry[]) {
@@ -69,6 +74,11 @@ export function summarizeReportEntries(rows: readonly ReportEntry[]) {
     payments: sum(rows.map(row => row.receivedPaise)),
     outstanding: sum(rows.map(row => row.pendingPaise)),
   };
+}
+
+export function reportSummaryCards(kind: string, totals: ReturnType<typeof summarizeReportEntries>): [string, number][] {
+  const columns = reportEntryColumns(kind);
+  return [["Total sales", totals.sales], ...(columns.received ? [["Received", totals.payments] as [string, number]] : []), ...(columns.pending ? [["Pending", totals.outstanding] as [string, number]] : [])];
 }
 function integer(value: number | string) {
   if (typeof value === "string" && !/^\d+$/.test(value)) throw Error("Invalid ledger amount.");

@@ -46,33 +46,40 @@ test("entry filters use job balances, entry dates, and stable newest-first order
   const filter = { ...reports.defaultReportFilter };
   assert.deepEqual(Array.from(reports.selectReportEntries(data, filter), row => row.id), ['job:j', 'job:b', 'job:z', 'job:zero']);
   assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, kind: 'pending_sales' }), row => row.id), ['job:j', 'job:b']);
-  assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, kind: 'fully_paid' }), row => row.id), ['job:z']);
+  assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, kind: 'received' }), row => row.id), ['job:j', 'job:z']);
   assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, from: '2026-11-09', search: 'Cake' }), row => row.id), ['job:j', 'job:b']);
 });
 
-test("summary totals match the filtered entry rows for all, pending and fully paid", () => {
+test("summary cards and CSV columns match filtered entries", () => {
   const data = { ...snapshot, jobs: [...snapshot.jobs, { ...snapshot.jobs[0], id: 'paid', paid: 100 }, { ...snapshot.jobs[0], id: 'zero', total: 0, paid: 0 }], payments: [...snapshot.payments, { id: 'extra', customer: 'Asha Shah', amount: 7, date: '2026-11-09', createdAt: '2026-11-09T14:00:00Z' }] };
-  for (const kind of ['all', 'pending_sales', 'fully_paid']) {
+  for (const kind of ['all', 'pending_sales', 'received']) {
     const rows = reports.selectReportEntries(data, { ...reports.defaultReportFilter, kind, search: 'Asha', from: '2026-11-09', to: '2026-11-09' });
     const totals = reports.summarizeReportEntries(rows);
     assert.equal(totals.sales, rows.reduce((sum, row) => sum + row.totalPaise, 0));
     assert.equal(totals.payments, rows.reduce((sum, row) => sum + row.receivedPaise, 0));
     assert.equal(totals.outstanding, rows.reduce((sum, row) => sum + row.pendingPaise, 0));
-    const expected = { all: [20000, 12700, 8000], pending_sales: [10000, 2000, 8000], fully_paid: [10000, 10000, 0] }[kind];
+    const expected = { all: [20000, 12700, 8000], pending_sales: [10000, 2000, 8000], received: [20000, 12700, 8000] }[kind];
     assert.deepEqual([totals.sales, totals.payments, totals.outstanding], expected);
     if (kind === 'pending_sales') assert.ok(rows.every(row => row.pendingPaise > 0));
-    if (kind === 'fully_paid') assert.ok(rows.every(row => row.pendingPaise === 0 && row.totalPaise > 0));
+    if (kind === 'received') { assert.ok(rows.every(row => row.receivedPaise > 0)); assert.ok(rows.some(row => row.id === 'job:j' && row.pendingPaise > 0)); assert.ok(rows.some(row => row.id === 'payment:extra')); }
+    const cardLabels = Array.from(reports.reportSummaryCards(kind, totals), card => card[0]);
+    assert.deepEqual(cardLabels, { all: ['Total sales', 'Received', 'Pending'], pending_sales: ['Total sales', 'Pending'], received: ['Total sales', 'Received'] }[kind]);
+    const header = reports.reportEntriesCsv(rows, kind).split('\r\n')[0];
+    assert.equal(header.includes('Received'), kind !== 'pending_sales'); assert.equal(header.includes('Pending'), kind !== 'received');
   }
 });
 
-test("report filter edits remain drafts until Show Report applies them", () => {
+test("dropdowns apply immediately without applying draft search and advanced filters", () => {
   const now = new Date(2026, 10, 9);
   let state = ui.createReportUiState(now);
-  state = ui.reportUiReducer(state, { type: 'edit', filter: { kind: 'fully_paid', search: 'Asha' } });
-  assert.equal(state.applied.filter.kind, 'all'); assert.equal(state.applied.filter.search, '');
+  state = ui.reportUiReducer(state, { type: 'edit', filter: { search: 'Asha', sort: 'amount' } });
+  state = ui.reportUiReducer(state, { type: 'entry-filter', kind: 'received' });
+  state = ui.reportUiReducer(state, { type: 'period', period: 'today', now });
+  assert.equal(state.applied.filter.kind, 'received'); assert.equal(state.applied.period, 'today');
+  assert.equal(state.applied.filter.search, ''); assert.equal(state.applied.filter.sort, 'date');
   assert.equal(ui.reportFiltersPending(state), true);
   state = ui.reportUiReducer(state, { type: 'apply', now });
-  assert.equal(state.applied.filter.kind, 'fully_paid'); assert.equal(state.applied.filter.search, 'Asha');
+  assert.equal(state.applied.filter.kind, 'received'); assert.equal(state.applied.filter.search, 'Asha'); assert.equal(state.applied.filter.sort, 'amount');
   assert.equal(ui.reportFiltersPending(state), false);
 });
 

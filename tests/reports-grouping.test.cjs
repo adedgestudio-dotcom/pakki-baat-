@@ -144,11 +144,9 @@ test("legacy snapshot grouping and whole-word search use the same flat selection
 
 test("screen uses filtered entry rows for totals, CSV and print", () => {
   const source=fs.readFileSync(path.join(__dirname,"../app/reports.tsx"),"utf8");
-  assert.ok(source.includes("new Blob([reportEntriesCsv(matchingRows)]"));
+  assert.ok(source.includes("new Blob([reportEntriesCsv(matchingRows, filter.kind)]"));
   assert.ok(source.includes("of {matchingRows.length} entries"));
-  assert.ok(source.includes('["Total sales", totals.sales]'));
-  assert.ok(source.includes('["Received", totals.payments]'));
-  assert.ok(source.includes('["Pending", totals.outstanding]'));
+  assert.ok(source.includes('reportSummaryCards(filter.kind, totals)'));
   assert.ok(source.includes("rows={matchingRows} summary={{ ...totals"));
   const ui=fs.readFileSync(path.join(__dirname,"../app/reports-groups.tsx"),"utf8");
   for(const text of ["Customer","Work","Date","Total","Received","Pending","onSelect(row)"]) assert.ok(ui.includes(text),text);

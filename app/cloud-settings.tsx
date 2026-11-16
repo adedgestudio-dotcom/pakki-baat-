@@ -98,9 +98,12 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const refresh = useCallback(async (preserveDraft = false) => {
     if (!ownerId) return;
     const request = ++requestRef.current;
-    const [nextSettings, nextBackups] = await Promise.all([loadBackupSettings(ownerId), loadBackupList(ownerId)]);
+    const nextBackups = await loadBackupList(ownerId);
     if (request !== requestRef.current || ownerRef.current !== ownerId) return;
-    setSavedSettings(nextSettings); setDraft(previous => preserveDraft ? { ...previous, last_run_at: nextSettings.last_run_at } : nextSettings); setBackups(nextBackups);
+    setNow(Date.now()); setBackups(nextBackups);
+    const nextSettings = await loadBackupSettings(ownerId);
+    if (request !== requestRef.current || ownerRef.current !== ownerId) return;
+    setSavedSettings(nextSettings); setDraft(previous => preserveDraft ? { ...previous, last_run_at: nextSettings.last_run_at } : nextSettings);
   }, [ownerId]);
   useEffect(() => {
     if (!cloudConfigured) return;
