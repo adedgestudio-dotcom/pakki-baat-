@@ -34,6 +34,11 @@ export function groupWorkspaceBackups<T extends { backup_kind: string; created_a
   };
 }
 
+export function restoreMenuBackups<T extends { backup_kind: string; created_at: string }>(backups: readonly T[], showOlder: boolean): T[] {
+  const regular = groupWorkspaceBackups(backups).regular.filter(backup => backup.backup_kind === "manual" || backup.backup_kind === "scheduled");
+  return showOlder ? regular : regular.slice(0, 10);
+}
+
 export function validateWorkspaceBackup(value: unknown): Snapshot {
   if (!isSnapshot(value)) throw new Error("This workspace backup is damaged or invalid.");
   const jobs = new Set(value.jobs.map(job => job.id));

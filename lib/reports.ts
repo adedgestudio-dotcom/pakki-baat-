@@ -1,5 +1,5 @@
 import { formatMoneyPaise, paiseDecimal } from "./money";
-import type { Snapshot } from "./data";
+import type { Payment, Snapshot } from "./data";
 
 export type LedgerRow = {
   id: string; owner_id: string; job_id: string | null; customer_name: string;
@@ -17,6 +17,49 @@ export type Report = { rows: ReportTransaction[]; warnings: string[]; activeOuts
 export type ReportFilter = { from: string; to: string; search: string; kind: string; sort: "date" | "amount" | "customer"; descending: boolean };
 export const defaultReportFilter: ReportFilter = { from: "", to: "", search: "", kind: "all", sort: "date", descending: true };
 export const formatReportMoney = formatMoneyPaise;
+export type ReportEntry = {
+  id: string; customer: string; work: string; day: string; sortAt: number;
+  totalPaise: number; receivedPaise: number; pendingPaise: number;
+  payments: Payment[]; unlinked: boolean;
+};
+
+export function selectReportEntries(snapshot: Snapshot, filter: ReportFilter): ReportEntry[] {
+  if ((filter.from && !validReportDay(filter.from)) || (filter.to && !validReportDay(filter.to)) || (filter.from && filter.to && filter.from > filter.to)) throw Error("Choose a valid From / To date range.");
+  const ids = new Set(snapshot.jobs.map(job => job.id));
+  const payments = snapshot.payments || [];
+  const byJob = new Map<string, Payment[]>();
+  for (const payment of payments) if (payment.jobId && ids.has(payment.jobId)) {
+    const linked = byJob.get(payment.jobId) || [];
+    linked.push(payment);
+    byJob.set(payment.jobId, linked);
+  }
+  const paymentOrder = (a: Payment, b: Payment) => a.date.localeCompare(b.date) || (Date.parse(a.createdAt) || 0) - (Date.parse(b.createdAt) || 0) || a.id.localeCompare(b.id);
+  const rows: ReportEntry[] = snapshot.jobs.map(job => {
+    const day = validReportDay(job.date) ? job.date : job.createdAt && Number.isFinite(Date.parse(job.createdAt)) ? utcDay(job.createdAt) : "";
+    const totalPaise = paise(job.total), receivedPaise = paise(job.paid);
+    return { id: `job:${job.id}`, customer: job.customer, work: job.work, day, sortAt: Date.parse(job.createdAt || "") || 0, totalPaise, receivedPaise, pendingPaise: Math.max(0, totalPaise - receivedPaise), payments: (byJob.get(job.id) || []).sort(paymentOrder), unlinked: false };
+  });
+  for (const payment of payments) {
+    if (payment.jobId && ids.has(payment.jobId)) continue;
+    if (!validReportDay(payment.date)) throw Error("Legacy payment has an invalid date.");
+    rows.push({ id: `payment:${payment.id}`, customer: payment.customer, work: "Payment received", day: payment.date, sortAt: Date.parse(payment.createdAt || "") || 0, totalPaise: 0, receivedPaise: paise(payment.amount), pendingPaise: 0, payments: [payment], unlinked: true });
+  }
+  const query = filter.search.trim().toLocaleLowerCase();
+  const numeric = query.replace(/[₹,\s]/g, "");
+  const result = rows.filter(row => (!filter.from || row.day >= filter.from) && (!filter.to || row.day <= filter.to)
+    && (filter.kind === "all" || filter.kind === "pending_sales" && !row.unlinked && row.pendingPaise > 0 || filter.kind === "fully_paid" && !row.unlinked && row.pendingPaise === 0)
+    && (!query || `${row.customer} ${row.work}`.toLocaleLowerCase().includes(query) || /^\d+(?:\.\d+)?$/.test(numeric) && [row.totalPaise, row.receivedPaise, row.pendingPaise].some(value => String(value / 100).includes(numeric))));
+  result.sort((a, b) => {
+    const primary = filter.sort === "amount" ? a.totalPaise - b.totalPaise : filter.sort === "customer" ? a.customer.localeCompare(b.customer) : a.day.localeCompare(b.day);
+    return (primary || a.day.localeCompare(b.day) || a.sortAt - b.sortAt || a.id.localeCompare(b.id)) * (filter.descending ? -1 : 1);
+  });
+  return result;
+}
+
+export function reportEntriesCsv(rows: ReportEntry[]) {
+  const cell = (value: string) => '"' + (!/^-?\d+(?:\.\d+)?$/.test(value) && /^[\s]*[=+\-@\t\r]/.test(value) ? "'" : "") + value.replaceAll('"', '""') + '"';
+  return '\uFEFF' + ["Date,Customer,Work,Total,Received,Pending", ...rows.map(row => [row.day, row.customer, row.work, paiseDecimal(row.totalPaise), paiseDecimal(row.receivedPaise), paiseDecimal(row.pendingPaise)].map(cell).join(","))].join("\r\n");
+}
 function integer(value: number | string) {
   if (typeof value === "string" && !/^\d+$/.test(value)) throw Error("Invalid ledger amount.");
   const amount = Number(value);

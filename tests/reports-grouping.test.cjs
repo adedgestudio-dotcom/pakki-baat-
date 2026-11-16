@@ -142,21 +142,22 @@ test("legacy snapshot grouping and whole-word search use the same flat selection
   assert.equal(report.activeOutstandingPaise,13000);
 });
 
-test("screen grouping never supplies the flat summary, CSV or print inputs", () => {
+test("screen uses entry rows for CSV and print while keeping transaction summaries", () => {
   const source=fs.readFileSync(path.join(__dirname,"../app/reports.tsx"),"utf8");
-  assert.ok(source.includes("new Blob([reportCsv(matchingRows)]"));
-  assert.ok(source.includes("of {matchingRows.length} transactions"));
+  assert.ok(source.includes("new Blob([reportEntriesCsv(matchingRows)]"));
+  assert.ok(source.includes("of {matchingRows.length} entries"));
   assert.ok(source.includes('["Total sales", view.sales]'));
   assert.ok(source.includes('["Received", view.payments]'));
   assert.ok(source.includes('["Pending", report.activeOutstandingPaise]'));
   assert.ok(source.includes("rows={matchingRows} summary={{ sales: view.sales"));
   const ui=fs.readFileSync(path.join(__dirname,"../app/reports-groups.tsx"),"utf8");
-  for(const text of ["Customer","Date","Type","Amount","Pending","onSelect(row)"]) assert.ok(ui.includes(text),text);
+  for(const text of ["Customer","Work","Date","Total","Received","Pending","onSelect(row)"]) assert.ok(ui.includes(text),text);
   assert.ok(!/fetch\(|<input|<select/.test(ui));
 });
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
-function groupedMarkup(groups) {
+const entrySnapshot = { owner: "Owner", business: "Test", jobs: [job("j", 100, 15)], payments: [{ id: "p", jobId: "j", customer: "Asha", amount: 15, date: "2026-11-01", createdAt: "2026-11-01T13:00:00Z" }] };
+function groupedMarkup(rows) {
   const source = fs.readFileSync(path.join(__dirname, "../app/reports-groups.tsx"), "utf8");
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
@@ -166,27 +167,23 @@ function groupedMarkup(groups) {
     if (name === "@/lib/reports-ui") return load("reports-ui");
     throw new Error("Unexpected import " + name);
   } });
-  return renderToStaticMarkup(React.createElement(exports.default, { rows: groups.flatMap(group => group.matches), groups, total: groups.flatMap(group => group.matches).length, onSelect() {} }));
+  return renderToStaticMarkup(React.createElement(exports.default, { rows, total: rows.length, onSelect() {} }));
 }
 
-test("desktop rows show five plain fields and the sale's pending amount", () => {
-  const markup = groupedMarkup(project(fixtures[1]).groups);
-  assert.equal((markup.match(/<th scope="col">/g)||[]).length,5);
+test("desktop rows show the six entry fields", () => {
+  const markup = groupedMarkup(flat.selectReportEntries(entrySnapshot, flat.defaultReportFilter));
+  assert.equal((markup.match(/<th scope="col">/g)||[]).length,6);
   assert.equal((markup.match(/<tbody><tr/g)||[]).length,1);
-  for (const text of ["Customer","Date","Type","Amount","Pending","Asha",flat.formatReportMoney(8500)]) assert.ok(markup.includes(text),text);
+  for (const text of ["Customer","Date","Work","Total","Received","Pending","Asha"]) assert.ok(markup.includes(text),text);
   assert.ok(!/Lifetime|baki|Context only|View transaction|>Edit</i.test(markup));
-  assert.ok(groupedMarkup(project(fixtures[5]).groups).includes("No linked sale"));
 });
 
-test("every matching event keeps a desktop row without displaying balance history", () => {
-  for (const fixture of fixtures) {
-    const { groups, view } = project(fixture);
-    const markup = groupedMarkup(groups);
-    assert.equal((markup.match(/<tr key=/g)||[]).length,0);
-    assert.equal((markup.match(/<td>/g)||[]).length,view.rows.length*3);
-    for (const row of view.rows) assert.ok(markup.includes('dateTime="' + row.day + '"'), row.day);
-    assert.doesNotMatch(markup, /Lifetime|Baki|balance history|running balance|balance after/i);
-  }
+test("linked payments do not create extra desktop rows", () => {
+  const rows = flat.selectReportEntries(entrySnapshot, flat.defaultReportFilter);
+  const markup = groupedMarkup(rows);
+  assert.equal((markup.match(/<tr>/g)||[]).length, rows.length + 1);
+  for (const row of rows) assert.ok(markup.includes('dateTime="' + row.day + '"'), row.day);
+  assert.doesNotMatch(markup, /Lifetime|Baki|balance history|running balance|balance after/i);
 });
 
 test("summary, filters, flat list and one collapsed reading guide are in order", () => {

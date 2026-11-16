@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudConfigured, cloudSnapshotsEqual, currentSession, loadBackupList, loadBackupPayload, loadBackupSettings, readLedgerDirty, restoreCloud, saveWorkspaceBackup, setBackupSettings, signInWithGoogle, watchSession, LEGACY_WORKSPACE_READ_ONLY_MESSAGE, type WorkspaceBackupSummary } from "@/lib/cloud";
-import { anchorDayForSave, backupKindLabel, groupWorkspaceBackups, lastRegularBackup, undoRestoreBackup, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
+import { anchorDayForSave, backupKindLabel, restoreMenuBackups, lastRegularBackup, undoRestoreBackup, restoreWorkspaceSnapshot, scheduledSlot, validateWorkspaceBackup, workspaceBackupDateTime, workspaceBackupFileName, type BackupFrequency, type BackupSettings } from "@/lib/customer-backup";
 import { isSnapshot, type Snapshot } from "@/lib/data";
 import { ManualWorkspaceBackupRunner } from "@/lib/workspace-daily-backup-lifecycle";
 import SelectMenu from "./select-menu";
@@ -81,6 +81,7 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
   const [selectedBackupId, setSelectedBackupId] = useState("");
   const [selectedPayload, setSelectedPayload] = useState<{ id: string; payload: unknown } | null>(null);
   const [backupMenuOpen, setBackupMenuOpen] = useState(false);
+  const [showOlderBackups, setShowOlderBackups] = useState(false);
   const [highlightedBackupIndex, setHighlightedBackupIndex] = useState(0);
   const backupMenuRef = useRef<HTMLDivElement>(null);
   const backupListRef = useRef<HTMLDivElement>(null);
@@ -107,8 +108,8 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
     void currentSession().then(session => { setLogged(session?.user.id === ownerId); if (session?.user.id === ownerId) void refresh(); }).catch(() => setStatus("Could not check your sign-in.")).finally(() => setChecking(false));
     return watchSession(session => { const same = session?.user.id === ownerId; setLogged(same); setChecking(false); if (same) void refresh(); else { ++requestRef.current; setBackups([]); setSelectedBackupId(""); setSelectedPayload(null); setRestoreNotice(""); setUndoConfirm(false); setDraft(emptySettings()); setSavedSettings(emptySettings()); } });
   }, [ownerId, refresh]);
-  const { regular: regularBackups } = groupWorkspaceBackups(backups);
-  const menuBackups = regularBackups;
+  const regularBackups = restoreMenuBackups(backups, true);
+  const menuBackups = restoreMenuBackups(backups, showOlderBackups);
   const undoBackup = undoRestoreBackup(backups, now);
   useEffect(() => { if (!restoreNotice) return; const timer = window.setTimeout(() => setRestoreNotice(""), 30_000); return () => window.clearTimeout(timer); }, [restoreNotice]);
   const last = lastRegularBackup(backups);
@@ -239,8 +240,9 @@ export default function CloudSettings({ snapshot, onRestore, onPauseAutosave, on
         {regularBackups.length ? <><div className="backup-picker" ref={backupMenuRef}>
           <button type="button" className="backup-picker-trigger" aria-label="Choose a backup" aria-haspopup="listbox" aria-expanded={backupMenuOpen} aria-controls="backup-picker-list" disabled={controlsBusy || !canBackup} onClick={() => { setHighlightedBackupIndex(Math.max(0, menuBackups.findIndex(backup => backup.id === selectedBackupId))); setBackupMenuOpen(open => !open); }} onKeyDown={event => { if (!backupMenuOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) { event.preventDefault(); setHighlightedBackupIndex(event.key === "ArrowDown" ? 0 : menuBackups.length - 1); setBackupMenuOpen(true); } }}><span>{selectedBackup ? `${restoreOptionLabel(selectedBackup)} · ${selectedBackup.entry_count} entries · ${selectedBackup.customer_count} customers` : "Select a backup…"}</span><span className={`backup-picker-chevron${backupMenuOpen ? " open" : ""}`} aria-hidden="true" /></button>
           {backupMenuOpen && <div className="backup-picker-panel"><div id="backup-picker-list" className="backup-picker-list" role="listbox" aria-label="Choose a backup" aria-activedescendant={`backup-picker-option-${highlightedBackupIndex}`} tabIndex={-1} ref={backupListRef} onKeyDown={backupMenuKeyDown}>
-            <div className="backup-picker-group"><div className="backup-picker-heading">Regular backups</div>{regularBackups.map((backup, index) => { const selected = backup.id === selectedBackupId; return <div id={`backup-picker-option-${index}`} key={backup.id} data-backup-index={index} role="option" aria-selected={selected} className={`backup-picker-option${selected ? " selected" : ""}${index === highlightedBackupIndex ? " highlighted" : ""}`} onMouseEnter={() => setHighlightedBackupIndex(index)} onClick={() => void chooseBackup(backup)}><span>{restoreOptionLabel(backup)}</span><span className="backup-picker-option-meta">{backup.entry_count} entries · {backup.customer_count} customers{selected && <span className="backup-picker-check" aria-hidden="true">✓</span>}</span></div>; })}</div>
+            <div className="backup-picker-group"><div className="backup-picker-heading">Regular backups</div>{menuBackups.map((backup, index) => { const selected = backup.id === selectedBackupId; return <div id={`backup-picker-option-${index}`} key={backup.id} data-backup-index={index} role="option" aria-selected={selected} className={`backup-picker-option${selected ? " selected" : ""}${index === highlightedBackupIndex ? " highlighted" : ""}`} onMouseEnter={() => setHighlightedBackupIndex(index)} onClick={() => void chooseBackup(backup)}><span>{restoreOptionLabel(backup)}</span><span className="backup-picker-option-meta">{backup.entry_count} entries · {backup.customer_count} customers{selected && <span className="backup-picker-check" aria-hidden="true">✓</span>}</span></div>; })}</div>
           </div></div>}
+          {backupMenuOpen && !showOlderBackups && regularBackups.length > 10 && <button type="button" className="text-button" onClick={() => setShowOlderBackups(true)}>Show older backups</button>}
         </div>
           {selectedBackup && <div className="backup-restore-summary">This backup: {selectedSnapshot?.jobs.length ?? "?"} entries · {selectedSnapshot ? new Set(selectedSnapshot.jobs.map(job => job.customer)).size : "?"} customers. Now: {snapshot.jobs.length} entries.{entriesRemoved > 0 && <p>{entriesRemoved} entries added after this backup will be removed.</p>}{entriesReturned > 0 && <p>{entriesReturned} entries missing now will come back.</p>}</div>}
           <button type="button" className="primary backup-run-button" disabled={!selectedBackup || !selectedSnapshot || controlsBusy || !canBackup} onClick={() => selectedBackup && selectedSnapshot && setRestoreTarget(selectedBackup)}>Restore</button></> : <div className="notice">No backups yet. Tap Back up now.</div>}

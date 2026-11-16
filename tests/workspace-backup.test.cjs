@@ -68,10 +68,18 @@ test('undo uses only the newest recent pre-restore copy unless a newer regular b
 
 test('restore menu excludes safety copies and undo uses the existing restore flow', () => {
   const settings = fs.readFileSync('app/cloud-settings.tsx', 'utf8');
-  assert.match(settings, /const menuBackups = regularBackups/);
+  assert.match(settings, /const menuBackups = restoreMenuBackups\(backups, showOlderBackups\)/);
   assert.doesNotMatch(settings, /"Safety copies"/);
   assert.match(settings, /restoreBackup\(undoBackup\)/);
   assert.match(settings, /loadBackupPayload\(backup\.id, ownerId\)[\s\S]*?saveWorkspaceBackup\(snapshot, "pre_restore", ownerId\)[\s\S]*?restoreCloud\(restored, ownerId\)/);
+});
+
+test('restore menu starts with the newest ten regular backups and can show older ones', () => {
+  const rows = Array.from({ length: 12 }, (_, i) => ({ id: String(i), backup_kind: i % 2 ? 'manual' : 'scheduled', created_at: new Date(Date.UTC(2026, 10, i + 1)).toISOString() }));
+  rows.push({ id: 'safety', backup_kind: 'pre_restore', created_at: '2026-12-01T00:00:00Z' }, { id: 'delete', backup_kind: 'pre_delete', created_at: '2026-12-02T00:00:00Z' }, { id: 'daily', backup_kind: 'daily', created_at: '2026-12-03T00:00:00Z' });
+  const short = backup.restoreMenuBackups(rows, false), all = backup.restoreMenuBackups(rows, true);
+  assert.equal(short.length, 10); assert.equal(short[0].id, '11'); assert.equal(all.length, 12);
+  assert.ok(all.every(row => row.backup_kind === 'manual' || row.backup_kind === 'scheduled'));
 });
 
 test('backup kind labels cover regular, safety, and unknown kinds', () => {

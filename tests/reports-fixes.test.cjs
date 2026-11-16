@@ -21,6 +21,35 @@ const snapshot = { owner: "Owner", business: "Test", jobs: [
 const report = reports.legacyReport(snapshot);
 const select = filter => reports.selectReport(report, { ...reports.defaultReportFilter, ...filter });
 
+test("entry rows combine linked payments, retain summaries and export the displayed values", () => {
+  const data = { ...snapshot, payments: [...snapshot.payments,
+    { id: 'later', jobId: 'j', customer: 'Asha Shah', amount: 3, date: '2026-11-11', createdAt: '2026-11-11T10:00:00Z', note: 'later' },
+    { id: 'unlinked', customer: 'Asha Shah', amount: 5, date: '2026-11-10', createdAt: '2026-11-10T10:00:00Z', note: 'cash' },
+  ] };
+  const filter = { ...reports.defaultReportFilter, from: '2026-11-09', to: '2026-11-11' };
+  const rows = reports.selectReportEntries(data, filter);
+  assert.equal(rows.length, 3);
+  assert.equal(rows.filter(row => row.id.startsWith('job:')).length, 2);
+  const entry = rows.find(row => row.id === 'job:j');
+  assert.deepEqual(Array.from(entry.payments, payment => payment.id), ['p', 'later']);
+  assert.equal(entry.totalPaise, 10000); assert.equal(entry.receivedPaise, 2000); assert.equal(entry.pendingPaise, 8000);
+  assert.equal(rows.find(row => row.id === 'payment:unlinked').work, 'Payment received');
+  const previous = reports.selectReport(reports.legacyReport(data), filter);
+  assert.equal(previous.sales, 15000); assert.equal(previous.payments, 2800); assert.equal(reports.legacyReport(data).activeOutstandingPaise, 13000);
+  const csv = reports.reportEntriesCsv(rows);
+  assert.match(csv, /^\uFEFFDate,Customer,Work,Total,Received,Pending/);
+  assert.equal(csv.split('\r\n').length, rows.length + 1);
+});
+
+test("entry filters use job balances, entry dates, and stable newest-first order", () => {
+  const data = { ...snapshot, jobs: [...snapshot.jobs, { ...snapshot.jobs[0], id: 'z', paid: 100, date: '2026-11-08', createdAt: '2026-11-12T00:00:00Z' }] };
+  const filter = { ...reports.defaultReportFilter };
+  assert.deepEqual(Array.from(reports.selectReportEntries(data, filter), row => row.id), ['job:j', 'job:b', 'job:z']);
+  assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, kind: 'pending_sales' }), row => row.id), ['job:j', 'job:b']);
+  assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, kind: 'fully_paid' }), row => row.id), ['job:z']);
+  assert.deepEqual(Array.from(reports.selectReportEntries(data, { ...filter, from: '2026-11-09', search: 'Cake' }), row => row.id), ['job:j', 'job:b']);
+});
+
 test("workspace reports follow the current snapshot after restore and sort consistently", () => {
   const first = reports.selectReport(reports.legacyReport(snapshot), reports.defaultReportFilter);
   assert.equal(first.sales, 15000);
@@ -80,7 +109,7 @@ test("read-only detail resolves linked jobs without changing transaction amounts
   assert.equal(ui.reportJobId({ id: "missing" }, [], []), undefined);
   const detail = fs.readFileSync(path.join(__dirname, "../app/reports-detail.tsx"), "utf8");
   assert.match(detail, /<dialog/);
-  for (const label of ["Customer", "Date (UTC)", "Type", "Amount", "Description", "Total", "Received", "Pending"]) assert.ok(detail.includes(">" + label + "<"), label);
+  for (const label of ["Customer", "Date", "Work", "Total", "Received", "Pending", "Payments"]) assert.ok(detail.includes(">" + label + "<"), label);
   assert.ok(!/fetch\(|<input|<select|Edit|Delete/.test(detail));
   assert.equal((detail.match(/<button/g) || []).length, 2);
 });
@@ -145,21 +174,20 @@ test("on-screen Reports omit per-event balance text and empty placeholders", () 
   assert.ok(!css.includes(".reports-card-effect"));
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
-  const groups = load("reports-groups").groupReportRows("owner", report, snapshot, report.rows, reports.defaultReportFilter);
+  const entries = reports.selectReportEntries(snapshot, reports.defaultReportFilter);
   for (const file of ["reports-mobile", "reports-detail"]) {
     const source = fs.readFileSync(path.join(__dirname, "../app", file + ".tsx"), "utf8");
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
     const exports = {};
     vm.runInNewContext(output, { exports, require: name => name.startsWith("@/lib/") ? load(name.slice(6)) : require(name) });
-    const markup = renderToStaticMarkup(React.createElement(exports.default, { rows: report.rows, groups, total: report.rows.length, row: report.rows[0], group: groups[0], onSelect() {}, onClose() {} }));
+    const markup = renderToStaticMarkup(React.createElement(exports.default, { rows: entries, total: entries.length, row: entries.find(row => row.customer === 'Asha Shah'), onSelect() {}, onClose() {} }));
     assert.doesNotMatch(markup, /Balance effect|Baki change|Baki increases|Baki reduces/);
     for (const text of ["Asha Shah", reports.formatReportMoney(report.rows[0].amountPaise)]) assert.ok(markup.includes(text), file + ": " + text);
     if (file === "reports-detail") {
-      for (const text of ["Cake", "Date (UTC)", "Type", "Amount", "Description", "Sale and payment history", "Received", "Pending"]) assert.ok(markup.includes(text), text);
+      for (const text of ["Cake", "Date", "Work", "Payments", "Received", "Pending"]) assert.ok(markup.includes(text), text);
     } else {
       assert.ok(markup.includes('dateTime="2026-11-09"'));
-      assert.ok(markup.includes("Sale"));
-      assert.ok(markup.includes("Payment received"));
+      assert.ok(markup.includes("Cake"));
     }
   }
 });
