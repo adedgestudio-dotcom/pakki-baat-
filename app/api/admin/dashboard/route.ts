@@ -59,12 +59,13 @@ export async function GET(req:NextRequest){
   const now=Date.now();
   // Dashboard GET is read-only. Due-plan transitions must run in an authorized lifecycle job.
   const refreshedSubMap=new Map((subs||[]).map((x:any)=>[x.owner_id,x]));
-  const list=authUsers.map((u:any)=>{
+  const mapped=authUsers.map((u:any)=>{
    const sub:any=refreshedSubMap.get(u.id)||{};
    const entitlement=plans[sub.plan]||null;
    const expired=!!sub.period_end&&new Date(sub.period_end).getTime()<=now;
-   return {id:u.id,email:u.email||"",created_at:u.created_at,last_sign_in_at:u.last_sign_in_at,...sub,display_status:expired&&sub.status==="active"?"expired":sub.status,usage:usageMap.get(u.id)||null,trial_claim:claimMap.get(u.id)||null,customer_count:customerCount(workspaceMap.get(u.id)),voice_limit_minutes:entitlement?.voiceMinutes??0,customer_limit:entitlement?.customerLimit??null,has_subscription:Boolean(sub.owner_id),has_entitlement:Boolean(entitlement)};
+   return {email:u.email||"",created_at:u.created_at,last_sign_in_at:u.last_sign_in_at,...sub,id:u.id,display_status:expired&&sub.status==="active"?"expired":sub.status,usage:usageMap.get(u.id)||null,trial_claim:claimMap.get(u.id)||null,customer_count:customerCount(workspaceMap.get(u.id)),voice_limit_minutes:entitlement?.voiceMinutes??0,customer_limit:entitlement?.customerLimit??null,has_subscription:Boolean(sub.owner_id),has_entitlement:Boolean(entitlement)};
   });
+  const list=Array.from(new Map(mapped.map((u:any)=>[u.id,u])).values()) as typeof mapped;
   return NextResponse.json({users:list,payments,stats:{totalUsers:list.length,pendingPayments:(payments||[]).filter((p:any)=>p.status==="pending").length,activePlans:list.filter((u:any)=>u.plan&&u.plan!=="trial"&&u.status==="active"&&new Date(u.period_end).getTime()>now).length,activeTrials:list.filter((u:any)=>u.plan==="trial"&&u.status==="active"&&new Date(u.period_end).getTime()>now).length,voiceSeconds:[...usageMap.values()].reduce((n:any,x:any)=>n+(x.voice_seconds||0),0),aiCalls:[...usageMap.values()].reduce((n:any,x:any)=>n+(x.ai_calls||0),0)}});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not load admin data"},{status:500})}
 }

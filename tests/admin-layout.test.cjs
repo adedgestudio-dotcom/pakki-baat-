@@ -103,6 +103,40 @@ test("admin install controls require browser support and hide in standalone mode
   assert.ok(source.includes("{showInstallFallback&&<p>To install: browser menu, then Install app (Chrome) or Add to Home Screen.</p>}"));
 });
 
+test("four admin tabs fit in the phone navigation", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../app/admin/admin.css"), "utf8");
+  assert.match(source, /\["home","payments","users","alerts"\]/);
+  assert.match(css, /\.admin-tabs\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+});
+
+test("admin worker version changes trigger registration and an explicit update check", async () => {
+  const worker = fs.readFileSync(path.join(__dirname, "../public/admin-sw.js"), "utf8");
+  const install = fs.readFileSync(path.join(__dirname, "../app/admin/use-admin-install.ts"), "utf8");
+  assert.match(worker, /ADMIN_WORKER_VERSION = "pakki-baat-admin-20261117-1"/);
+  assert.match(worker, /self\.skipWaiting\(\)/);
+  assert.match(worker, /self\.clients\.claim\(\)/);
+  assert.match(worker, /fetch\(event.request, \{ cache: "no-store" \}\)/);
+  assert.match(install, /register\("\/admin-sw\.js", \{ scope: "\/admin", updateViaCache: "none" \}\)\.then\(registration => registration\.update\(\)\)/);
+  const listeners = new Map();
+  vm.runInNewContext(worker, { self: { location: { origin: 'https://test.invalid' }, addEventListener: (name, handler) => listeners.set(name, handler), skipWaiting: async () => {}, clients: { claim: async () => {} } }, URL, fetch: async (request, options) => ({ request, options }) });
+  let response;
+  listeners.get('fetch')({ request: { url: 'https://test.invalid/admin', method: 'GET', mode: 'navigate' }, respondWith(value) { response = value; } });
+  assert.equal((await response).options.cache, 'no-store');
+});
+
+test("opening admin registers its worker and checks for an update", async () => {
+  const effects = [], calls = [];
+  const react = { useState: value => [value, () => {}], useRef: value => ({ current: value }), useEffect: fn => effects.push(fn) };
+  const display = { matches: false, addEventListener() {}, removeEventListener() {} };
+  const window = { matchMedia: () => display, addEventListener() {}, removeEventListener() {} };
+  const navigator = { userAgent: 'Chrome', serviceWorker: { register: async (url, options) => { calls.push([url, options.scope, options.updateViaCache]); return { update: async () => { calls.push('update'); } }; } } };
+  const { useAdminInstall } = loadTs('../app/admin/use-admin-install.ts', { react }, { window, navigator });
+  useAdminInstall(); const cleanup = effects[0]();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, [['/admin-sw.js', '/admin', 'none'], 'update']);
+  cleanup();
+});
+
 test("admin install capture retains an early event and the hook consumes it once", async () => {
   const layout = fs.readFileSync(path.join(__dirname, "../app/admin/layout.tsx"), "utf8");
   const capture = layout.match(/__html: `([\s\S]*?)`/)[1];

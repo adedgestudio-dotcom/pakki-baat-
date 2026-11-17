@@ -44,9 +44,9 @@ export function useAdminInstall() {
     readStoredPrompt();
     window.addEventListener("appinstalled", installed);
     display.addEventListener("change", syncDisplay);
-    // Refresh an existing customer worker so its admin cache bypass takes effect.
+    // An admin-scoped worker takes precedence over a previously installed root worker.
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.getRegistration("/").then(registration => registration?.update()).catch(() => {});
+      void navigator.serviceWorker.register("/admin-sw.js", { scope: "/admin", updateViaCache: "none" }).then(registration => registration.update()).catch(() => {});
     }
     return () => {
       window.removeEventListener("beforeinstallprompt", capturePrompt);
