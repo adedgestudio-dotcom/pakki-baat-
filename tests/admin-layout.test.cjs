@@ -46,7 +46,7 @@ const vm = require("node:vm");
 
 function loadTs(relativePath, mocks = {}, globals = {}) {
   const source = fs.readFileSync(path.join(__dirname, relativePath), "utf8");
-  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
   vm.runInNewContext(output, { ...globals, exports, Response, require: name => {
     if (name in mocks) return mocks[name];
@@ -55,13 +55,32 @@ function loadTs(relativePath, mocks = {}, globals = {}) {
   return exports;
 }
 
-test("zero pending counts hide all three badges and the header uses the owner constant and real logo", () => {
-  assert.equal((source.match(/pendingCount>0&&<span className="admin-badge">\{pendingCount\}<\/span>/g) || []).length, 3);
-  assert.equal((source.match(/<span className="admin-badge">/g) || []).length, 3);
+test("zero pending counts hide both badges and the header uses the owner constant and real logo", () => {
+  assert.equal((source.match(/pendingCount>0&&<span className="admin-badge">\{pendingCount\}<\/span>/g) || []).length, 2);
+  assert.equal((source.match(/<span className="admin-badge">/g) || []).length, 2);
+  assert.match(source, /aria-label=\{`Pending payments: \$\{pendingCount\}`\}[\s\S]*?pendingCount>0&&<span className="admin-badge">\{pendingCount\}/);
+  assert.match(source, /item==="payments"&&pendingCount>0&&<span className="admin-badge">\{pendingCount\}/);
   assert.match(source, /const ADMIN_NAME="Sarrah Bharmal"/);
   assert.equal((source.match(/Sarrah Bharmal/g) || []).length, 1);
   assert.match(source, /<small>\{ADMIN_NAME\} · Admin<\/small>/);
   assert.match(source, /<img className="admin-brand-logo" src="\/admin-icon.svg" width="36" height="36" alt="Pakki Baat"\/>/);
+});
+
+test("signup dismissal persists only dismissed IDs and caps the oldest at 500", () => {
+  const seen = loadTs("../app/admin/seen-users.ts");
+  const values = new Map();
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  let ids = seen.readSeenUsers(storage);
+  assert.equal(ids.length, 0); assert.equal(values.size, 0);
+  ids = seen.dismissNewUser(storage, ids, 'first');
+  assert.deepEqual(Array.from(seen.readSeenUsers(storage)), ['first']);
+  for (let i = 0; i < 500; i++) ids = seen.dismissNewUser(storage, ids, `user-${i}`);
+  assert.equal(ids.length, 500); assert.equal(ids.includes('first'), false);
+  assert.equal(seen.readSeenUsers(storage).length, 500);
+  assert.equal(seen.readSeenUsers(storage).at(-1), 'user-499');
+  assert.match(source, /seenUsers&&!seenUsers\.includes\(u\.id\)/);
+  assert.match(source, /onClick=\{\(\)=>dismissSignup\(u\.id\)\}/);
+  assert.match(source, /aria-label="Install app"/);
 });
 
 test("admin manifest has a separate identity, scope and existing icons", async () => {
