@@ -39,6 +39,7 @@ export default function AdminPage(){
  const pending=data?.payments.filter(p=>p.status==="pending")??[];
  const payments=data?.payments.filter(p=>filter==="all"||p.status===filter)??[];
  const pendingCount=data?.stats.pendingPayments??0;
+ const unseenCount=seenUsers?(data?.users.filter(u=>!seenUsers.includes(u.id)).length??0):0;
  const paymentCard=(p:any)=><article className="payment-card" key={p.id}>
  <div className="payment-card-head"><strong>{p.email||p.owner_id}</strong><span className={"status "+p.status}>{p.status}</span></div>
  <small>Sent {date(p.submitted_at||p.created_at)}</small><div className="payment-amount">Rs {p.amount} <span>{p.plan}</span></div>
@@ -51,7 +52,7 @@ export default function AdminPage(){
  <button className="admin-icon" aria-label="Refresh" disabled={!!busy} onClick={()=>void refresh()}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 5v6h-6M20 11a8 8 0 1 0 0 5"/></svg></button>
  <button className="admin-icon" aria-label="Lock" disabled={!!busy} onClick={logout}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></button>
  </div></header><div className="admin-wrap">
- <nav className="admin-tabs" aria-label="Owner panel sections">{["home","payments","users","alerts"].map(item=><button key={item} aria-current={tab===item?"page":undefined} onClick={()=>switchTab(item)}>{item[0].toUpperCase()+item.slice(1)}{item==="payments"&&pendingCount>0&&<span className="admin-badge">{pendingCount}</span>}</button>)}</nav>
+ <nav className="admin-tabs" aria-label="Owner panel sections">{["home","payments","users","alerts"].map(item=><button key={item} aria-current={tab===item?"page":undefined} onClick={()=>switchTab(item)}>{item[0].toUpperCase()+item.slice(1)}{item==="payments"&&pendingCount>0&&<span className="admin-badge">{pendingCount}</span>}{item==="users"&&unseenCount>0&&<span className="admin-badge" aria-label={`${unseenCount} new ${unseenCount===1?"user":"users"}`}>{unseenCount}</span>}</button>)}</nav>
  <div className="admin-heading"><div><span>OWNER DASHBOARD</span><h1>Business control centre</h1><p>Users, subscriptions, payments and usage in one place.</p></div></div>
  <div className="admin-feedback" role="status" aria-live="polite" aria-atomic="true">{(error||toast)&&<div className={error?"admin-error admin-banner":"admin-toast"}>{error||toast}</div>}</div>
  <div className="admin-home" hidden={tab!=="home"}>
