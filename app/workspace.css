@@ -13413,6 +13413,14 @@ footer .footer-separator {
   .mobile-nav .mobile-add-entry {
     justify-self: center;
   }
+  .mobile-nav .mobile-nav-label {
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.1;
+  }
   .saved-entry-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
@@ -13433,6 +13441,11 @@ footer .footer-separator {
     min-width: 0;
     overflow-wrap: anywhere;
   }
+}
+
+@media screen and (max-width: 380px) {
+  .mobile-nav .mobile-nav-item { font-size: 8px !important; padding-inline: 1px !important; }
+  .mobile-nav .mobile-add-entry { width: 48px !important; height: 48px !important; min-width: 48px !important; }
 }
 /* Keep Hisaab copy separate from its actions, including small tablets. */
 @media screen and (max-width: 800px) {
