@@ -4539,7 +4539,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <strong>{tab}</strong>
             </div>
             <div className="top-actions">
-              <button
+              {loggedIn && <button
                 type="button"
                 className={
                   tab === "Subscription"
@@ -4551,7 +4551,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               >
                 <Icon name="plan" size={18} />
                 <span>Plan</span>
-              </button>
+              </button>}
               {!loggedIn && (
                 <button
                   type="button"

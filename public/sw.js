@@ -175,8 +175,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Pakki Baat reminder";
   const options = {
     body: data.body || "You have a reminder.",
-    icon: "/icon.svg",
-    badge: "/icon.svg",
+    icon: "/pwa-icon-192.png",
+    badge: "/pwa-icon-192.png",
     tag: data.notificationTag || (data.reminderId ? "pakki-baat-reminder-" + data.reminderId : "pakki-baat-reminder"),
     requireInteraction: data.notificationTag ? false : true,
     renotify: data.notificationTag ? false : true,

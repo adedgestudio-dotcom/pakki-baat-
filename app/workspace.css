@@ -13490,6 +13490,16 @@ footer .footer-separator {
   }
 }
 /* Small mobile spacing adjustment; logo, navigation and event handlers are unchanged. */
+@media screen and (max-width: 399px) {
+  .topbar { padding-inline: 10px; }
+  .topbar:before { font-size: 18px; }
+  .top-actions { gap: 4px !important; }
+  .tip-panel .outline { position: static; margin: 14px 0; max-width: 100%; }
+  .tip-panel p { max-width: 100%; }
+  .hero-copy { padding: 17px 16px 16px !important; display: flex; flex-direction: column; align-items: flex-start; }
+  .hero .hero-cta { max-width: 100%; white-space: normal; }
+  .hero-art { display: none !important; }
+}
 @media screen and (max-width: 800px) {
   .top-actions {
     gap: 7px;
