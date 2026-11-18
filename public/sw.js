@@ -1,4 +1,4 @@
-const VERSION = "pakki-baat-launch-20261118-1";
+const VERSION = "pakki-baat-launch-20261118-2";
 const SHELL_CACHE = VERSION + "-shell";
 const RUNTIME_CACHE = VERSION + "-runtime";
 const CORE = ["/manifest.json", "/icon.svg", "/apple-icon.svg"];
