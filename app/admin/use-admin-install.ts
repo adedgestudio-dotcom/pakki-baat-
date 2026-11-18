@@ -9,6 +9,12 @@ type InstallPrompt = Event & {
 
 type AdminInstallWindow = Window & { __pbAdminInstallPrompt?: InstallPrompt | null };
 
+export function adminInstallInstructions(isIosSafari: boolean) {
+  return isIosSafari
+    ? "In Safari, tap Share, then Add to Home Screen, then Add."
+    : "Open the Chrome menu (⋮), then tap Install app or Add to Home screen.";
+}
+
 export function useAdminInstall() {
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [standalone, setStandalone] = useState(true);
@@ -75,5 +81,5 @@ export function useAdminInstall() {
     }
   }
 
-  return { showInstallFallback: !prompt && !standalone && !isIosSafari, canInstall: !!prompt && !standalone && !isIosSafari, isIosSafari: isIosSafari && !standalone, install, installing };
+  return { standalone, canInstall: !!prompt && !standalone && !isIosSafari, isIosSafari: isIosSafari && !standalone, install, installing };
 }

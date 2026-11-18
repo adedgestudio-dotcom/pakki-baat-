@@ -115,11 +115,14 @@ test("admin install controls require browser support and hide in standalone mode
   assert.match(install, /removeEventListener\("beforeinstallprompt", capturePrompt\)/);
   assert.match(install, /canInstall: !!prompt && !standalone && !isIosSafari/);
   assert.match(install, /isIosSafari: isIosSafari && !standalone/);
-  assert.match(install, /showInstallFallback: !prompt && !standalone && !isIosSafari/);
+  assert.match(install, /return \{ standalone, canInstall:/);
   assert.match(install, /window.matchMedia\("\(display-mode: standalone\)"\)/);
-  assert.match(source, /canInstall&&<button[^>]*onClick=\{\(\)=>void install\(\)\}/);
-  assert.match(source, /isIosSafari&&<p>Tap Share, then Add to Home Screen<\/p>/);
-  assert.ok(source.includes("{showInstallFallback&&<p>To install: browser menu, then Install app (Chrome) or Add to Home Screen.</p>}"));
+  assert.match(source, /!standalone&&<button[^>]*aria-label="Install app"[^>]*onClick=\{\(\)=>\{if\(canInstall\)void install\(\);else setInstallHelpOpen\(true\)\}\}/);
+  assert.match(source, /adminInstallInstructions\(isIosSafari\)/);
+  assert.ok(!source.includes('To install: browser menu'));
+  const { adminInstallInstructions } = loadTs('../app/admin/use-admin-install.ts', { react: {} });
+  assert.match(adminInstallInstructions(false), /Chrome menu \(⋮\).*Install app.*Add to Home screen/);
+  assert.match(adminInstallInstructions(true), /Safari.*Share.*Add to Home Screen/);
 });
 
 test("four admin tabs fit in the phone navigation", () => {
@@ -189,17 +192,18 @@ test("admin install capture retains an early event and the hook consumes it once
   const cleanup = effects[0]();
   mounted = true;
   assert.equal(render().canInstall, true);
-  assert.equal(render().showInstallFallback, false);
+  assert.equal(render().standalone, false);
   await render().install();
   assert.equal(prompted, 1);
   assert.equal(window.__pbAdminInstallPrompt, null);
-  assert.equal(render().showInstallFallback, true);
+  assert.equal(render().canInstall, false);
+  assert.equal(render().standalone, false);
   window.dispatchEvent(early);
   assert.equal(render().canInstall, true);
   window.dispatchEvent({ type: "appinstalled" });
   assert.equal(window.__pbAdminInstallPrompt, null);
   assert.equal(render().canInstall, false);
-  assert.equal(render().showInstallFallback, false);
+  assert.equal(render().standalone, true);
   cleanup();
   assert.equal(listeners.get("pb-admin-install-ready").size, 0);
   location.pathname = "/";
