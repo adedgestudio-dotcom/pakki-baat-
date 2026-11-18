@@ -12977,6 +12977,9 @@ footer .footer-separator {
   font: inherit;
 }
 .backup-clock-field { position: relative; min-width: 0; }
+.workspace-time-field { display: grid; align-content: start; gap: 7px; font-size: 12px; font-weight: 700; }
+.workspace-time-optional { font-weight: 500; color: #87928b; }
+.reminder-block > .backup-clock-field { margin-top: 8px; }
 .backup-clock-trigger { display: flex; align-items: center; justify-content: space-between; text-align: left; cursor: pointer; }
 .backup-clock-trigger span { display: grid; place-items: center; flex: 0 0 18px; width: 18px; height: 18px; font-size: 18px; line-height: 1; }
 .backup-clock-popover { box-sizing: border-box; position: static; width: 100%; min-width: 0; margin-top: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 16px 40px #0003; }

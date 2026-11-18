@@ -6,7 +6,7 @@ import "./workspace.css";
 import "./new-customer-picker.css";
 import "./connections.css";
 import { findExistingCustomer, rankCustomerMatches } from "@/lib/customer-name";
-import CloudSettings from "./cloud-settings";
+import CloudSettings, { ClockPicker } from "./cloud-settings";
 import SelectMenu from "./select-menu";
 import BackupNudge from "./backup-nudge";
 import { backupNudgeDue, recordBackupNudge, rememberFirstUse } from "@/lib/backup-nudge";
@@ -6172,19 +6172,19 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                         }
                                       />
                                     </label>
-                                    <label>
-                                      Due time <span>optional</span>
-                                      <input
-                                        type="time"
+                                    <div className="workspace-time-field">
+                                      <span>Due time <span className="workspace-time-optional">optional</span></span>
+                                      <ClockPicker
+                                        label="Due time" disabled={false} allowClear
                                         value={pendingJob.time || ""}
-                                        onChange={(e) =>
+                                        onChange={(value) =>
                                           setPendingJob({
                                             ...pendingJob,
-                                            time: e.target.value,
+                                            time: value,
                                           })
                                         }
                                       />
-                                    </label>
+                                    </div>
                                   </div>
                                   <button
                                     type="submit"
@@ -7643,22 +7643,8 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   >
                     <span className="chip-check">✓</span>Evening
                   </button>
-                  <label
-                    className={
-                      !["09:00", "15:00", "19:00"].includes(reminderTime)
-                        ? "date-chip selected reminder-time-chip"
-                        : "date-chip reminder-time-chip"
-                    }
-                  >
-                    <Icon name="clock" size={16} />
-                    <input
-                      aria-label="Pick reminder time"
-                      type="time"
-                      value={reminderTime}
-                      onChange={(e) => setReminderTime(e.target.value)}
-                    />
-                  </label>
                 </div>
+                <ClockPicker label="Reminder time" disabled={false} value={reminderTime} onChange={setReminderTime} />
               </div>
               <div className="reminder-block">
                 <strong>Repeat?</strong>
@@ -9048,16 +9034,16 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                       }
                     />
                   </label>
-                  <label>
-                    Due time
-                    <input
-                      type="time"
+                  <div className="workspace-time-field">
+                    <span>Due time</span>
+                    <ClockPicker
+                      label="Due time" disabled={false} allowClear
                       value={draft.time || ""}
-                      onChange={(e) =>
-                        setDraft({ ...draft, time: e.target.value })
+                      onChange={(value) =>
+                        setDraft({ ...draft, time: value })
                       }
                     />
-                  </label>
+                  </div>
                   <label className="full">
                     Customer confirmation
                     <SelectMenu aria-label="Customer confirmation" value={draft.status} onChange={value => setDraft({ ...draft, status: value })} options={[{ value: "Waiting", label: "Pending" }, { value: "Confirmed", label: "In progress" }, { value: "Completed", label: "Done" }]} />
