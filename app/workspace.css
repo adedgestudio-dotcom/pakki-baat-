@@ -6279,6 +6279,25 @@ select:focus-visible {
   justify-content: center;
   gap: 7px;
 }
+.reminder-permission-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #cbded7);
+  border-radius: 12px;
+  background: var(--surface, #f1f8f5);
+  font-size: 14px;
+}
+.reminder-permission-banner span { flex: 1; }
+.reminder-permission-dismiss {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  cursor: pointer;
+}
 .reminder-page-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

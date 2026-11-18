@@ -396,7 +396,8 @@ export default function Workspace() {
     [reminderVibrationEnabled, setReminderVibrationEnabled] = useState(true),
     [notificationPermission, setNotificationPermission] = useState<
       NotificationPermission | "unsupported"
-    >("default"),
+    >("unsupported"),
+    [permissionPromptDismissed, setPermissionPromptDismissed] = useState(true),
     [ringingReminder, setRingingReminder] = useState<Reminder | null>(null),
     [dismissedTodayReminderIds, setDismissedTodayReminderIds] = useState<
       string[]
@@ -775,7 +776,25 @@ export default function Workspace() {
     setNotificationPermission(
       "Notification" in window ? Notification.permission : "unsupported"
     );
+    try {
+      setPermissionPromptDismissed(sessionStorage.getItem("reminder-permission-prompt-dismissed") === "1");
+    } catch {
+      setPermissionPromptDismissed(false);
+    }
   }, []);
+  useEffect(() => {
+    if (tab !== "Reminders") return;
+    const refreshPermission = () => setNotificationPermission(
+      "Notification" in window ? Notification.permission : "unsupported"
+    );
+    refreshPermission();
+    window.addEventListener("focus", refreshPermission);
+    document.addEventListener("visibilitychange", refreshPermission);
+    return () => {
+      window.removeEventListener("focus", refreshPermission);
+      document.removeEventListener("visibilitychange", refreshPermission);
+    };
+  }, [tab]);
   useEffect(() => {
     try {
       const key = "pakki-baat-dismissed-today-reminders:" + day();
@@ -2079,7 +2098,7 @@ export default function Workspace() {
         osc.type = "sine";
         osc.frequency.value = index === 3 ? 740 : 880;
         gain.gain.setValueAtTime(0.0001, start + offset);
-        gain.gain.exponentialRampToValueAtTime(0.16, start + offset + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.3, start + offset + 0.025);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.28);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -2103,8 +2122,8 @@ export default function Workspace() {
         const registration = await navigator.serviceWorker.ready;
         await registration.showNotification("Pakki Baat reminder", {
           body,
-          icon: "/icon.svg",
-          badge: "/icon.svg",
+          icon: "/pwa-icon-192.png",
+          badge: "/pwa-icon-192.png",
           tag: "pakki-baat-reminder-" + reminder.id,
           requireInteraction: true,
           data: { reminderId: reminder.id, url: "/" },
@@ -2112,7 +2131,7 @@ export default function Workspace() {
       } else {
         new Notification("Pakki Baat reminder", {
           body,
-          icon: "/icon.svg",
+          icon: "/pwa-icon-192.png",
           tag: "pakki-baat-reminder-" + reminder.id,
         });
       }
@@ -2135,6 +2154,18 @@ export default function Workspace() {
       navigator.vibrate([350, 180, 350, 180, 650]);
     }
     void showSystemReminder(reminder);
+  }
+  function dismissPermissionPrompt() {
+    setPermissionPromptDismissed(true);
+    try { sessionStorage.setItem("reminder-permission-prompt-dismissed", "1"); } catch {}
+  }
+  async function requestReminderPermission() {
+    dismissPermissionPrompt();
+    try {
+      setNotificationPermission(await Notification.requestPermission());
+    } catch {
+      setNotificationPermission(Notification.permission);
+    }
   }
   async function testReminderAlert() {
     if (pushDiagnosticBusy) return;
@@ -5431,6 +5462,18 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <span>Add reminder</span>
                   </button>
                 </div>
+                {notificationPermission === "default" && !permissionPromptDismissed && (
+                  <div className="reminder-permission-banner" role="status">
+                    <span>Turn on notifications to get reminder alerts</span>
+                    <button type="button" className="primary mini" onClick={() => void requestReminderPermission()}>Allow</button>
+                    <button type="button" className="reminder-permission-dismiss" aria-label="Dismiss notification prompt" onClick={dismissPermissionPrompt}>×</button>
+                  </div>
+                )}
+                {notificationPermission === "denied" && (
+                  <div className="reminder-permission-banner" role="status">
+                    Notifications are blocked. Enable them in your browser/app settings to get reminder alerts.
+                  </div>
+                )}
                 {signedOutCard(
                   "Sign in so reminders reach you",
                   "Once you sign in, reminders can alert you even when Pakki Baat is closed."
