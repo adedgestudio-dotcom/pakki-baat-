@@ -43,14 +43,22 @@ export default function AdminAlerts() {
   const [enabledHere, setEnabledHere] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch("/api/admin/alerts", { cache: "no-store" });
-        if (!response.ok) throw new Error("Could not load alert settings.");
-        const data = await response.json();
+        const data = await withTimeout((async () => {
+          const response = await fetch("/api/admin/alerts", { cache: "no-store", signal: controller.signal });
+          if (response.status === 401) throw new Error("Admin session expired. Sign in again to load alert settings.");
+          if (!response.ok) throw new Error("Could not load alert settings. Please try again.");
+          const result = await response.json();
+          if (!result?.settings || !kinds.every(kind => typeof result.settings[kind] === "boolean") || typeof result.publicKey !== "string")
+            throw new Error("Alert settings were invalid. Please try again.");
+          return result;
+        })(), "Loading alert settings took too long. Please try again.");
         if (cancelled) return;
         setSettings(data.settings);
         setPublicKey(data.publicKey);
@@ -59,10 +67,11 @@ export default function AdminAlerts() {
           if (!cancelled && registration?.active?.scriptURL.endsWith("/admin-sw.js"))
             setEnabledHere(Boolean(await registration.pushManager.getSubscription()));
         }
-      } catch (error) { if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load alerts."); }
+      } catch (error) { if (!cancelled) setMessage(error instanceof TypeError ? "Could not connect to load alert settings. Please try again." : error instanceof Error ? error.message : "Could not load alert settings. Please try again."); }
+      finally { controller.abort(); }
     })();
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelled = true; controller.abort(); };
+  }, [loadAttempt]);
 
   async function toggle(kind: Kind) {
     if (!settings || busy) return;
@@ -121,5 +130,6 @@ export default function AdminAlerts() {
     <div className="admin-alerts-device"><strong>This device</strong><button type="button" disabled={busy || !settings} onClick={() => void (enabledHere ? disable() : enable())}>{enabledHere ? "Disable push" : "Enable push"}</button></div>
     <div className="admin-alerts-list">{kinds.map(kind => <label key={kind}><span>{labels[kind]}</span><input type="checkbox" checked={settings?.[kind] ?? true} disabled={!settings || busy} onChange={() => void toggle(kind)} /></label>)}</div>
     {message && <p role="status" className="admin-help">{message}</p>}
+    {!settings && message && <button type="button" onClick={() => { setMessage(""); setLoadAttempt(value => value + 1); }}>Retry loading alert settings</button>}
   </section>;
 }
