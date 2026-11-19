@@ -19,7 +19,6 @@ import ChatCustomer, { ChatHistory } from "./chat-hisaab";
 import ChatSheet from "./chat-sheet";
 import ChatEntryFields from "./chat-entry-fields";
 import HisaabPayments from "./hisaab-payments";
-import HisaabEntryPhoto from "./hisaab-entry-photo";
 import SignedOutState from "./signed-out-state";
 import { createPendingDeleteController, withoutPendingDelete, type PendingDelete } from "@/lib/pending-delete";
 import { formatMoneyRupees } from "@/lib/money";
@@ -58,7 +57,6 @@ import {
   reconcileLedgerHydration,
   readLedgerDirty,
   isRetryableCloudError,
-  loadCloud,
   loadBackupSettings,
   loadWorkspaceBackups,
   saveCloud,
@@ -114,16 +112,6 @@ type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
-function isRealDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, date] = value.split("-").map(Number);
-  const check = new Date(Date.UTC(year, month - 1, date));
-  return (
-    check.getUTCFullYear() === year &&
-    check.getUTCMonth() + 1 === month &&
-    check.getUTCDate() === date
-  );
-}
 function isChatState(value: unknown): value is ChatState {
   if (!value || typeof value !== "object") return false;
   const state = value as ChatState;
@@ -292,7 +280,7 @@ export default function Workspace() {
     [editError, setEditError] = useState(""),
     [pendingJob, setPendingJob] = useState<Job | null>(null),
     [pendingReminderText, setPendingReminderText] = useState(""),
-    [chatStep, setChatStep] = useState<ChatStep>("customer"),
+    [, setChatStep] = useState<ChatStep>("customer"),
     [chatTurns, setChatTurns] = useState<ChatTurn[]>([]),
     // The card that "Started a new entry for X" replaced, so Undo can bring it back.
     [replacedEntry, setReplacedEntry] = useState<{
@@ -305,7 +293,7 @@ export default function Workspace() {
     [voiceUrls, setVoiceUrls] = useState<Record<string, string>>({}),
     [voiceBusy, setVoiceBusy] = useState(false),
     [query, setQuery] = useState(""),
-    [filter, setFilter] = useState("All"),
+    [, setFilter] = useState("All"),
     [toast, setToast] = useState(""),
     [sessionMessage, setSessionMessage] = useState(""),
     [otherDeviceUpdated, setOtherDeviceUpdated] = useState(false),
@@ -332,7 +320,7 @@ export default function Workspace() {
       useState(0),
     [voiceSecondsUsed, setVoiceSecondsUsed] = useState(0),
     [serverNowMs, setServerNowMs] = useState<number | null>(null),
-    [trustedClockTick, setTrustedClockTick] = useState(0),
+    [, setTrustedClockTick] = useState(0),
     [trialOfferOpen, setTrialOfferOpen] = useState(false),
     [trialStarting, setTrialStarting] = useState(false),
     [trialExpiryPromptOpen, setTrialExpiryPromptOpen] = useState(false),
@@ -508,7 +496,16 @@ export default function Workspace() {
   useEffect(() => {
     pendingJobRef.current = pendingJob;
   }, [pendingJob]);
-  useEffect(() => { if (draft) { setEditError(""); savedDraftRef.current = null; } }, [Boolean(draft), draft?.id]);
+  const draftOpen = Boolean(draft);
+  const draftId = draft?.id;
+  // Reset the editor only when a different draft is opened, not on every edit.
+  useEffect(() => {
+    if (draftOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset transient validation when the editor opens.
+      setEditError("");
+      savedDraftRef.current = null;
+    }
+  }, [draftOpen, draftId]);
   useEffect(() => {
     chatTurnsRef.current = chatTurns;
   }, [chatTurns]);
@@ -534,6 +531,7 @@ export default function Workspace() {
       rememberedInstalled = localStorage.getItem(installedKey) === "1";
       if (standalone) localStorage.setItem(installedKey, "1");
     } catch {}
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore installation state from browser storage after hydration.
     setAppInstalled(standalone || rememberedInstalled);
     const onInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -600,6 +598,7 @@ export default function Workspace() {
   const displayName = owner?.trim() || userName || "there";
   useEffect(() => {
     if (tab !== "Settings") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Refresh the settings draft when its source or tab changes.
     setProfileOwnerDraft(owner);
     setProfileBusinessDraft(business);
   }, [tab, owner, business]);
@@ -775,6 +774,7 @@ export default function Workspace() {
   }, []);
   useEffect(() => {
     try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore reminder preferences from browser storage after hydration.
       setReminderAlertsEnabled(
         localStorage.getItem("pakki-baat-reminder-alerts") === "on"
       );
@@ -818,6 +818,7 @@ export default function Workspace() {
     try {
       const key = "pakki-baat-dismissed-today-reminders:" + day();
       const saved = JSON.parse(localStorage.getItem(key) || "[]");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Load today's dismissals from browser storage.
       setDismissedTodayReminderIds(
         Array.isArray(saved)
           ? saved.filter((id): id is string => typeof id === "string")
@@ -1155,6 +1156,7 @@ export default function Workspace() {
       window.removeEventListener("pakki-session-replaced", sessionReplaced);
       window.removeEventListener("online", retryWorkspaceOnOnline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Keep the session subscription stable across renders.
   }, []);
   useEffect(() => {
     if (!ready) return;
@@ -1211,6 +1213,7 @@ export default function Workspace() {
     if (!loggedIn || !activeUserIdRef.current || !cloudHydratedRef.current)
       return;
     if (!isOnline) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Surface offline status when the sync effect observes a disconnect.
       setSyncPending(true);
       setCloudSaveStatus({ state: "offline", ownerId: storageUserId, generation: effectGeneration });
       return;
@@ -1334,6 +1337,7 @@ export default function Workspace() {
       window.clearTimeout(timer);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Sync is keyed to snapshot and connectivity changes, not its own status updates.
   }, [
     savedJobs,
     owner,
@@ -1487,6 +1491,7 @@ export default function Workspace() {
               ? "legacy"
               : null;
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset the nudge when the active account changes.
     setBackupNudgeOpen(false);
     if (accountId) {
       try { rememberFirstUse(localStorage, accountId); } catch {}
@@ -1498,6 +1503,7 @@ export default function Workspace() {
         trialOfferOpen || trialActivatedOpen || trialExpiryPromptOpen || guideOpen ||
         receiptJob || paymentJob || editingPayment || reminderJob || directReminderOpen ||
         installHelpOpen || installWelcomeOpen || ringingReminder || newCustomerOpen ||
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Close the nudge when the workspace becomes unsuitable.
         customerContactsOpen)) setBackupNudgeOpen(false);
   }, [backupNudgeOpen, isOnline, tab, selectedCustomer, customerChatOpen, pendingJob,
       draft, message, trialOfferOpen, trialActivatedOpen, trialExpiryPromptOpen,
@@ -1655,6 +1661,7 @@ export default function Workspace() {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Polling follows account and editing state, not the render-local restore function.
   }, [loggedIn, ready, accountId, loadedAccountId, isOnline, draft, customerChatOpen, message, pendingDelete]);
 
   useEffect(() => {
@@ -1668,6 +1675,7 @@ export default function Workspace() {
       if (localStorage.getItem(key)) return;
       localStorage.setItem(key, "shown");
     } catch {}
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Show the once-per-period prompt after checking browser storage.
     setTrialExpiryPromptOpen(true);
   }, [trialEndingSoon, subscriptionPeriodEnd]);
 
@@ -1681,16 +1689,6 @@ export default function Workspace() {
       .filter((r) => r.done)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     remindersToday = activeReminders.filter((r) => r.date <= day()).length;
-  const visible = jobs.filter(
-    (j) =>
-      `${j.customer} ${j.work}`.toLowerCase().includes(query.toLowerCase()) &&
-      (filter === "All" ||
-        (filter === "Payment due"
-          ? j.total > j.paid
-          : filter === "Due now"
-          ? j.status !== "Completed" && Boolean(j.date) && j.date <= day()
-          : j.status === filter))
-  );
   function openMainTab(t: Tab) {
     if (t === "Hisaab") {
       // Main Hisaab navigation always means the customer list. An unfinished
@@ -1803,6 +1801,7 @@ export default function Workspace() {
       // Fall back to Today if browser storage is unavailable or malformed.
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore navigation from browser storage after hydration.
     setTab(restoredTab);
     setSelectedCustomer(restoredCustomer);
     setCustomerChatOpen(restoredCustomerChatOpen);
@@ -2470,7 +2469,7 @@ export default function Workspace() {
     }
   }
 
-  async function retryVoice(id: string) {
+  async function retryVoice() {
     if (voiceBusy) return;
     setToast(
       "Retrying a sent voice note would charge its duration again. Please record a fresh voice note instead."
@@ -2948,6 +2947,7 @@ export default function Workspace() {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Keep the legacy entry helper and its validation contract.
   function savePendingEntry(item: Job) {
     if (item) { try { validateEntryMoney(item); } catch (error) { setToast(error instanceof Error ? error.message : "Invalid amount."); return; } }
     if (!selectedCustomer || !requireActiveSubscriptionForSaving()) return;
@@ -3757,32 +3757,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       setToast(error instanceof Error ? error.message : "Payment correction was not recorded.");
     }
   }
-  function deletePayment(payment: Payment) {
-    if (!requireActiveSubscriptionForSaving()) return;
-    if (
-      !confirm(`Delete ${money(payment.amount)} payment from ${payment.date}?`)
-    ) {
-      return;
-    }
-
-    // Find related job and update its paid amount
-    if (payment.jobId) {
-      const relatedJob = jobs.find((j) => j.id === payment.jobId);
-      if (relatedJob) {
-        setJobs((items) =>
-          items.map((j) =>
-            j.id === payment.jobId
-              ? { ...j, paid: Math.max(0, j.paid - payment.amount) }
-              : j
-          )
-        );
-      }
-    }
-
-    rememberUndo("Payment deleted");
-    setPayments((items) => items.filter((p) => p.id !== payment.id));
-    setToast("Payment deleted ✓");
-  }
   function updateJobStatus(
     job: Job,
     status: "Waiting" | "Confirmed" | "Completed"
@@ -4017,40 +3991,6 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
       cloudHydratedRef.current = false;
       pauseAutosave(false);
       throw error;
-    }
-  }
-  async function importBackup(file: File) {
-    try {
-      if (file.size > 10_000_000) throw new Error("Backup is too large.");
-      const data = JSON.parse(await file.text());
-      if (!isSnapshot(data))
-        throw new Error("This is not a valid Pakki Baat backup.");
-      if (confirm("Replace this device’s workspace with this backup?")) {
-        const ownerId = activeUserIdRef.current;
-        if (ownerId && ledgerModeForAccount(ownerId)) {
-          pauseAutosave(true);
-          clearBackupStatusUi();
-          try {
-            await saveWorkspaceBackup(
-              currentSnapshot(),
-              "pre_restore",
-              ownerId
-            );
-            await saveCloud(normalizedSnapshot(data), ownerId);
-            if ((await currentSession())?.user.id !== ownerId)
-              throw new Error(
-                "ACCOUNT_CHANGED: backup was saved to the original account. Sign in again to load it."
-              );
-            restoreTargetRef.current = normalizedSnapshot(data);
-          } catch (error) {
-            pauseAutosave(false);
-            throw error;
-          }
-        }
-        restore(data, true);
-      }
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : "Could not read this backup.");
     }
   }
   const jobCard = (j: Job) => (
@@ -4400,6 +4340,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Reschedule only when reminder or push state changes.
   }, [
     reminders,
     ready,
@@ -4426,6 +4367,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     checkDueReminders();
     const id = window.setInterval(checkDueReminders, 15000);
     return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Restart the timer only for reminder and alert setting changes.
   }, [
     reminders,
     ready,
@@ -4780,7 +4722,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <Icon name="bell" size={18} />
               </span>
               <div className="today-reminder-banner-copy">
-                <small>TODAY'S REMINDER</small>
+                <small>TODAY&apos;S REMINDER</small>
                 <strong>{todayReminderBanner.customer || "Reminder"}</strong>
                 <span>{todayReminderBanner.text}</span>
                 <em>
@@ -5016,7 +4958,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                   <section className="today-focus">
                     <div className="section-heading">
                       <div>
-                        <span className="eyebrow">TODAY'S FOCUS</span>
+                        <span className="eyebrow">TODAY&apos;S FOCUS</span>
                         <h2>What needs your attention</h2>
                       </div>
                     </div>
@@ -5289,7 +5231,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                                     audioUrl={voiceUrls[turn.voiceId]}
                                     duration={turn.duration || 0}
                                     onTranscribe={() =>
-                                      retryVoice(turn.voiceId!)
+                                      retryVoice()
                                     }
                                     onDownload={() =>
                                       downloadVoiceInChat(turn.voiceId!)
@@ -7016,7 +6958,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                         </span>
                         <div>
                           <h3>Users & plans</h3>
-                          <p>See each user's plan, expiry and voice usage.</p>
+                          <p>See each user&apos;s plan, expiry and voice usage.</p>
                         </div>
                       </div>
                       <div className="admin-quick-actions">
@@ -7147,6 +7089,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                         type="button"
                         className="outline"
                         onClick={() => {
+                          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Admin uses a separate document and service-worker scope.
                           window.location.href = "/admin";
                         }}
                       >
@@ -7841,7 +7784,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
               <span className="trial-activated-icon">
                 <Icon name="check" size={26} />
               </span>
-              <span className="trial-value-kicker">YOU'RE ALL SET</span>
+              <span className="trial-value-kicker">YOU&apos;RE ALL SET</span>
               <h2>Welcome to Pakki Baat!</h2>
               <p>
                 Your <strong>30-day free trial is now active.</strong> You can
@@ -7995,6 +7938,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 app.
               </p>
               <div className="payment-qr-frame">
+                {/* eslint-disable-next-line @next/next/no-img-element -- Keep the payment QR as the original static image. */}
                 <img
                   src="/QR%20zorivo-icic.jpg"
                   alt="Zorivo UPI QR code for Pakki Baat subscription payment"
