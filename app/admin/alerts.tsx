@@ -6,6 +6,17 @@ type Settings = Record<Kind, boolean>;
 const labels: Record<Kind, string> = { payments: "Payment requests", trials: "Free trial claims", signups: "New signups" };
 const kinds: Kind[] = ["payments", "trials", "signups"];
 
+async function withTimeout<T>(operation: Promise<T>, message: string, ms = 20000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    })]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 function vapidBytes(value: string): Uint8Array<ArrayBuffer> {
   const raw = atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "="));
   return Uint8Array.from(raw, char => char.charCodeAt(0));
@@ -16,9 +27,10 @@ async function waitForActive(registration: ServiceWorkerRegistration) {
   const worker = registration.installing || registration.waiting;
   if (!worker) throw new Error("Admin push worker is unavailable.");
   await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { worker.removeEventListener("statechange", changed); reject(new Error("Admin push worker took too long to start. Please try again.")); }, 20000);
     const changed = () => {
-      if (worker.state === "activated") { worker.removeEventListener("statechange", changed); resolve(); }
-      if (worker.state === "redundant") { worker.removeEventListener("statechange", changed); reject(new Error("Admin push worker could not start.")); }
+      if (worker.state === "activated") { clearTimeout(timer); worker.removeEventListener("statechange", changed); resolve(); }
+      if (worker.state === "redundant") { clearTimeout(timer); worker.removeEventListener("statechange", changed); reject(new Error("Admin push worker could not start.")); }
     };
     worker.addEventListener("statechange", changed);
     changed();
@@ -68,15 +80,19 @@ export default function AdminAlerts() {
     if (busy) return;
     setBusy(true); setMessage("");
     try {
-      if (!publicKey || !("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Push is unavailable on this device.");
-      const permission = await Notification.requestPermission();
+      if (!publicKey || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) throw new Error("Push is unavailable on this device.");
+      const permission = await withTimeout(Notification.requestPermission(), "Notification permission took too long. Please try again.", 60000);
       if (permission !== "granted") throw new Error("Allow notifications in your browser settings first.");
-      const registration = await navigator.serviceWorker.register("/admin-sw.js", { scope: "/admin" });
+      const registration = await withTimeout(navigator.serviceWorker.register("/admin-sw.js", { scope: "/admin" }), "Admin push worker took too long to register. Please try again.");
       await waitForActive(registration);
-      const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({
+      const subscription = await withTimeout(registration.pushManager.getSubscription(), "Checking push subscription took too long. Please try again.") || await withTimeout(registration.pushManager.subscribe({
         userVisibleOnly: true, applicationServerKey: vapidBytes(publicKey),
-      });
-      const response = await fetch("/api/admin/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: subscription.toJSON() }) });
+      }), "Enabling push took too long. Please try again.");
+      const controller = new AbortController();
+      let response: Response;
+      try {
+        response = await withTimeout(fetch("/api/admin/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: subscription.toJSON() }), signal: controller.signal }), "Saving this device took too long. Please try again.");
+      } finally { controller.abort(); }
       if (!response.ok) throw new Error("Could not save this device for alerts.");
       setEnabledHere(true); setMessage("Push alerts enabled on this device.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not enable push alerts."); }
