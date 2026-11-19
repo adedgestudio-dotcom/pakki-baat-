@@ -46,6 +46,10 @@ function ClockPicker({ value, disabled, onChange, onOpen, label = "Backup time",
   const [minute, setMinute] = useState<number | null>(null);
   const [period, setPeriod] = useState<"AM" | "PM" | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) popoverRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => { if (!fieldRef.current?.contains(event.target as Node)) setOpen(false); };
@@ -63,13 +67,15 @@ function ClockPicker({ value, disabled, onChange, onOpen, label = "Backup time",
   };
   return <div className="backup-clock-field" ref={fieldRef}>
     <button type="button" className="backup-clock-trigger" disabled={disabled} onClick={openPicker} aria-label={`${label}: ${timeLabel(value)}`} aria-haspopup="dialog" aria-expanded={open}>{timeLabel(value)} <span aria-hidden="true">◷</span></button>
-    {open && <div className="backup-clock-popover" role="dialog" aria-label={`Pick ${label.toLowerCase()}`}>
+    {open && <div className="backup-clock-popover" ref={popoverRef} role="dialog" aria-label={`Pick ${label.toLowerCase()}`} style={{ display: "flex", flexDirection: "column", maxHeight: "min(55dvh, 420px)", scrollMarginBottom: 88 }}>
+      <div style={{ overflowY: "auto", minHeight: 0 }}>
       <div className="backup-clock-heading">{hour ?? "--"}:{minute === null ? "--" : String(minute).padStart(2, "0")} {period ?? ""}</div>
       <strong>Hour</strong><div className="backup-clock-chips">{Array.from({ length: 12 }, (_, i) => i + 1).map(choice => <button key={choice} type="button" aria-pressed={hour === choice} className={hour === choice ? "selected" : ""} onClick={() => setHour(choice)}>{choice}</button>)}</div>
       <strong>Minute</strong><div className="backup-clock-chips">{Array.from({ length: 12 }, (_, i) => i * 5).map(choice => <button key={choice} type="button" aria-pressed={minute === choice} className={minute === choice ? "selected" : ""} onClick={() => setMinute(choice)}>{String(choice).padStart(2, "0")}</button>)}</div>
       <label className="backup-clock-minute">MM <input type="number" inputMode="numeric" min="0" max="59" placeholder="MM" value={minute ?? ""} onChange={event => setMinute(event.target.value === "" ? null : clampClockMinute(Number(event.target.value)))} /></label>
       <div className="backup-clock-period"><button type="button" aria-pressed={period === "AM"} className={period === "AM" ? "selected" : ""} onClick={() => setPeriod("AM")}>AM</button><button type="button" aria-pressed={period === "PM"} className={period === "PM" ? "selected" : ""} onClick={() => setPeriod("PM")}>PM</button></div>
-      <div className="backup-clock-actions" onPointerDown={event => event.stopPropagation()}>{allowClear && value && <button type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>}<button type="button" onClick={() => setOpen(false)}>Cancel</button><button type="button" disabled={hour === null || minute === null || period === null} onClick={() => { if (hour !== null && minute !== null && period !== null) onChange(clockTime24(hour, minute, period)); setOpen(false); }}>OK</button></div>
+      </div>
+      <div className="backup-clock-actions" style={{ flexShrink: 0 }} onPointerDown={event => event.stopPropagation()}>{allowClear && value && <button type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>}<button type="button" onClick={() => setOpen(false)}>Cancel</button><button type="button" style={{ background: "var(--accent, #2d7667)", color: "#fff", minWidth: 64 }} disabled={hour === null || minute === null || period === null} onClick={() => { if (hour !== null && minute !== null && period !== null) onChange(clockTime24(hour, minute, period)); setOpen(false); }}>OK</button></div>
     </div>}
   </div>;
 }
