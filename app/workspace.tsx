@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { paymentPaise, paymentRupees, validateEntryMoney, planQuickPayment, planPaymentCorrection, type FinancialState } from "@/lib/payment-safety";
 import { version as appVersion } from "@/package.json";
 import "./workspace.css";
@@ -472,6 +472,24 @@ export default function Workspace() {
   const savedDraftRef = useRef<Job | null>(null);
   const submittedPaymentJobRef = useRef<Job | null>(null);
   const firedReminderKeysRef = useRef(new Set<string>());
+  const reminderAudioRef = useRef<{ context: AudioContext; output: GainNode; timer: number } | null>(null);
+  const stopReminderAlarm = useCallback(() => {
+    const alarm = reminderAudioRef.current;
+    if (!alarm) return;
+    reminderAudioRef.current = null;
+    window.clearTimeout(alarm.timer);
+    if (alarm.context.state === "running") {
+      const now = alarm.context.currentTime;
+      alarm.output.gain.cancelScheduledValues(now);
+      alarm.output.gain.setValueAtTime(alarm.output.gain.value, now);
+      alarm.output.gain.linearRampToValueAtTime(0, now + 0.02);
+      window.setTimeout(() => void alarm.context.close().catch(() => {}), 30);
+    } else {
+      void alarm.context.close().catch(() => {});
+    }
+  }, []);
+  useEffect(() => { if (!ringingReminder) stopReminderAlarm(); }, [ringingReminder, stopReminderAlarm]);
+  useEffect(() => () => stopReminderAlarm(), [stopReminderAlarm]);
   const navigationRestoredRef = useRef(false);
   const chatHistoryHydratedForUserRef = useRef<string | null>(null);
   const pendingJobRef = useRef<Job | null>(null);
@@ -2068,6 +2086,7 @@ export default function Workspace() {
     setToast("Reminder alerts turned off.");
   }
   function setReminderSound(next: boolean) {
+    if (!next) stopReminderAlarm();
     setReminderSoundEnabled(next);
     persistReminderAlertSettings(
       reminderAlertsEnabled,
@@ -2085,6 +2104,7 @@ export default function Workspace() {
   }
   function playReminderAlarm() {
     if (!reminderSoundEnabled) return;
+    stopReminderAlarm();
     try {
       const AudioCtx =
         window.AudioContext ||
@@ -2092,21 +2112,28 @@ export default function Workspace() {
           .webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
+      const output = ctx.createGain();
+      output.connect(ctx.destination);
       const start = ctx.currentTime + 0.02;
-      [0, 0.42, 0.84, 1.35].forEach((offset, index) => {
+      for (let repeat = 0; repeat < 3; repeat++) [0, 0.42, 0.84, 1.35].forEach((offset, index) => {
+        const at = start + repeat * 2.05 + offset;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
         osc.frequency.value = index === 3 ? 740 : 880;
-        gain.gain.setValueAtTime(0.0001, start + offset);
-        gain.gain.exponentialRampToValueAtTime(0.3, start + offset + 0.025);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.28);
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.55, at + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
         osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(start + offset);
-        osc.stop(start + offset + 0.3);
+        gain.connect(output);
+        osc.start(at);
+        osc.stop(at + 0.3);
       });
-      window.setTimeout(() => void ctx.close(), 2200);
+      const timer = window.setTimeout(() => {
+        if (reminderAudioRef.current?.context === ctx) reminderAudioRef.current = null;
+        void ctx.close().catch(() => {});
+      }, 6000);
+      reminderAudioRef.current = { context: ctx, output, timer };
     } catch {}
   }
   async function showSystemReminder(reminder: Reminder) {
@@ -7484,16 +7511,17 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                     <button
                       type="button"
                       className="reminder-whatsapp-action"
-                      onClick={() =>
-                        followUpReminderOnWhatsApp(ringingReminder)
-                      }
+                      onClick={() => {
+                        stopReminderAlarm();
+                        followUpReminderOnWhatsApp(ringingReminder);
+                      }}
                     >
                       <Icon name="chat" size={17} /> WhatsApp
                     </button>
                     <button
                       type="button"
                       className="reminder-call-action"
-                      onClick={() => callReminderCustomer(ringingReminder)}
+                      onClick={() => { stopReminderAlarm(); callReminderCustomer(ringingReminder); }}
                     >
                       ☎ Call
                     </button>
