@@ -12,7 +12,6 @@ export function GET() {
       { src: "/admin-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/admin-icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/admin-icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-      { src: "/admin-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
     ],
   }, { headers: { "Content-Type": "application/manifest+json" } });
 }
