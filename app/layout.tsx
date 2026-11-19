@@ -28,6 +28,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
+        <script id="admin-install-capture" dangerouslySetInnerHTML={{ __html: `
+      (function () {
+        if (window.__pbAdminInstallCapture) return;
+        window.__pbAdminInstallCapture = true;
+        window.addEventListener("beforeinstallprompt", function (event) {
+          if (location.pathname !== "/admin" && !location.pathname.startsWith("/admin/")) return;
+          event.preventDefault();
+          window.__pbAdminInstallPrompt = event;
+          window.dispatchEvent(new Event("pb-admin-install-ready"));
+        });
+        window.addEventListener("appinstalled", function () {
+          window.__pbAdminInstallPrompt = null;
+        });
+      })();
+    ` }} />
         <script
           dangerouslySetInnerHTML={{
             __html:
