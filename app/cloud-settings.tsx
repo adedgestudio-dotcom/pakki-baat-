@@ -40,7 +40,7 @@ export function clampClockMinute(value: number): number { return Math.max(0, Mat
 export function clockTime24(hour: number, minute: number, period: "AM" | "PM"): string {
   return `${String(hour % 12 + (period === "PM" ? 12 : 0)).padStart(2, "0")}:${String(clampClockMinute(minute)).padStart(2, "0")}`;
 }
-function ClockPicker({ value, disabled, onChange, label = "Backup time", allowClear = false }: { value: string | null; disabled: boolean; onChange: (value: string) => void; label?: string; allowClear?: boolean }) {
+function ClockPicker({ value, disabled, onChange, onOpen, label = "Backup time", allowClear = false }: { value: string | null; disabled: boolean; onChange: (value: string) => void; onOpen?: () => void; label?: string; allowClear?: boolean }) {
   const [open, setOpen] = useState(false);
   const [hour, setHour] = useState<number | null>(null);
   const [minute, setMinute] = useState<number | null>(null);
@@ -54,6 +54,7 @@ function ClockPicker({ value, disabled, onChange, label = "Backup time", allowCl
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
   }, [open]);
   const openPicker = () => {
+    onOpen?.();
     const [h, m] = value ? value.split(":").map(Number) : [NaN, NaN];
     setHour(Number.isFinite(h) ? h % 12 || 12 : null);
     setMinute(Number.isFinite(m) ? clampClockMinute(m) : null);
@@ -68,7 +69,7 @@ function ClockPicker({ value, disabled, onChange, label = "Backup time", allowCl
       <strong>Minute</strong><div className="backup-clock-chips">{Array.from({ length: 12 }, (_, i) => i * 5).map(choice => <button key={choice} type="button" aria-pressed={minute === choice} className={minute === choice ? "selected" : ""} onClick={() => setMinute(choice)}>{String(choice).padStart(2, "0")}</button>)}</div>
       <label className="backup-clock-minute">MM <input type="number" inputMode="numeric" min="0" max="59" placeholder="MM" value={minute ?? ""} onChange={event => setMinute(event.target.value === "" ? null : clampClockMinute(Number(event.target.value)))} /></label>
       <div className="backup-clock-period"><button type="button" aria-pressed={period === "AM"} className={period === "AM" ? "selected" : ""} onClick={() => setPeriod("AM")}>AM</button><button type="button" aria-pressed={period === "PM"} className={period === "PM" ? "selected" : ""} onClick={() => setPeriod("PM")}>PM</button></div>
-      <div className="backup-clock-actions">{allowClear && value && <button type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>}<button type="button" onClick={() => setOpen(false)}>Cancel</button><button type="button" disabled={hour === null || minute === null || period === null} onClick={() => { if (hour !== null && minute !== null && period !== null) onChange(clockTime24(hour, minute, period)); setOpen(false); }}>OK</button></div>
+      <div className="backup-clock-actions" onPointerDown={event => event.stopPropagation()}>{allowClear && value && <button type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>}<button type="button" onClick={() => setOpen(false)}>Cancel</button><button type="button" disabled={hour === null || minute === null || period === null} onClick={() => { if (hour !== null && minute !== null && period !== null) onChange(clockTime24(hour, minute, period)); setOpen(false); }}>OK</button></div>
     </div>}
   </div>;
 }

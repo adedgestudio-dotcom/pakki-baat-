@@ -387,6 +387,7 @@ export default function Workspace() {
     [reminderJob, setReminderJob] = useState<Job | null>(null),
     [reminderDate, setReminderDate] = useState(""),
     [reminderTime, setReminderTime] = useState("09:00"),
+    [reminderTimeConfirmed, setReminderTimeConfirmed] = useState(false),
     [reminderRepeat, setReminderRepeat] = useState<
       "none" | "daily" | "weekly" | "monthly"
     >("none"),
@@ -2269,6 +2270,7 @@ export default function Workspace() {
     setReminderText("");
     setReminderDate(day());
     setReminderTime("09:00");
+    setReminderTimeConfirmed(false);
     setReminderRepeat("none");
   }
   function closeReminderEditor() {
@@ -4136,6 +4138,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     setReminderJob(job);
     setReminderDate(job.date || iso);
     setReminderTime(job.time || "09:00");
+    setReminderTimeConfirmed(Boolean(job.time));
     setReminderRepeat("none");
     const baki = Math.max(0, job.total - job.paid);
     setReminderText(
@@ -4152,6 +4155,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
     if (
       (!reminderJob && !directReminderOpen) ||
       !reminderDate ||
+      !reminderTimeConfirmed ||
       !reminderText.trim()
     )
       return;
@@ -7624,27 +7628,28 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <div className="reminder-chips">
                   <button
                     type="button"
-                    className={reminderTime === "09:00" ? "selected" : ""}
-                    onClick={() => setReminderTime("09:00")}
+                    className={reminderTimeConfirmed && reminderTime === "09:00" ? "selected" : ""}
+                    onClick={() => { setReminderTime("09:00"); setReminderTimeConfirmed(true); }}
                   >
                     <span className="chip-check">✓</span>Morning
                   </button>
                   <button
                     type="button"
-                    className={reminderTime === "15:00" ? "selected" : ""}
-                    onClick={() => setReminderTime("15:00")}
+                    className={reminderTimeConfirmed && reminderTime === "15:00" ? "selected" : ""}
+                    onClick={() => { setReminderTime("15:00"); setReminderTimeConfirmed(true); }}
                   >
                     <span className="chip-check">✓</span>Afternoon
                   </button>
                   <button
                     type="button"
-                    className={reminderTime === "19:00" ? "selected" : ""}
-                    onClick={() => setReminderTime("19:00")}
+                    className={reminderTimeConfirmed && reminderTime === "19:00" ? "selected" : ""}
+                    onClick={() => { setReminderTime("19:00"); setReminderTimeConfirmed(true); }}
                   >
                     <span className="chip-check">✓</span>Evening
                   </button>
                 </div>
-                <ClockPicker label="Reminder time" disabled={false} value={reminderTime} onChange={setReminderTime} />
+                <ClockPicker label="Reminder time" disabled={false} value={reminderTime} onOpen={() => setReminderTimeConfirmed(false)} onChange={value => { setReminderTime(value); setReminderTimeConfirmed(true); }} />
+                {!reminderTimeConfirmed && <p>Please choose a time or confirm it with OK.</p>}
               </div>
               <div className="reminder-block">
                 <strong>Repeat?</strong>
@@ -7676,7 +7681,7 @@ h2{font:22px Georgia,serif;margin:0 0 18px}.row{display:flex;justify-content:spa
                 <button
                   type="button"
                   className="primary"
-                  disabled={!reminderDate || !reminderText.trim()}
+                  disabled={!reminderDate || !reminderText.trim() || !reminderTimeConfirmed}
                   onClick={() => void saveReminder()}
                 >
                   Save reminder
