@@ -1,3 +1,4 @@
+import webpush from "web-push";
 import type { NextRequest } from "next/server";
 import { isAdmin } from "@/lib/admin-auth";
 
@@ -40,6 +41,22 @@ export async function PUT(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!isAdmin(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json().catch(() => null);
+  if (body?.test === true) {
+    if (typeof body.endpoint !== "string" || body.endpoint.length > 2048 || !body.endpoint.startsWith("https://"))
+      return Response.json({ error: "Invalid push endpoint" }, { status: 400 });
+    try {
+      const rows = await db("admin_push_subscriptions?select=subscription&endpoint=eq." + encodeURIComponent(body.endpoint));
+      if (!rows?.[0]?.subscription) return Response.json({ error: "This device is not saved for alerts. Enable push again." }, { status: 404 });
+      const publicKey = process.env.VAPID_PUBLIC_KEY || "", privateKey = process.env.VAPID_PRIVATE_KEY || "";
+      if (!publicKey || !privateKey) return Response.json({ error: "Push is not configured on the server." }, { status: 503 });
+      webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:support@zorivo.in", publicKey, privateKey);
+      await webpush.sendNotification(rows[0].subscription, JSON.stringify({ title: "Pakki Baat Admin", body: "Test notification from Pakki Baat Admin - if you see this, push is working.", url: "/admin", notificationTag: "admin-push-test" }), { TTL: 300, urgency: "high" });
+      return Response.json({ ok: true });
+    } catch (error) {
+      console.error("Admin test push failed", error);
+      return Response.json({ error: "Could not send test notification. Check this device's notification settings or enable push again." }, { status: 503 });
+    }
+  }
   const subscription = body?.subscription;
   if (typeof subscription?.endpoint !== "string" || subscription.endpoint.length > 2048 ||
       !subscription.endpoint.startsWith("https://") ||

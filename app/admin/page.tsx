@@ -1,7 +1,7 @@
 "use client";
 import {FormEvent,useEffect,useRef,useState} from "react";import "./admin.css";
 import {adminInstallInstructions,useAdminInstall} from "./use-admin-install";
-import AdminAlerts from "./alerts";
+import AdminAlerts, {AdminUpdateBanner} from "./alerts";
 import {dismissNewUser,readSeenUsers} from "./seen-users";
 import SelectMenu from "../select-menu";
 const ADMIN_NAME="Sarrah Bharmal";
@@ -54,7 +54,7 @@ export default function AdminPage(){
  {!standalone&&<button type="button" className="admin-icon" aria-label="Install app" disabled={installing} onClick={()=>{if(canInstall)void install();else setInstallHelpOpen(true)}}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m-4-4 4 4 4-4M5 16v4h14v-4"/></svg></button>}
  <button className="admin-icon" aria-label="Refresh" disabled={!!busy} onClick={()=>void refresh()}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 5v6h-6M20 11a8 8 0 1 0 0 5"/></svg></button>
  <button className="admin-icon" aria-label="Lock" disabled={!!busy} onClick={logout}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></button>
- </div></header><div className="admin-wrap">
+ </div></header><div className="admin-wrap"><AdminUpdateBanner/>
  <nav className="admin-tabs" aria-label="Owner panel sections">{["home","payments","users","alerts"].map(item=><button key={item} aria-current={tab===item?"page":undefined} onClick={()=>switchTab(item)}>{item[0].toUpperCase()+item.slice(1)}{item==="payments"&&pendingCount>0&&<span className="admin-badge">{pendingCount}</span>}{item==="users"&&unseenCount>0&&<span className="admin-badge" aria-label={`${unseenCount} new ${unseenCount===1?"user":"users"}`}>{unseenCount}</span>}</button>)}</nav>
  <div className="admin-heading"><div><span>OWNER DASHBOARD</span><h1>Business control centre</h1><p>Users, subscriptions, payments and usage in one place.</p></div></div>
  <div className="admin-feedback" role="status" aria-live="polite" aria-atomic="true">{(error||toast)&&<div className={error?"admin-error admin-banner":"admin-toast"}>{error||toast}</div>}</div>
