@@ -1,10 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+const title = "Pakki Baat — Your little business assistant";
+const description = "Customer conversations, clear commitments and a little less remembering. For bakers, tutors, boutique owners and other small businesses.";
+
 export const metadata: Metadata = {
-  title: "Pakki Baat — Your little business assistant",
-  description:
-    "Customer conversations, clear commitments and a little less remembering. For bakers, tutors, boutique owners and other small businesses.",
+  metadataBase: new URL("https://pakki-baat.in"),
+  title,
+  description,
+  keywords: ["hisaab app", "customer ledger app", "small business udhaar tracker", "baki hisaab app", "business bookkeeping India"],
+  alternates: { canonical: "https://pakki-baat.in" },
+  openGraph: { title, description, url: "https://pakki-baat.in", siteName: "Pakki Baat", images: ["/opengraph-image"], locale: "en_IN", type: "website" },
+  twitter: { card: "summary_large_image", title, description, images: ["/opengraph-image"] },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -28,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "WebSite", name: "Pakki Baat", url: "https://pakki-baat.in", description }).replace(/</g, "\\u003c") }} />
         <script id="admin-install-capture" dangerouslySetInnerHTML={{ __html: `
       (function () {
         if (window.__pbAdminInstallCapture) return;
