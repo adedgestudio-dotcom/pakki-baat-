@@ -202,7 +202,15 @@ export default function AdminAlerts() {
     <div className="admin-card-head"><div><span>ALERTS</span><h2>Push notifications</h2><p className="admin-help">Choose which admin events send a push. These settings apply to every admin device.</p></div></div>
     <div className="admin-alerts-device"><strong>This device</strong><button type="button" disabled={busy || !settings} onClick={() => void (enabledHere ? disable() : enable())}>{enabledHere ? "Disable push" : "Enable push"}</button></div>
     {enabledHere && <button type="button" disabled={busy} onClick={() => void sendTest()}>Send test notification</button>}
-    <div className="admin-alerts-list">{kinds.map(kind => <label key={kind}><span>{labels[kind]}</span><input type="checkbox" checked={settings?.[kind] ?? true} disabled={!settings || busy} onChange={() => void toggle(kind)} /></label>)}</div>
+    <div className="admin-alerts-list">{kinds.map(kind => <label key={kind}><span>{labels[kind]}</span><button type="button" className={settings?.[kind] ?? true ? "setting-switch is-on" : "setting-switch"} role="switch" aria-label={labels[kind]} aria-checked={settings?.[kind] ?? true} disabled={!settings || busy} onClick={() => void toggle(kind)}><span /></button></label>)}</div>
+    <style jsx>{`
+      .admin-alerts-list .setting-switch { width: 44px; height: 26px; padding: 3px; flex: 0 0 44px; border: 0; border-radius: 999px; background: #46584f; cursor: pointer; transition: background 0.18s ease; }
+      .admin-alerts-list .setting-switch > span { width: 20px; height: 20px; display: block; border-radius: 50%; background: #fff; box-shadow: 0 2px 7px rgba(0, 0, 0, 0.16); transition: transform 0.18s ease; }
+      .admin-alerts-list .setting-switch.is-on { background: var(--green); }
+      .admin-alerts-list .setting-switch.is-on > span { transform: translateX(18px); }
+      .admin-alerts-list .setting-switch:disabled { opacity: 0.5; cursor: not-allowed; }
+      .admin-alerts-list .setting-switch:focus-visible { outline: 2px solid #8fd0bf; outline-offset: 3px; }
+    `}</style>
     {message && <p role="status" className="admin-help">{message}</p>}
     {!settings && message && <button type="button" onClick={() => { setMessage(""); setLoadAttempt(value => value + 1); }}>Retry loading alert settings</button>}
   </section>;
