@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { version } from "@/package.json";
 import { releaseDiffers } from "@/lib/release-update";
 
@@ -88,11 +88,19 @@ export default function AdminAlerts() {
   const [publicKey, setPublicKey] = useState("");
   const [enabledHere, setEnabledHere] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const deviceChange = useRef(0);
   const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
+    if (message?.type !== "success") return;
+    const timer = window.setTimeout(() => setMessage(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  useEffect(() => {
     let cancelled = false;
+    const initialDeviceChange = deviceChange.current;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -110,10 +118,12 @@ export default function AdminAlerts() {
         setPublicKey(data.publicKey);
         if ("serviceWorker" in navigator) {
           const registration = await withTimeout(navigator.serviceWorker.getRegistration("/admin"), "Checking the admin worker took too long. Please try again.");
-          if (!cancelled && registration?.active?.scriptURL.endsWith("/admin-sw.js"))
-            setEnabledHere(Boolean(await withTimeout(registration.pushManager.getSubscription(), "Checking push subscription took too long. Please try again.")));
+          if (registration?.active?.scriptURL.endsWith("/admin-sw.js")) {
+            const subscription = await withTimeout(registration.pushManager.getSubscription(), "Checking push subscription took too long. Please try again.");
+            if (!cancelled && initialDeviceChange === deviceChange.current) setEnabledHere(Boolean(subscription));
+          }
         }
-      } catch (error) { if (!cancelled) setMessage(error instanceof TypeError ? "Could not connect to load alert settings. Please try again." : error instanceof Error ? error.message : "Could not load alert settings. Please try again."); }
+      } catch (error) { if (!cancelled && initialDeviceChange === deviceChange.current) setMessage({ type: "error", text: error instanceof TypeError ? "Could not connect to load alert settings. Please try again." : error instanceof Error ? error.message : "Could not load alert settings. Please try again." }); }
       finally { controller.abort(); }
     })();
     return () => { cancelled = true; controller.abort(); };
@@ -122,18 +132,19 @@ export default function AdminAlerts() {
   async function toggle(kind: Kind) {
     if (!settings || busy) return;
     const next = !settings[kind];
-    setBusy(true); setMessage("");
+    setBusy(true); setMessage(null);
     try {
       const response = await fetch("/api/admin/alerts", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, enabled: next }) });
       if (!response.ok) throw new Error("Could not save alert setting.");
       setSettings({ ...settings, [kind]: next });
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save alert setting."); }
+    } catch (error) { setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not save alert setting." }); }
     finally { setBusy(false); }
   }
 
   async function enable() {
     if (busy) return;
-    setBusy(true); setMessage("");
+    deviceChange.current++;
+    setBusy(true); setMessage(null);
     let step = "checking support";
     const standalone = typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches;
     try {
@@ -156,17 +167,17 @@ export default function AdminAlerts() {
         response = await withTimeout(fetch("/api/admin/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: subscription.toJSON() }), signal: controller.signal }), "Saving this device took too long. Please try again.");
       } finally { controller.abort(); }
       if (!response.ok) throw new Error("Could not save this device for alerts.");
-      setEnabledHere(true); setMessage("Push alerts enabled on this device.");
+      setEnabledHere(true); setMessage({ type: "success", text: "Push alerts enabled on this device." });
     } catch (error) {
       console.error("Admin push enable failed", { step, standalone, error });
-      setMessage((error instanceof Error ? error.message : "Could not enable push alerts.") + (standalone ? ` (Installed app: ${step}.)` : ""));
+      setMessage({ type: "error", text: (error instanceof Error ? error.message : "Could not enable push alerts.") + (standalone ? ` (Installed app: ${step}.)` : "") });
     }
     finally { setBusy(false); }
   }
 
   async function sendTest() {
     if (busy) return;
-    setBusy(true); setMessage("");
+    setBusy(true); setMessage(null);
     const controller = new AbortController();
     try {
       const registration = await withTimeout(navigator.serviceWorker.getRegistration("/admin"), "Checking the admin worker took too long.");
@@ -176,14 +187,15 @@ export default function AdminAlerts() {
       const response = await withTimeout(fetch("/api/admin/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ test: true, endpoint: subscription.endpoint }), signal: controller.signal }), "Sending the test notification took too long.");
       const result = await withTimeout(response.json(), "Reading the test result took too long.");
       if (!response.ok) throw new Error(result.error || "Could not send test notification.");
-      setMessage("Test notification sent. Check this device for the notification.");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not send test notification."); }
+      setMessage({ type: "success", text: "Test notification sent. Check this device for the notification." });
+    } catch (error) { setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not send test notification." }); }
     finally { controller.abort(); setBusy(false); }
   }
 
   async function disable() {
     if (busy) return;
-    setBusy(true); setMessage("");
+    deviceChange.current++;
+    setBusy(true); setMessage(null);
     try {
       const registration = await navigator.serviceWorker.getRegistration("/admin");
       const subscription = registration?.active?.scriptURL.endsWith("/admin-sw.js")
@@ -193,8 +205,8 @@ export default function AdminAlerts() {
         if (!response.ok) throw new Error("Could not remove this device.");
         await subscription.unsubscribe();
       }
-      setEnabledHere(false); setMessage("Push alerts disabled on this device.");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not disable push alerts."); }
+      setEnabledHere(false); setMessage({ type: "success", text: "Push alerts disabled on this device." });
+    } catch (error) { setMessage({ type: "error", text: error instanceof Error ? error.message : "Could not disable push alerts." }); }
     finally { setBusy(false); }
   }
 
@@ -210,8 +222,11 @@ export default function AdminAlerts() {
       .admin-alerts-list .setting-switch.is-on > span { transform: translateX(18px); }
       .admin-alerts-list .setting-switch:disabled { opacity: 0.5; cursor: not-allowed; }
       .admin-alerts-list .setting-switch:focus-visible { outline: 2px solid #8fd0bf; outline-offset: 3px; }
+      .admin-alert-feedback { margin: 0; padding: 12px 14px; border: 1px solid; border-radius: 10px; font-size: 13px; font-weight: 700; line-height: 1.4; }
+      .admin-alert-feedback.success { background: #244d43; border-color: #397f6d; color: #c3f1e2; }
+      .admin-alert-feedback.error { background: #563736; border-color: #754b48; color: #ffcbc7; }
     `}</style>
-    {message && <p role="status" className="admin-help">{message}</p>}
-    {!settings && message && <button type="button" onClick={() => { setMessage(""); setLoadAttempt(value => value + 1); }}>Retry loading alert settings</button>}
+    {message && <p role={message.type === "error" ? "alert" : "status"} className={`admin-alert-feedback ${message.type}`}>{message.text}</p>}
+    {!settings && message && <button type="button" onClick={() => { setMessage(null); setLoadAttempt(value => value + 1); }}>Retry loading alert settings</button>}
   </section>;
 }
