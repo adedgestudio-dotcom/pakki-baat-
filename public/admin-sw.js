@@ -1,6 +1,6 @@
 // Bump this version when deploying an admin worker update. Admin pages and
 // scripts are network-only; this worker deliberately has no app-shell cache.
-const ADMIN_WORKER_VERSION = "pakki-baat-admin-20261117-1";
+const ADMIN_WORKER_VERSION = "pakki-baat-admin-20261121-1";
 self.addEventListener("install", event => { event.waitUntil(self.skipWaiting()); });
 self.addEventListener("activate", event => { event.waitUntil(self.clients.claim()); });
 self.addEventListener("fetch", event => {
@@ -18,7 +18,7 @@ self.addEventListener("push", event => {
   event.waitUntil(self.registration.showNotification(title, {
     body: typeof data.body === "string" ? data.body : "",
     icon: "/admin-icon-192.png",
-    badge: "/admin-icon-192.png",
+    badge: "/admin-notification-badge.png",
     tag: typeof data.notificationTag === "string" ? data.notificationTag : "admin-alert",
     data: { url },
   }));
