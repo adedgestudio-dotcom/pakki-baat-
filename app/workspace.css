@@ -216,6 +216,21 @@ strong {
   border: 1px solid var(--line);
   border-radius: 12px;
 }
+.workspace > div,
+.account > div {
+  min-width: 0;
+  flex: 1;
+}
+.workspace strong,
+.workspace small,
+.account strong,
+.account small,
+.top-account-info strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .workspace strong {
   font-size: 12px;
   display: block;
