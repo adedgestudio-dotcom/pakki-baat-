@@ -6,6 +6,7 @@ const description = "Customer conversations, clear commitments and a little less
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pakki-baat.in"),
+  verification: { google: "nTSRabv9FVXWR7xecz5R2ounXWksFspv5kh1zDv1LJ0" },
   title,
   description,
   keywords: ["hisaab app", "customer ledger app", "small business udhaar tracker", "baki hisaab app", "business bookkeeping India"],
